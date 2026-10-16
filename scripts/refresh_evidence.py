@@ -21,7 +21,7 @@ import check_specs  # noqa: E402
 
 EVIDENCE = {
     "AC-R13-01": [
-        "python3 -B scripts/check_specs.py --task specs/tasks/{LATEST_TASK} --base {PREV_COMMIT}",
+        "python3 -B scripts/check_specs.py --task specs/tasks/{LATEST_TASK}.json --base {PREV_COMMIT}",
     ],
     "AC-R14-02": [
         "python3 -B -m unittest tests.test_benchmark_metrics tests.test_release_gate",
