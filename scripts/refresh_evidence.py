@@ -44,6 +44,10 @@ def _refresh_all_verified(fp):
             p = ROOT / ev_path
             ev = json.loads(p.read_text(encoding="utf-8"))
             ev["source_fingerprint"] = fp
+            if ev["command"][0] in ("claude", "codex"):
+                # 客户端真实会话记录：不盲重跑（会话不可重放），仅对齐指纹；工件保持原哈希
+                p.write_text(json.dumps(ev, ensure_ascii=False, indent=1), encoding="utf-8")
+                continue
             rr = subprocess.run(ev["command"], cwd=ROOT, capture_output=True, text=True)
             log = "out/verification/_rerun-%s.log" % cid
             (ROOT / log).write_text(rr.stdout + rr.stderr, encoding="utf-8")

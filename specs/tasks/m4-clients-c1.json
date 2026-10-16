@@ -14,7 +14,8 @@
     "AC-F1-C1-02"
   ],
   "files": [
-    "docs/clients.md"
+    "docs/clients.md",
+    "scripts/refresh_evidence.py"
   ],
   "test_files": [
     "docs/clients.md"
