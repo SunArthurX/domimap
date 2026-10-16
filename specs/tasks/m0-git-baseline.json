@@ -11,7 +11,8 @@
     "CHANGELOG.md",
     "CONTRIBUTING.md",
     "THIRD_PARTY_NOTICES.md",
-    "docs/known-defects.md"
+    "docs/known-defects.md",
+    "tests/test_governance.py"
   ],
-  "test_files": []
+  "test_files": ["tests/test_governance.py"]
 }
