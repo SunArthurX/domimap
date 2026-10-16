@@ -117,9 +117,94 @@ def run_cbm():
     print("cbm done %ds" % (time.time() - t0))
 
 
+
+
+GF_VENV = open("/tmp/dm-gf-venv.txt").read().strip().split("=", 1)[-1]
+CG_BIN = os.path.join(COMP, "codegraph", "dist", "bin", "codegraph.js")
+
+
+def _family_dirs():
+    m = json.load(open(os.path.join(ROOT, "out", "benchmark", "corpus-manifest.json")))
+    return {r["family"]: r.get("root") or os.path.join(os.path.expanduser("~/work/dev-corpus"), r["family"])
+            for r in m["families"] if r["split"] == "confirm"}
+
+
+def run_graphify():
+    """graphify：逐族建图（update），按题路由到族目录查询。"""
+    import re as _re
+    import subprocess as _sp
+    import tempfile as _tf
+    import shutil as _sh
+    gf = os.path.join(GF_VENV, "bin", "graphify")
+    fams = _family_dirs()
+    work = _tf.mkdtemp(prefix="dm-formal-gf-")
+    t0 = time.time()
+    famdir = {}
+    for fam, root in fams.items():
+        d = os.path.join(work, fam)
+        _sh.copytree(root, d, ignore_dangling_symlinks=True)
+        _sp.run([gf, "update", "."], cwd=d, check=True, capture_output=True, text=True)
+        famdir[fam] = d
+    print("graphify indexed %d families in %ds" % (len(famdir), time.time() - t0))
+    recs = []
+    default = next(iter(famdir.values()))
+    for q in questions():
+        d = famdir.get(q["family"].split("+")[0], default)
+        r = _sp.run([gf, "query", q["query"]], cwd=d, capture_output=True, text=True, timeout=60)
+        paths = []
+        for mm in _re.findall(r"src=(\S+)", r.stdout):
+            p = mm.split("/")[-1] if "/" not in mm else mm
+            if p and p not in paths:
+                paths.append(p)
+        recs.append({"id": q["id"], "status": "ok" if paths else "empty", "top5": paths[:5]})
+    write("graphify", recs, {"secs": round(time.time() - t0, 1),
+                             "seed_note": "确定性系统；逐族独立图（跨族题路由至首族）"})
+    print("graphify done %ds" % (time.time() - t0))
+
+
+def run_codegraph():
+    """codegraph：逐族 init+index，按题路由 explore。"""
+    import re as _re
+    import subprocess as _sp
+    import tempfile as _tf
+    import shutil as _sh
+    fams = _family_dirs()
+    work = _tf.mkdtemp(prefix="dm-formal-cg-")
+    t0 = time.time()
+    famdir = {}
+    for fam, root in fams.items():
+        d = os.path.join(work, fam)
+        _sh.copytree(root, d, ignore_dangling_symlinks=True)
+        _sp.run(["node", CG_BIN, "init"], cwd=d, check=True, capture_output=True, text=True)
+        _sp.run(["node", CG_BIN, "index", "."], cwd=d, check=True, capture_output=True, text=True)
+        famdir[fam] = d
+    print("codegraph indexed %d families in %ds" % (len(famdir), time.time() - t0))
+    recs = []
+    default = next(iter(famdir.values()))
+    for q in questions():
+        d = famdir.get(q["family"].split("+")[0], default)
+        r = _sp.run(["node", CG_BIN, "explore", q["query"]], cwd=d,
+                    capture_output=True, text=True, timeout=60)
+        paths = []
+        for mm in _re.findall(r"[\w./-]+\.[A-Za-z]{2,4}:\d+", r.stdout):
+            p = mm.rsplit(":", 1)[0]
+            if os.path.isabs(p):
+                p = os.path.relpath(p, d)
+            if p not in paths:
+                paths.append(p)
+        recs.append({"id": q["id"], "status": "ok" if paths else "empty", "top5": paths[:5]})
+    write("codegraph", recs, {"secs": round(time.time() - t0, 1),
+                              "seed_note": "确定性系统；逐族独立索引（跨族题路由至首族）"})
+    print("codegraph done %ds" % (time.time() - t0))
+
+
 if __name__ == "__main__":
     which = sys.argv[1] if len(sys.argv) > 1 else "domimap"
     if which == "domimap":
         run_domimap()
     elif which == "cbm":
         run_cbm()
+    elif which == "graphify":
+        run_graphify()
+    elif which == "codegraph":
+        run_codegraph()
