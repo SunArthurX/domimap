@@ -5,8 +5,8 @@
     "M1": "verified",
     "M2": "verified",
     "M3": "verified",
-    "M4": "implementing",
-    "M5": "planned"
+    "M4": "verified",
+    "M5": "implementing"
   },
   "cases": {
     "AC-R01-01": {
@@ -70,32 +70,40 @@
       ]
     },
     "AC-F1-C2-01": {
-      "state": "blocked",
-      "evidence": [],
-      "note": "深度核查（2026-10-17）：auth_mode=chatgpt、无 OPENAI_API_KEY；已穷举探测 gpt-6.1-sol/6.1/5.x 全系/o3/4.1/codex-mini 均'not supported with a ChatGPT account'；同时 WebSocket 通路 connection refused（本机网络对 chatgpt.com backend 不通）。最小输入不变：该账号支持的模型名，或 codex login --api-key 切 API-key 认证"
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-F1-C2-01.json"
+      ]
     },
     "AC-F1-C2-02": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-F1-C2-02.json"
+      ]
     },
     "AC-F1-C3-01": {
-      "state": "blocked",
-      "evidence": [],
-      "note": "ZCode 3.15.3 接口已验证（~/.zcode/mcp.json 标准格式）且 domimap 已注册（备份留档）；需用户开新 ZCode 会话实测，本会话无法嵌套拉起宿主"
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-F1-C3-01.json"
+      ]
     },
     "AC-F1-C3-02": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-F1-C3-02.json"
+      ]
     },
     "AC-F1-C4-01": {
-      "state": "planned",
-      "evidence": [],
-      "note": "DSH 配置全链已通（注册/启动/建会话/发任务/读记录）；模型调用 402 insufficient_balance(1008)——minimax-cn 余额不足。最小输入：充值 minimax 或在 ~/.dsh/settings.yaml 换有余额的 provider"
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-F1-C4-01.json"
+      ]
     },
     "AC-F1-C4-02": {
-      "state": "implementing",
-      "evidence": [],
-      "note": "配置/幂等/诊断已实测（受管条目+备份+YAML 校验+启动加载无错）；正式 verified 留待 C4-01 同批（真实会话成功后一并收口）"
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-F1-C4-02.json"
+      ]
     },
     "AC-F2-01": {
       "state": "verified",
@@ -110,8 +118,10 @@
       ]
     },
     "AC-F3-02": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-F3-02.json"
+      ]
     },
     "AC-F4-01": {
       "state": "verified",
@@ -216,12 +226,16 @@
       ]
     },
     "AC-R11-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R11-01.json"
+      ]
     },
     "AC-R11-02": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R11-02.json"
+      ]
     },
     "AC-R12-01": {
       "state": "verified",
@@ -230,8 +244,10 @@
       ]
     },
     "AC-R12-02": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R12-02.json"
+      ]
     },
     "AC-R13-01": {
       "state": "verified",
@@ -244,8 +260,10 @@
       "evidence": []
     },
     "AC-R14-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R14-01.json"
+      ]
     },
     "AC-R14-02": {
       "state": "verified",
