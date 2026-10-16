@@ -256,7 +256,8 @@ class Graph:
         return dict(agg)
 
     # ---------- 影响面 ----------
-    def impact(self, name, depth=2):
+    def impact(self, name, depth=2, max_nodes=None):
+        """反向影响面。max_nodes 在遍历中执行（达到即停，非先算全量再截断）。"""
         start = [n for n in self.nodes.values() if name.lower() in n["id"].lower()]
         seen, frontier, out = set(), set(start and [n["id"] for n in start] or []), []
         for _ in range(depth):
@@ -266,6 +267,8 @@ class Graph:
                     if e["src"] not in seen:
                         seen.add(e["src"]); nxt.add(e["src"])
                         out.append((self.nodes[e["src"]], e["kind"], self.nodes[nid]))
+                        if max_nodes is not None and len(out) >= max_nodes:
+                            return start, out
             frontier = nxt
         return start, out
 

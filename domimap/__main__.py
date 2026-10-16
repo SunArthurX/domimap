@@ -74,7 +74,13 @@ def cmd_query(args):
     seeds = load_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
     r = Searcher(g, cache_path=args.graph + ".idx.json").query(
         args.text, top_k=args.top, domain=args.domain, seeds=seeds)
-    print(r["text"])
+    if getattr(args, "json", False):
+        import json as _j
+        print(_j.dumps({"seeds": [{"id": n["id"], "kind": n["kind"], "name": n["name"],
+                                   "file": n["file"]} for n in r["seeds"]],
+                        "refused": r.get("refused", False)}, ensure_ascii=False))
+    else:
+        print(r["text"])
     if r.get("refused"):
         sys.exit(3)  # 退出码契约（graphify 范式）：3=无匹配
 
@@ -116,6 +122,11 @@ def cmd_review(args):
             f.write("- [ ] `%s` --%s(%s)--> `%s`  prov=%s\n" %
                     (e["src"], e["kind"], e["conf"], e["dst"], e["prov"]))
     print("导出 %d 条待审边 → %s" % (len(amb), p))
+
+def cmd_ui(args):
+    """本地只读搜索/证据阅读页面（仅回环；与 CLI/MCP 同一 Searcher 语义）。"""
+    from domimap.ui import serve_forever
+    serve_forever(args.graph, args.host, args.port)
 
 def cmd_serve(args):
     from domimap.mcp import serve
@@ -177,12 +188,15 @@ def main():
     sc = with_g(sub.add_parser("scenario")); sc.add_argument("kind", choices=["req", "trb"])
     sc.add_argument("text"); sc.set_defaults(fn=cmd_scenario)
     q = with_g(sub.add_parser("query")); q.add_argument("text"); q.add_argument("--top", type=int, default=6)
+    q.add_argument("--json", action="store_true")
     q.add_argument("--domain"); q.set_defaults(fn=cmd_query)
     with_g(sub.add_parser("domain")).set_defaults(fn=cmd_domain)
     i = with_g(sub.add_parser("impact")); i.add_argument("symbol"); i.add_argument("--depth", type=int, default=2)
     i.set_defaults(fn=cmd_impact)
     r = with_g(sub.add_parser("review")); r.add_argument("-o", "--out", default="out/review"); r.set_defaults(fn=cmd_review)
     with_g(sub.add_parser("serve")).set_defaults(fn=cmd_serve)
+    u = with_g(sub.add_parser("ui")); u.add_argument("--host", default="127.0.0.1")
+    u.add_argument("--port", type=int, default=8765); u.set_defaults(fn=cmd_ui)
     rd = sub.add_parser("read"); rd.add_argument("ev_id")
     rd.add_argument("--store", default=os.path.join("out", "store.db")); rd.set_defaults(fn=cmd_read)
     args = ap.parse_args()

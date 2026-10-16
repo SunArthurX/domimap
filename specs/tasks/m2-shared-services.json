@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "m2-shared-services",
+  "state": "verified",
+  "spec": "specs/tasks/m2-shared-services.md",
+  "requirements": [
+    "R04",
+    "F2"
+  ],
+  "acceptance_cases": [
+    "AC-F2-01",
+    "AC-R04-02"
+  ],
+  "files": [
+    "domimap/mcp.py",
+    "domimap/__main__.py",
+    "domimap/ui.py",
+    "tests/test_m2_shared.py",
+    "domimap/graph.py"
+  ],
+  "test_files": [
+    "tests/test_m2_shared.py"
+  ]
+}

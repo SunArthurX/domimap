@@ -22,6 +22,8 @@ TOOLS = [
          "required": ["symbol"]}},
     {"name": "kg_doc_search", "description": "文档检索：在 1000+ 项目文档中全文检索",
      "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
+    {"name": "kg_read", "description": "按证据 ID 读固化片段（源修改/删除后仍为旧版本）",
+     "inputSchema": {"type": "object", "properties": {"ev_id": {"type": "string"}}, "required": ["ev_id"]}},
     {"name": "kg_troubleshoot", "description": "问题排查：症状关键字 → 图+文档双路召回 → 疑点排序（静态边，观测边待接入）",
      "inputSchema": {"type": "object", "properties": {"symptom": {"type": "string"}}, "required": ["symptom"]}},
 ]
@@ -37,6 +39,8 @@ class Server:
         from .search import Searcher
         self.g = Graph.load(self.graph_path)
         self.s = Searcher(self.g, cache_path=self.graph_path + ".idx.json")
+        from .graph import load_seeds
+        self.seeds = load_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
         try:
             self._mtime = os.stat(self.graph_path).st_mtime_ns
         except OSError:
@@ -54,8 +58,24 @@ class Server:
         self._fresh()
         if name == "kg_explore":
             r = self.s.query(args["query"], top_k=int(args.get("top_k", 6)),
-                             domain=args.get("domain"))
+                             domain=args.get("domain"), seeds=self.seeds)
             return r["text"]
+        if name == "kg_read":
+            import json as _j
+            from .store import EvidenceStore
+            db = os.path.join(os.path.dirname(os.path.abspath(self.graph_path)), "store.db")
+            if not os.path.exists(db):
+                return _j.dumps({"available": False, "reason": "无证据库（先 build 工作区）"}, ensure_ascii=False)
+            store = EvidenceStore(db)
+            row = store.db.execute("SELECT sid FROM evidence WHERE ev_id=?",
+                                   (args["ev_id"],)).fetchone()
+            if not row:
+                store.close()
+                return _j.dumps({"available": False, "reason": "证据 ID 不存在"}, ensure_ascii=False)
+            ev = store.evidence_for_source(row[0])
+            store.close()
+            meta = {k: v for k, v in ev.items() if k != "text"}
+            return _j.dumps(meta, ensure_ascii=False) + "\n--- 片段 ---\n" + (ev.get("text") or "")
         if name == "kg_domain_map":
             m = self.g.domain_map()
             lines = []
@@ -71,14 +91,19 @@ class Server:
                              "; ".join("%s ← %s" % (x["table"], "+".join(x["domains"])) for x in sh))
             return "\n".join(lines) or "（空图）"
         if name == "kg_impact":
-            start, deps = self.g.impact(args["symbol"], int(args.get("depth", 2)))
+            import json as _j
+            max_nodes = int(args.get("max_nodes", 200))  # 预算在遍历中执行
+            start, deps = self.g.impact(args["symbol"], int(args.get("depth", 2)),
+                                        max_nodes=max_nodes + 1)
             if not start:
                 return "无匹配符号"
-            out = ["受影响分析 起点:"] + ["- [%s] %s @%s" % (n["kind"], n["name"], n["file"]) for n in start]
-            out.append("反向依赖（谁会受影响）:")
-            for src, kind, dst in deps[:30]:
-                out.append("- %s --%s--> %s" % (src["name"], kind, dst["name"]))
-            return "\n".join(out) if deps else "\n".join(out) + "\n（无反向依赖）"
+            partial = len(deps) > max_nodes
+            deps = deps[:max_nodes]
+            return _j.dumps({
+                "start": ["[%s] %s @%s" % (n["kind"], n["name"], n["file"]) for n in start],
+                "deps": ["%s --%s--> %s" % (a["name"], b, c["name"]) for a, b, c in deps[:max_nodes]],
+                "total_deps": len(deps), "truncated": max(0, len(deps) - max_nodes),
+                "partial": partial}, ensure_ascii=False)
         if name == "kg_doc_search":
             r = self.s.query(args["query"], top_k=8, expand=False, budget=6000)
             docs = [n for n in r["seeds"] if n["kind"] == "Doc"]

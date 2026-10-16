@@ -3,7 +3,7 @@
   "milestones": {
     "M0": "verified",
     "M1": "verified",
-    "M2": "planned",
+    "M2": "implementing",
     "M3": "planned",
     "M4": "planned",
     "M5": "planned"
@@ -48,8 +48,10 @@
       "evidence": []
     },
     "AC-R04-02": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R04-02.json"
+      ]
     },
     "AC-F1-C1-01": {
       "state": "planned",
@@ -84,8 +86,10 @@
       "evidence": []
     },
     "AC-F2-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-F2-01.json"
+      ]
     },
     "AC-F3-01": {
       "state": "planned",
