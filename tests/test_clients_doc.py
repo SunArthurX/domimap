@@ -26,7 +26,7 @@ class TestClientsDoc(unittest.TestCase):
     def test_pyproject_has_mcp_extra(self):
         with open(os.path.join(ROOT, "pyproject.toml"), encoding="utf-8") as f:
             text = f.read()
-        self.assertRegex(text, r'(?m)^mcp\s*=\s*\[\s*"mcp>=
+        self.assertRegex(text, r'(?m)^mcp\s*=\s*\[\s*"mcp>=')
 
 if __name__ == "__main__":
     unittest.main()
