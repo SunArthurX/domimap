@@ -147,6 +147,12 @@ class KnowledgeStore:
                     "SELECT revision, snapshot, created FROM revisions WHERE note_id=? "
                     "ORDER BY revision", (note_id,))]
 
+    def list_active(self):
+        return [{"note_id": r[0], "body": r[1], "updated": r[2], "claims": self._claims_of(r[0])}
+                for r in self.db.execute(
+                    "SELECT note_id, body, updated FROM knowledge WHERE status='active' "
+                    "ORDER BY updated DESC")]
+
     def count(self):
         return self.db.execute("SELECT COUNT(*) FROM knowledge").fetchone()[0]
 

@@ -18,11 +18,37 @@ class Searcher:
         self.docs = {}
         self.df = Counter()
         self.N = 0
+        self.extra = {}  # 人工知识等非机器图节点（R05：重建不丢，查询时挂载）
         if cache_path and self._load_cache(cache_path):
-            return
-        self._build()
-        if cache_path and getattr(g, "sig", None):
-            self._save_cache(cache_path)
+            pass
+        else:
+            self._build()
+            if cache_path and getattr(g, "sig", None):
+                self._save_cache(cache_path)
+
+    def _node(self, nid):
+        return self.g.nodes.get(nid) or self.extra[nid]
+
+    def attach_knowledge(self, kb):
+        """把 KnowledgeStore 的 active 笔记挂进检索索引（kind=Knowledge，Doc 路参与）。"""
+        for note in kb.list_active():
+            nid = "kn:" + note["note_id"]
+            self.extra[nid] = {"id": nid, "kind": "Knowledge",
+                               "name": note["body"][:48], "file": "knowledge:" + note["note_id"],
+                               "meta": {"text": note["body"], "claims": note["claims"]},
+                               "conf": "HUMAN", "prov": "knowledge"}
+            self._index_one(nid)
+
+    def _index_one(self, nid):
+        n = self.extra[nid]
+        tks = tokenize(self._node_text(n))
+        self.docs[nid] = Counter(tks)
+        for t in set(tks):
+            self.index[t].add(nid)
+        self.df[t] = len(self.index[t]) if False else self.df  # df 惰性重算见下
+        for t in set(tks):
+            self.df[t] = len(self.index[t])
+        self.N += 1
 
     def _sig_ok(self, d):
         sig = getattr(self.g, "sig", None)
@@ -144,7 +170,7 @@ class Searcher:
             cand |= self.index.get(t, set())
         scored = []
         for nid in cand:
-            n = self.g.nodes[nid]
+            n = self._node(nid)
             if domain and n["meta"].get("domain") != domain:
                 continue
             if as_of is not None:
@@ -174,25 +200,25 @@ class Searcher:
         now_ref = as_of if as_of is not None else __import__("time").time()
 
         def time_note(nid):
-            fs = self.g.nodes[nid]["meta"].get("first_seen")
+            fs = self._node(nid)["meta"].get("first_seen")
             if not fs:
                 return "日期未知：不衰减（按最早资格处理）"
             age_days = max(0.0, (now_ref - fs) / 86400.0)
             decay = 0.5 ** (age_days / 365.0)
             return "age=%.0fd decay=%.3f" % (age_days, decay)
 
-        scored = [(s * (0.5 ** (max(0.0, (now_ref - (self.g.nodes[nid]["meta"].get("first_seen") or now_ref)) / 86400.0) / 365.0)), nid)
+        scored = [(s * (0.5 ** (max(0.0, (now_ref - (self._node(nid)["meta"].get("first_seen") or now_ref)) / 86400.0) / 365.0)), nid)
                   for s, nid in scored]
         scored.sort(reverse=True)
         # R04-01：①来源家族去重（同文件 ≤2 席，防 seeds/README 型噪声霸榜）②分路融合（Doc 保底）
         fam, capped = {}, []
         for s, nid in scored:
-            f = self.g.nodes[nid]["file"]
+            f = self._node(nid)["file"]
             fam[f] = fam.get(f, 0) + 1
             if fam[f] <= 2:
                 capped.append((s, nid))
-        doc_hits = [x for x in capped if self.g.nodes[x[1]]["kind"] == "Doc"]
-        code_hits = [x for x in capped if self.g.nodes[x[1]]["kind"] != "Doc"]
+        doc_hits = [x for x in capped if self._node(x[1])["kind"] in ("Doc", "Knowledge")]
+        code_hits = [x for x in capped if self._node(x[1])["kind"] not in ("Doc", "Knowledge")]
         want_docs = min(2, len(doc_hits)) if doc_hits else 0
         merged = (code_hits[:top_k - want_docs] + doc_hits[:want_docs]) if want_docs else capped[:top_k]
         seeds = merged[:top_k]
@@ -200,8 +226,9 @@ class Searcher:
         seen = set(seed_ids)
         lines = ["## 种子命中（词法 IDF）"]
         for s, nid in seeds:
-            self.g.nodes[nid]["time_note"] = time_note(nid)
-            lines.append(self._render(self.g.nodes[nid], s))
+            node = self._node(nid)
+            node["time_note"] = time_note(nid)
+            lines.append(self._render(node, s))
         exp_lines = []
         if expand:
             lines.append("\n## 一跳扩展（图结构）")
@@ -220,7 +247,7 @@ class Searcher:
             for key in ("解析失败", "旧格式", "大小上限", "越界", "lambda", "未解析"):
                 if key in s.get("reason", ""):
                     reasons[key] = reasons.get(key, 0) + 1
-        return {"seeds": [self.g.nodes[n] for n in seed_ids], "expanded_count": len(exp_lines),
+        return {"seeds": [self._node(n) for n in seed_ids], "expanded_count": len(exp_lines),
                 "text": out, "refused": False,
                 "coverage": {"files_scanned": self.coverage.get("files_scanned"),
                              "skipped": len(self.coverage.get("skipped") or []), "reasons": reasons}}
