@@ -10,6 +10,12 @@ import os
 import sys
 
 WORKSPACE = os.path.expanduser("~/work/dev-corpus")
+# 文档丰富的外部来源族（补 document_reasoning 类配额；刻意排除业务目录，遵守用户边界）
+EXTRA_CONFIRM = [os.path.expanduser(p) for p in (
+    "EXTERNAL_FAMILY_PATH",
+    "EXTERNAL_FAMILY_PATH",
+    "EXTERNAL_FAMILY_PATH",
+    "EXTERNAL_FAMILY_PATH")]
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))), "out", "benchmark", "corpus-manifest.json")
 DEV_FAMILIES = 20  # 其余入 confirm（≥25），族级隔离
@@ -35,12 +41,17 @@ def family_signature(root):
 def main():
     fams = sorted(d for d in os.listdir(WORKSPACE)
                   if os.path.isdir(os.path.join(WORKSPACE, d)) and not d.startswith("."))
+    extra = [os.path.basename(os.path.normpath(p)) for p in EXTRA_CONFIRM]
     rows = []
     for i, name in enumerate(fams):
         sig, files = family_signature(os.path.join(WORKSPACE, name))
         rows.append({"family": name,
                      "split": "dev" if i < DEV_FAMILIES else "confirm",
                      "files": files, "content_sha256": sig})
+    for name, root in zip(extra, EXTRA_CONFIRM):
+        sig, files = family_signature(root)
+        rows.append({"family": name, "split": "confirm",
+                     "files": files, "content_sha256": sig, "root": root})
     dev = [r for r in rows if r["split"] == "dev"]
     conf = [r for r in rows if r["split"] == "confirm"]
     manifest = {"schema": "domimap.corpus.v1", "workspace": WORKSPACE,

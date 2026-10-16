@@ -17,6 +17,7 @@ MANIFEST = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
 
 
 def scan_family(root):
+    ROOT_DIR = root
     """原始事实抽取：mapper 表/路由/类名/文档标题/变更日志条目（grep 级，无产品依赖）。"""
     tables, routes, classes, docs, changelogs, readmes, fresh = {}, {}, [], [], [], [], []
     for dirpath, dirnames, filenames in os.walk(root):
@@ -61,8 +62,11 @@ def scan_family(root):
 
 def main():
     manifest = json.load(open(MANIFEST, encoding="utf-8"))
-    fams = [r["family"] for r in manifest["families"] if r["split"] == "confirm"]
-    facts = {f: scan_family(os.path.join(WS, f)) for f in fams}
+    conf = [r for r in manifest["families"] if r["split"] == "confirm"]
+    fams = [r["family"] for r in conf]
+    roots = {r["family"]: r.get("root") or os.path.join(WS, r["family"]) for r in conf}
+    facts = {f: scan_family(roots[f]) for f in fams}
+    DOC_RICH = {"deepseek-harness", "saber-harness", "westpath", "zhiyu"}
     qs = []
     # 1) code_location：表/路由/类 → 定义文件（每族最多 8 题）
     for f, d in facts.items():
@@ -87,7 +91,8 @@ def main():
                        "gold_paths": sorted({x[1] for x in lst}), "answerable": True})
     # 3) document_reasoning：文档标题/README → 文档文件（每族至多 6，凑足类配额）
     for f, d in facts.items():
-        docs = d["docs"][:6] or [(f + " README", r) for r in d["changelogs"][:1]]
+        cap = 16 if f in DOC_RICH else 6
+        docs = d["docs"][:cap] or [(f + " README", r) for r in d["changelogs"][:1]]
         for title, rel in docs:
             qs.append({"family": f, "category": "document_reasoning",
                        "query": title, "gold_paths": [rel], "answerable": True})
