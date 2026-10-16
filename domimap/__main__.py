@@ -118,9 +118,24 @@ def cmd_serve(args):
     from domimap.mcp import serve
     serve(args.graph)
 
+def cmd_read(args):
+    """按证据 ID 读固化片段（源修改/删除后仍为旧版本，AC-R02-01 消费面）。"""
+    from domimap.store import EvidenceStore
+    import json as _json
+    store = EvidenceStore(args.store)
+    row = store.db.execute("SELECT sid FROM evidence WHERE ev_id=?", (args.ev_id,)).fetchone()
+    if not row:
+        print("无此证据 ID"); sys.exit(4)
+    ev = store.evidence_for_source(row[0])
+    print(_json.dumps({k: v for k, v in ev.items() if k != "text"}, ensure_ascii=False, indent=1))
+    print("--- 片段 ---")
+    print(ev["text"] if ev.get("available") else "（不可用：%s）" % ev.get("reason"))
+
 def cmd_update(args):
     from domimap.batch import update
     g, cov, results = update(args.out)
+    if g is None and not results:
+        print("update: 该目录无 manifest（请先用 build --discover 建立工作区）"); sys.exit(5)
     for label, st in results:
         print("[update] %-28s %s" % (label, st))
     if g is not None:
@@ -165,6 +180,8 @@ def main():
     i.set_defaults(fn=cmd_impact)
     r = with_g(sub.add_parser("review")); r.add_argument("-o", "--out", default="out/review"); r.set_defaults(fn=cmd_review)
     with_g(sub.add_parser("serve")).set_defaults(fn=cmd_serve)
+    rd = sub.add_parser("read"); rd.add_argument("ev_id")
+    rd.add_argument("--store", default=os.path.join("out", "store.db")); rd.set_defaults(fn=cmd_read)
     args = ap.parse_args()
     args.fn(args)
 

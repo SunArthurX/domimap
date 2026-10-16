@@ -72,8 +72,48 @@ def scan_many(roots, jobs=8):
             merged["coverage"]["skipped"].extend(R["coverage"]["skipped"])
     return merged
 
+def _seeds_digest(path):
+    import hashlib
+    return hashlib.sha256(open(path, "rb").read()).hexdigest()
+
+def _publish(out_dir, g, roots):
+    """发布协议：捕获来源字节→发布不可变代→指针切换成功后复制 graph.json（兼容旧 CLI）。"""
+    import shutil as _sh
+    from .store import EvidenceStore
+    store = EvidenceStore(os.path.join(out_dir, "store.db"))
+    for root in roots:
+        label = os.path.basename(os.path.abspath(root))
+        for path, rel in lite_scan._walk(root):
+            try:
+                store.capture_source(label, label + "|" + rel, path, rel)
+            except (OSError, ValueError):
+                continue
+    rec = store.publish_graph(g)
+    store.set_seeds_digest(_seeds_digest(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "seeds.json")))
+    _sh.copyfile(rec["path"], os.path.join(out_dir, "graph.json"))
+    store.close()
+    return rec
+
+def _store_healthy(out_dir):
+    from .store import EvidenceStore
+    db = os.path.join(out_dir, "store.db")
+    if not os.path.exists(db):
+        return False
+    store = EvidenceStore(db)
+    try:
+        ok = store.active_generation() is not None and store.seeds_digest() == _seeds_digest(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
+        return ok
+    finally:
+        store.close()
+
 def build_many(roots, out_dir, jobs=8, force=False, merged_name=None):
-    """多仓构建：合并全局图 + 每仓 manifest（供 update 增量）。"""
+    """多仓构建：合并全局图 + 每仓 manifest（供 update 增量）。
+
+    no-op 条件（D1 修复）：全部仓 manifest 未变 且 active generation 完整 且 seeds 摘要一致；
+    图丢失/损坏/种子变化 → 重建，不误报 no-op。
+    """
     seeds = load_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
     manifests = {}
     results = []
@@ -88,6 +128,9 @@ def build_many(roots, out_dir, jobs=8, force=False, merged_name=None):
         manifests[label] = mpath
         results.append((label, "rebuild"))
     dirty = [r for r, st in results if st == "rebuild"]
+    if not dirty and not _store_healthy(out_dir):
+        dirty = list(roots)  # D1：manifest 未变但 active 代丢失/损坏或 seeds 变化 → 全量重建
+        results = [(os.path.basename(os.path.abspath(r)), "rebuild") for r in roots]
     if dirty:
         Rs = {}
         with ThreadPoolExecutor(max_workers=jobs) as ex:
@@ -117,7 +160,7 @@ def build_many(roots, out_dir, jobs=8, force=False, merged_name=None):
         g.build_from_records(merged, seeds)
         name = merged_name or os.path.basename(os.path.abspath(out_dir)) or "merged"
         os.makedirs(out_dir, exist_ok=True)
-        g.save(os.path.join(out_dir, "graph.json"))
+        _publish(out_dir, g, roots)
         with open(os.path.join(out_dir, "coverage.json"), "w", encoding="utf-8") as f:
             json.dump(merged["coverage"], f, ensure_ascii=False, indent=1)
         return g, merged["coverage"], results

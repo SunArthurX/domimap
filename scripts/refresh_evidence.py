@@ -68,6 +68,22 @@ def main():
     for name, e in (("AC-R13-01", e13), ("AC-R14-02", e14)):
         (ROOT / ("out/verification/%s.json" % name)).write_text(
             json.dumps(e, ensure_ascii=False, indent=1), encoding="utf-8")
+    # 通用刷新：其余 verified 案例——指纹对齐 + 重跑其 command + 追加新鲜工件
+    progress = json.loads((ROOT / "specs/progress.json").read_text(encoding="utf-8"))
+    for cid, state in progress["cases"].items():
+        if state["state"] != "verified" or cid in ("AC-R13-01", "AC-R14-02"):
+            continue
+        for ev_path in state["evidence"]:
+            p = ROOT / ev_path
+            ev = json.loads(p.read_text(encoding="utf-8"))
+            ev["source_fingerprint"] = fp
+            rr = subprocess.run(ev["command"], cwd=ROOT, capture_output=True, text=True)
+            log = "out/verification/_rerun-%s.log" % cid
+            (ROOT / log).write_text(rr.stdout + rr.stderr, encoding="utf-8")
+            if rr.returncode != 0:
+                print("RERUN FAILED:", cid, rr.stdout[-300:]); ok = False
+            ev["artifacts"] = [{"path": log, "sha256": hashlib.sha256((ROOT / log).read_bytes()).hexdigest()}]
+            p.write_text(json.dumps(ev, ensure_ascii=False, indent=1), encoding="utf-8")
     print("fingerprint=%s 证据已定稿" % fp[:16])
     sys.exit(0 if ok else 1)
 

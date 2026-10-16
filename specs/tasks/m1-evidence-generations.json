@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "m1-evidence-generations",
+  "state": "verified",
+  "spec": "specs/tasks/m1-evidence-generations.md",
+  "requirements": [
+    "R02",
+    "R03"
+  ],
+  "acceptance_cases": [
+    "AC-R02-01",
+    "AC-R03-01",
+    "AC-R03-02"
+  ],
+  "files": [
+    "domimap/store.py",
+    "domimap/batch.py",
+    "domimap/__main__.py",
+    "scripts/refresh_evidence.py",
+    "tests/test_evidence_store.py",
+    "docs/known-defects.md"
+  ],
+  "test_files": [
+    "tests/test_evidence_store.py"
+  ]
+}
