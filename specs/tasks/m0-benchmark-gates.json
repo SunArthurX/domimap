@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "m0-benchmark-gates",
+  "state": "verified",
+  "spec": "specs/tasks/m0-benchmark-gates.md",
+  "requirements": [
+    "R13",
+    "R14"
+  ],
+  "acceptance_cases": [
+    "AC-R14-02"
+  ],
+  "files": [
+    "tests/test_release_gate.py"
+  ],
+  "test_files": [
+    "tests/test_release_gate.py"
+  ]
+}

@@ -1,10 +1,15 @@
 {
   "schema_version": 1,
   "id": "m0-git-baseline",
-  "state": "implementing",
+  "state": "verified",
   "spec": "specs/tasks/m0-git-baseline.md",
-  "requirements": ["R11", "R13"],
-  "acceptance_cases": ["AC-R13-01"],
+  "requirements": [
+    "R11",
+    "R13"
+  ],
+  "acceptance_cases": [
+    "AC-R13-01"
+  ],
   "files": [
     "LICENSE",
     "SECURITY.md",
@@ -14,5 +19,7 @@
     "docs/known-defects.md",
     "tests/test_governance.py"
   ],
-  "test_files": ["tests/test_governance.py"]
+  "test_files": [
+    "tests/test_governance.py"
+  ]
 }

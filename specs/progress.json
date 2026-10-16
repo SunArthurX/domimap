@@ -170,8 +170,10 @@
       "evidence": []
     },
     "AC-R13-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R13-01.json"
+      ]
     },
     "AC-R13-02": {
       "state": "planned",
@@ -182,8 +184,10 @@
       "evidence": []
     },
     "AC-R14-02": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R14-02.json"
+      ]
     }
   }
 }
