@@ -201,6 +201,16 @@ class Searcher:
             return {"seeds": [], "expanded": [],
                     "text": "（诚实拒答：查询词覆盖率 %.0f%%，不足 %d%% 阈值。已查 %d 节点；建议换关键词/先 build。）" % (cov * 100, min_cov * 100, self.N),
                     "refused": True}
+        # 时新意图：查询含时间词时按 first_seen 近因加权（文件 mtime 为资格事实）
+        import re as _re0
+        fresh_query = bool(_re0.search(r"最新|最近|更新|变更|changelog|change", text, _re0.I))
+        if fresh_query:
+            fss = [self._node(nid)["meta"].get("first_seen") or 0.0 for _, nid in scored[:200]]
+            mx = max(fss) if fss else 0.0
+            mn = min(fss) if fss else 0.0
+            if mx > mn:
+                scored = [(s * (0.5 + 0.5 * ((self._node(nid)["meta"].get("first_seen") or 0.0) - mn)
+                                / (mx - mn)), nid) for s, nid in scored]
         # 时间衰减：仅作用于排序（资格已筛完），逐条 explain（F4）
         now_ref = as_of if as_of is not None else __import__("time").time()
 
@@ -224,7 +234,11 @@ class Searcher:
                 capped.append((s, nid))
         doc_hits = [x for x in capped if self._node(x[1])["kind"] in ("Doc", "Knowledge")]
         code_hits = [x for x in capped if self._node(x[1])["kind"] not in ("Doc", "Knowledge")]
-        want_docs = min(2, len(doc_hits)) if doc_hits else 0
+        # 文档路配额自适应：候选头部文档浓度高（文档型查询）时扩到 3 席，防代码挤占
+        head = capped[:10]
+        doc_dense = len(doc_hits) >= 3 and sum(1 for _, nid in head
+                                               if self._node(nid)["kind"] in ("Doc", "Knowledge")) >= 4
+        want_docs = min(3 if doc_dense else 2, len(doc_hits)) if doc_hits else 0
         merged = (code_hits[:top_k - want_docs] + doc_hits[:want_docs]) if want_docs else capped[:top_k]
         seeds = merged[:top_k]
         seed_ids = [nid for _, nid in seeds]

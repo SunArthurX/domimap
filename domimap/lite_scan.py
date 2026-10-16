@@ -125,7 +125,12 @@ def scan_repo(root, repo_label=None):
                         k, _, v = ln.partition(":")
                         if k.strip() in ("valid_until", "superseded_by"):
                             meta[k.strip()] = v.strip()
-            R["docs"].append({"path": rel, "text": text[:200000], "service": svc, **meta})
+            try:
+                mt = os.stat(path).st_mtime
+            except OSError:
+                mt = 0.0
+            R["docs"].append({"path": rel, "text": text[:200000], "service": svc,
+                              "mtime": mt, **meta})
         elif ext in (".docx", ".pdf"):
             ex = extract_document(path)
             if ex["status"] == "ok":
