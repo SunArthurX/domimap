@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "m2-context-time",
+  "state": "verified",
+  "spec": "specs/tasks/m2-context-time.md",
+  "requirements": [
+    "F3",
+    "F4"
+  ],
+  "acceptance_cases": [
+    "AC-F3-01",
+    "AC-F4-01"
+  ],
+  "files": [
+    "domimap/context.py",
+    "domimap/store.py",
+    "domimap/search.py",
+    "domimap/batch.py",
+    "tests/test_m2_context_time.py",
+    "scripts/check_specs.py"
+  ],
+  "test_files": [
+    "tests/test_m2_context_time.py"
+  ]
+}

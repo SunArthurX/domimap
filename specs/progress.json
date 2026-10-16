@@ -92,15 +92,17 @@
       ]
     },
     "AC-F3-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-F3-01.json"
+      ]
     },
     "AC-F3-02": {
       "state": "planned",
       "evidence": []
     },
     "AC-F4-01": {
-      "state": "planned",
+      "state": "implementing",
       "evidence": []
     },
     "AC-F4-02": {

@@ -45,7 +45,9 @@ def source_fingerprint(root=ROOT):
     result = hashlib.sha256()
     for path in sorted(set(paths)):
         rel = path.relative_to(root).as_posix()
-        if "__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"} or rel.startswith("docs/archive/") or rel == "specs/progress.json":
+        if ("__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"}
+                or rel.startswith("docs/archive/") or rel == "specs/progress.json"
+                or rel.startswith("tests/out")):  # 测试生成物（含时间戳的 graph.json）不进指纹
             continue
         result.update(rel.encode("utf-8") + b"\0" + digest(path).encode("ascii") + b"\n")
     return result.hexdigest()

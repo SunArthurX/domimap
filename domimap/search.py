@@ -105,7 +105,9 @@ class Searcher:
                 out.update(seg[i:i+2] for i in range(len(seg) - 1))
         return out
 
-    def query(self, text, top_k=6, expand=True, budget=3800, domain=None, min_cov=0.3, seeds=None):
+    def query(self, text, top_k=6, expand=True, budget=3800, domain=None, min_cov=0.3, seeds=None,
+              as_of=None):
+        """as_of（epoch 秒）给定时时先做资格筛选：first_seen 晚于 as_of 的节点不进候选（F4）。"""
         """seeds（领域种子词表）提供时启用查询期领域扩展：命中域的关键词拼入检索，
         解决纯中文查询与 latin 词面节点的词法鸿沟（与 scenario_req 同一公共语义）。"""
         if seeds:
@@ -144,6 +146,8 @@ class Searcher:
             n = self.g.nodes[nid]
             if domain and n["meta"].get("domain") != domain:
                 continue
+            if as_of is not None and n["meta"].get("first_seen", 0) > as_of:
+                continue  # 资格先于排序：晚于 as_of 的资料不参与
             s = self._score(qt, nid) * cov * cov
             if s > 0:
                 scored.append((s, nid))

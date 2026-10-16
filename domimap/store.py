@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS generations (
   gen_id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT, sha256 TEXT,
   nodes INTEGER, edges INTEGER, status TEXT, created REAL);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS content_first_seen (
+  sha256 TEXT PRIMARY KEY, first_seen REAL);  -- 内容身份的最早出现时间：复制/重存不刷新（F4）
 CREATE INDEX IF NOT EXISTS idx_evidence_sid ON evidence(sid);
 """
 
@@ -57,9 +59,17 @@ class EvidenceStore:
                 f.flush()
                 os.fsync(f.fileno())
             os.replace(tmp, blob)
-        self.db.execute(
-            "INSERT OR REPLACE INTO sources VALUES (?,?,?,?,?,?)",
-            (sid, repo, rel, sha, len(raw), time.time()))
+        now = time.time()
+        with self.db:
+            self.db.execute(
+                "INSERT INTO content_first_seen VALUES (?,?) ON CONFLICT(sha256) DO UPDATE SET "
+                "first_seen=min(first_seen, excluded.first_seen)", (sha, now))
+            first_seen = self.db.execute(
+                "SELECT first_seen FROM content_first_seen WHERE sha256=?", (sha,)).fetchone()[0]
+            self.db.execute(
+                "INSERT INTO sources VALUES (?,?,?,?,?,?) ON CONFLICT(sid) DO UPDATE SET "
+                "rel=excluded.rel, sha256=excluded.sha256, size=excluded.size",
+                (sid, repo, rel, sha, len(raw), first_seen))
         ev_id = "ev:" + sha[:20]
         try:
             text = raw.decode("utf-8", errors="replace")
