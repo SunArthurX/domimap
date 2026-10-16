@@ -105,7 +105,21 @@ class Searcher:
                 out.update(seg[i:i+2] for i in range(len(seg) - 1))
         return out
 
-    def query(self, text, top_k=6, expand=True, budget=3800, domain=None, min_cov=0.3):
+    def query(self, text, top_k=6, expand=True, budget=3800, domain=None, min_cov=0.3, seeds=None):
+        """seeds（领域种子词表）提供时启用查询期领域扩展：命中域的关键词拼入检索，
+        解决纯中文查询与 latin 词面节点的词法鸿沟（与 scenario_req 同一公共语义）。"""
+        if seeds:
+            from .scenario import classify
+            doms = [d for d in classify(text, seeds)]
+            ext = []
+            for d in doms:
+                ext.extend(seeds[d].get("keywords", [])[:6])
+                ext.extend(seeds[d].get("prefixes", [])[:4])
+            for cn, en in (seeds.get("_synonyms") or {}).items():
+                if cn in text:
+                    ext.extend(en)   # 中英词法桥：域无关查询同义词
+            if ext:
+                text = text + " " + " ".join(ext)
         qt = tokenize(text)
         qset = set(qt)
         if not qset:

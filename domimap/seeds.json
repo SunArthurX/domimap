@@ -1,22 +1,121 @@
 {
-  "订单域": {
-    "keywords": ["order", "trade", "cart", "订单", "履约", "发货", "oms"],
-    "prefixes": ["t_order", "t_trade", "t_cart", "trade-service"]
-  },
-  "商品域": {
-    "keywords": ["item", "sku", "spu", "product", "listing", "商品", "刊登", "刊登"],
-    "prefixes": ["t_item", "t_product", "item-service"]
-  },
-  "库存域": {
-    "keywords": ["stock", "inventory", "wms", "库存", "占用"],
-    "prefixes": ["t_stock", "stock-service"]
-  },
-  "物流域": {
-    "keywords": ["logistics", "track", "waybill", "物流", "轨迹", "承运"],
-    "prefixes": ["t_track", "t_logistics", "logistics-service"]
-  },
-  "财务域": {
-    "keywords": ["finance", "settlement", "对账", "结算", "财务", "科目"],
-    "prefixes": ["t_fin", "finance-service"]
-  }
+ "订单域": {
+  "keywords": [
+   "order",
+   "trade",
+   "cart",
+   "订单",
+   "履约",
+   "发货",
+   "oms"
+  ],
+  "prefixes": [
+   "t_order",
+   "t_trade",
+   "t_cart",
+   "trade-service"
+  ]
+ },
+ "商品域": {
+  "keywords": [
+   "item",
+   "sku",
+   "spu",
+   "product",
+   "listing",
+   "商品",
+   "刊登",
+   "刊登"
+  ],
+  "prefixes": [
+   "t_item",
+   "t_product",
+   "item-service"
+  ]
+ },
+ "库存域": {
+  "keywords": [
+   "stock",
+   "inventory",
+   "wms",
+   "库存",
+   "占用"
+  ],
+  "prefixes": [
+   "t_stock",
+   "stock-service"
+  ]
+ },
+ "物流域": {
+  "keywords": [
+   "logistics",
+   "track",
+   "waybill",
+   "物流",
+   "轨迹",
+   "承运"
+  ],
+  "prefixes": [
+   "t_track",
+   "t_logistics",
+   "logistics-service"
+  ]
+ },
+ "财务域": {
+  "keywords": [
+   "finance",
+   "settlement",
+   "对账",
+   "结算",
+   "财务",
+   "科目"
+  ],
+  "prefixes": [
+   "t_fin",
+   "finance-service"
+  ]
+ },
+ "_synonyms": {
+  "监听": [
+   "listener",
+   "listen",
+   "consumer"
+  ],
+  "同步": [
+   "sync"
+  ],
+  "价格": [
+   "price"
+  ],
+  "预警": [
+   "warn",
+   "alert"
+  ],
+  "消费": [
+   "consumer"
+  ],
+  "重试": [
+   "retry"
+  ],
+  "订单": [
+   "order"
+  ],
+  "库存": [
+   "stock",
+   "inventory"
+  ],
+  "改价": [
+   "price",
+   "updateprice"
+  ],
+  "查询": [
+   "query",
+   "select"
+  ],
+  "写入": [
+   "write",
+   "insert",
+   "update"
+  ]
+ }
 }

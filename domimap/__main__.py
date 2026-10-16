@@ -70,7 +70,10 @@ def cmd_query(args):
     from domimap.graph import Graph
     from domimap.search import Searcher
     g = Graph.load(args.graph)
-    r = Searcher(g, cache_path=args.graph + ".idx.json").query(args.text, top_k=args.top, domain=args.domain)
+    from domimap.graph import load_seeds
+    seeds = load_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
+    r = Searcher(g, cache_path=args.graph + ".idx.json").query(
+        args.text, top_k=args.top, domain=args.domain, seeds=seeds)
     print(r["text"])
     if r.get("refused"):
         sys.exit(3)  # 退出码契约（graphify 范式）：3=无匹配

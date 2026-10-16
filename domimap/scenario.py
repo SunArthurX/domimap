@@ -14,6 +14,8 @@ def classify(text, seeds):
     units = Searcher._units(text)
     hits = Counter()
     for dom, spec in seeds.items():
+        if dom.startswith("_"):
+            continue
         kws = set()
         for kw in spec.get("keywords", []):
             kws.update(Searcher._units(kw))

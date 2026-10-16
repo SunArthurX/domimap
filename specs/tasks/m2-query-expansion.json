@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "m2-query-expansion",
+  "state": "implementing",
+  "spec": "specs/tasks/m2-query-expansion.md",
+  "requirements": [
+    "R04",
+    "F2"
+  ],
+  "acceptance_cases": [
+    "AC-F2-01"
+  ],
+  "files": [
+    "domimap/search.py",
+    "domimap/__main__.py",
+    "tests/test_m2_query.py",
+    "domimap/graph.py",
+    "domimap/scenario.py",
+    "domimap/seeds.json"
+  ],
+  "test_files": [
+    "tests/test_m2_query.py"
+  ]
+}

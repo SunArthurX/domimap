@@ -184,11 +184,15 @@ class Graph:
     def tag_domains(self, seeds, vote=True):
         dom_nodes = {}
         for dom, spec in seeds.items():
+            if dom.startswith("_"):
+                continue
             dom_nodes[dom] = self.add_node("dom:" + dom, "Domain", dom, "seeds.json",
                                            {"keywords": spec.get("keywords", [])}, conf="EXTRACTED", prov="seed")
         def match_dom(text):
             tl = text.lower()
             for dom, spec in seeds.items():
+                if dom.startswith("_"):
+                    continue
                 for kw in spec.get("keywords", []):
                     if kw.lower() in tl:
                         return dom
