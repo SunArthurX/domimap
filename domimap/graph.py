@@ -102,10 +102,12 @@ class Graph:
                     mid = "mth:%s:%s.%s#%s" % (m["service"], m["cls"], m["name"], m.get("argc", -1))
                     self.add_edge(mid, sid, "CALLS_SQL", s["conf"], s["prov"])
             for t in s["tables"]:
-                if "tbl:" + t in self.nodes:
-                    self.add_edge(sid, "tbl:" + t,
-                                  "WRITES" if s["verb"] in {"INSERT", "UPDATE", "DELETE"} else "READS",
-                                  s["conf"], s["prov"])
+                # 表节点缺失先建（真实语料常无 DDL：先连边后补节点会全丢，真实任务回放发现的排序缺陷）
+                self.add_node("tbl:" + t, "Table", t, s["file"], {"via": "mapper"},
+                              conf="EXTRACTED", prov="synth:mybatis")
+                self.add_edge(sid, "tbl:" + t,
+                              "WRITES" if s["verb"] in {"INSERT", "UPDATE", "DELETE"} else "READS",
+                              s["conf"], s["prov"])
         # MyBatis 表也补进 Table 节点（DDL 未覆盖时）
         for s in R["sqlstmts"]:
             for t in s["tables"]:

@@ -182,8 +182,10 @@
       "evidence": []
     },
     "AC-R12-01": {
-      "state": "implementing",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R12-01.json"
+      ]
     },
     "AC-R12-02": {
       "state": "planned",

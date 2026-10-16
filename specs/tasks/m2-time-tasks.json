@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "m2-time-tasks",
-  "state": "implementing",
+  "state": "verified",
   "spec": "specs/tasks/m2-time-tasks.md",
   "requirements": [
     "F4",
@@ -18,7 +18,8 @@
     "domimap/mcp.py",
     "tests/test_m2_f4.py",
     "benchmarks/real_tasks/tasks.json",
-    "domimap/graph.py"
+    "domimap/graph.py",
+    "benchmarks/real_tasks/run.py"
   ],
   "test_files": [
     "tests/test_m2_f4.py"

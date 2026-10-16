@@ -60,3 +60,17 @@ class TestExploreEvidenceIds(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMyBatisBridgeNoDDL(unittest.TestCase):
+    def test_mapper_only_corpus_still_links_tables(self):
+        tmp = tempfile.mkdtemp(prefix="dm-noddl-")
+        ws = os.path.join(tmp, "m")
+        os.makedirs(os.path.join(ws, "mapper"))
+        open(os.path.join(ws, "mapper", "A.xml"), "w").write(
+            '<mapper namespace="com.x.AMapper"><update id="up">UPDATE real_t SET a=1</update></mapper>')
+        R = ls.scan_repo(ws, repo_label="m")
+        g = Graph(); g.build_from_records(R, load_seeds(SEEDS))
+        self.assertIn("tbl:real_t", g.nodes, "无 DDL 时 mapper 表必须建节点")
+        self.assertTrue(any(e["kind"] == "WRITES" and e["dst"] == "tbl:real_t" for e in g.edges),
+                        "无 DDL 时 WRITES 边不得丢失（真实语料缺陷回归）")

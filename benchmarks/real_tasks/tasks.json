@@ -1,0 +1,74 @@
+{
+ "schema": "domimap.realtasks.v1",
+ "corpus": "~/work/dev-corpus (45 repos, 真实工作区)",
+ "tasks": [
+  {
+   "id": "rt-bean_operate_r",
+   "query": "BEAN_OPERATE_RECORD",
+   "gold_paths": [
+    "pop-market-center-dao/src/main/resources/sqlmap/bean/BeanOperateRecord.xml"
+   ],
+   "check": "auto"
+  },
+  {
+   "id": "rt-arealimit_task",
+   "query": "AREALIMIT_TASK",
+   "gold_paths": [
+    "pop-admin-ware-dao/src/main/resources/sqlmap/DeliveryTask.xml"
+   ],
+   "check": "auto"
+  },
+  {
+   "id": "rt-bank_account_i",
+   "query": "BANK_ACCOUNT_INFO",
+   "gold_paths": [
+    "pop-vender-center-dao/src/main/resources/sqlmap/BankAccountInfo.xml"
+   ],
+   "check": "auto"
+  },
+  {
+   "id": "rt-bargain_activi",
+   "query": "BARGAIN_ACTIVITY",
+   "gold_paths": [
+    "pop-market-center-dao/src/main/resources/sqlmap/bargain/BargainReport.xml"
+   ],
+   "check": "auto"
+  },
+  {
+   "id": "rt-baitiao_activi",
+   "query": "BAITIAO_ACTIVITY",
+   "gold_paths": [
+    "pop-market-center-dao-incubation/src/main/resources/sqlmap/baitiao/BaitiaoActivity.xml"
+   ],
+   "check": "auto"
+  },
+  {
+   "id": "rt-bean_account",
+   "query": "BEAN_ACCOUNT",
+   "gold_paths": [
+    "pop-market-center-dao/src/main/resources/sqlmap/bean/BeanAccount.xml"
+   ],
+   "check": "auto"
+  },
+  {
+   "id": "rt-cn-price",
+   "query": "商品价格 修改",
+   "check": "manual"
+  },
+  {
+   "id": "rt-cn-stock",
+   "query": "库存 预警 消费",
+   "check": "manual"
+  },
+  {
+   "id": "rt-svc-babel",
+   "query": "babel 服务 职责",
+   "check": "manual"
+  },
+  {
+   "id": "rt-cn-refund",
+   "query": "订单 退款 流程",
+   "check": "manual"
+  }
+ ]
+}
