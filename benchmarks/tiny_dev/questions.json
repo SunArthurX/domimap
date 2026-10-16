@@ -1,0 +1,12 @@
+{
+  "schema": "domimap.tinydev.v1",
+  "note": "tiny dev spike：仅验证五系统适配路径与评分器连通，不进入任何正式指标（见 DATA_LAYOUT.md）",
+  "corpus": "tests/fixtures/mini（合成夹具，公开无敏感）",
+  "questions": [
+    {"id": "q1", "query": "price_version", "gold_paths": ["db/schema.sql"]},
+    {"id": "q2", "query": "订单改价 防并发", "gold_paths": ["docs/改价需求PRD.md", "order-service/src/main/java/com/example/trade/OrderPriceService.java"]},
+    {"id": "q3", "query": "OrderMapper updatePrice", "gold_paths": ["order-service/src/main/resources/mappers/OrderMapper.xml", "order-service/src/main/java/com/example/trade/OrderMapper.java"]},
+    {"id": "q4", "query": "trade-price-changed", "gold_paths": ["order-service/src/main/java/com/example/trade/OrderPriceService.java", "item-service/src/main/java/com/example/item/PriceSyncListener.java"]},
+    {"id": "q5", "query": "价格同步监听", "gold_paths": ["item-service/src/main/java/com/example/item/PriceSyncListener.java"]}
+  ]
+}

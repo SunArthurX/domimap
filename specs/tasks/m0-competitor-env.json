@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "m0-competitor-env",
+  "state": "verified",
+  "spec": "specs/tasks/m0-competitor-env.md",
+  "requirements": [
+    "R14"
+  ],
+  "acceptance_cases": [
+    "AC-R14-02"
+  ],
+  "files": [
+    "benchmarks/env/competitors.md",
+    "benchmarks/DATA_LAYOUT.md",
+    "benchmarks/tiny_dev/questions.json",
+    "benchmarks/tiny_dev/runner.py"
+  ],
+  "test_files": [
+    "benchmarks/tiny_dev/runner.py"
+  ]
+}
