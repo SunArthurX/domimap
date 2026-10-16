@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+"""M5.2 正式冻结运行器：五系统 × 问题集（confirm-only 语料）→ 原始记录。
+
+- 记录：每题 top5 候选 + 状态（ok/refused）+ 系统版本 + 运行条件；不判分
+  （评分/裁决在 evaluate.py 与独立裁决环节）。
+- 种子：domimap/cbm/graphify/codegraph 为确定性系统（seed 不改变行为），
+  按 protocol 记录该限制并单次运行；claude-obsidian 适配器为接口边界（未运行）。
+"""
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+EXT = os.path.expanduser("~/work/dm-benchmark")
+QF = os.path.join(EXT, "questions.json")
+RUNS = os.path.join(EXT, "runs")
+
+
+def questions():
+    return json.load(open(QF, encoding="utf-8"))["questions"]
+
+
+def write(system, records, meta):
+    os.makedirs(RUNS, exist_ok=True)
+    p = os.path.join(RUNS, "%s.json" % system)
+    json.dump({"system": system, "schema": "domimap.formalrun.v1", "meta": meta,
+               "records": records}, open(p, "w"), ensure_ascii=False),
+
+
+def run_domimap():
+    sys.path.insert(0, ROOT)
+    from domimap.graph import Graph, load_seeds
+    from domimap.search import Searcher
+    qs = questions()
+    g = Graph.load(os.path.join(ROOT, "out", "confirm-idx", "graph.json"))
+    s = Searcher(g)
+    seeds = load_seeds(os.path.join(ROOT, "domimap", "seeds.json"))
+    t0 = time.time()
+    recs = []
+    for q in qs:
+        r = s.query(q["query"], top_k=5, expand=False, seeds=seeds)
+        recs.append({"id": q["id"], "status": "refused" if r.get("refused") else "ok",
+                     "top5": [n["file"] for n in r["seeds"][:5]]})
+    write("domimap", recs, {"secs": round(time.time() - t0, 1),
+                            "seed_note": "确定性系统：seed 不改变行为（protocol 限制记录）",
+                            "index": "out/confirm-idx（28 族 confirm-only）"})
+    print("domimap done %ds" % (time.time() - t0))
+
+
+
+
+COMP = os.path.expanduser("~/work/yingta/kb-tools-analysis/repos")
+
+
+def run_cbm():
+    """cbm：逐族 index_repository（全量模式），按题路由到族 project 查询。"""
+    import re as _re
+    import subprocess as _sp
+    binary = os.path.join(COMP, "codebase-memory-mcp", "build", "c", "codebase-memory-mcp")
+    m = json.load(open(os.path.join(ROOT, "out", "benchmark", "corpus-manifest.json")))
+    conf = {r["family"]: r.get("root") or os.path.join(os.path.expanduser("~/work/dev-corpus"), r["family"])
+            for r in m["families"] if r["split"] == "confirm"}
+    proc = _sp.Popen([binary], stdin=_sp.PIPE, stdout=_sp.PIPE,
+                     stderr=_sp.DEVNULL, text=True, bufsize=1)
+    rid = [0]
+
+    def call(method, params=None, notify=False):
+        rid[0] += 1
+        msg = {"jsonrpc": "2.0", "method": method}
+        if params:
+            msg["params"] = params
+        if not notify:
+            msg["id"] = rid[0]
+        proc.stdin.write(json.dumps(msg) + "\n")
+        proc.stdin.flush()
+        if notify:
+            return None
+        while True:
+            line = proc.stdout.readline()
+            if not line:
+                raise RuntimeError("cbm closed")
+            d = json.loads(line)
+            if d.get("id") == rid[0]:
+                return d.get("result") or d.get("error")
+
+    call("initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
+                        "clientInfo": {"name": "dm-formal", "version": "0"}})
+    call("notifications/initialized", notify=True)
+    fam2proj = {}
+    t0 = time.time()
+    for fam, root in conf.items():
+        r = call("tools/call", {"name": "index_repository", "arguments": {"repo_path": root}})
+        fam2proj[fam] = json.loads(r["content"][0]["text"])["project"]
+    print("cbm indexed %d families in %ds" % (len(fam2proj), time.time() - t0))
+    recs = []
+    default_proj = next(iter(fam2proj.values()))
+    for q in questions():
+        proj = fam2proj.get(q["family"].split("+")[0], default_proj)
+        r = call("tools/call", {"name": "search_graph",
+                                "arguments": {"query": q["query"], "project": proj}})
+        text = ""
+        if isinstance(r, dict):
+            text = "".join(c.get("text", "") for c in r.get("content", []))
+        paths = []
+        for mm in _re.findall(r"[\w./-]+\.[A-Za-z]{2,4}", text):
+            if mm not in paths:
+                paths.append(mm)
+        recs.append({"id": q["id"], "status": "ok" if paths else "empty",
+                     "top5": paths[:5]})
+    write("cbm", recs, {"secs": round(time.time() - t0, 1),
+                        "seed_note": "确定性系统；全量模式索引；跨族题路由至首族",
+                        "projects": fam2proj})
+    proc.stdin.close()
+    print("cbm done %ds" % (time.time() - t0))
+
+
+if __name__ == "__main__":
+    which = sys.argv[1] if len(sys.argv) > 1 else "domimap"
+    if which == "domimap":
+        run_domimap()
+    elif which == "cbm":
+        run_cbm()

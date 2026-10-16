@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "m5-formal-runs",
+  "state": "implementing",
+  "spec": "specs/tasks/m5-formal-runs.md",
+  "requirements": ["R14"],
+  "acceptance_cases": ["AC-R14-01"],
+  "files": ["benchmarks/formal_run.py", "benchmarks/corpus/generate_fact_gold.py"],
+  "test_files": ["benchmarks/formal_run.py"]
+}
