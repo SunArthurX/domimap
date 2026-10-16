@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "m5-confirm-batch",
+  "state": "implementing",
+  "spec": "specs/tasks/m5-confirm-batch.md",
+  "requirements": ["R14"],
+  "acceptance_cases": ["AC-R14-01"],
+  "files": ["benchmarks/corpus/generate_questions.py"],
+  "test_files": ["benchmarks/corpus/generate_questions.py"]
+}
