@@ -72,7 +72,7 @@
     "AC-F1-C2-01": {
       "state": "blocked",
       "evidence": [],
-      "note": "Codex 0.148.0 已注册 enabled+传输通；模型后端账号级封锁（所有尝试模型被 ChatGPT 账号拒）。最小输入：受支持模型名或 API-key 认证"
+      "note": "深度核查（2026-10-17）：auth_mode=chatgpt、无 OPENAI_API_KEY；已穷举探测 gpt-6.1-sol/6.1/5.x 全系/o3/4.1/codex-mini 均'not supported with a ChatGPT account'；同时 WebSocket 通路 connection refused（本机网络对 chatgpt.com backend 不通）。最小输入不变：该账号支持的模型名，或 codex login --api-key 切 API-key 认证"
     },
     "AC-F1-C2-02": {
       "state": "planned",
