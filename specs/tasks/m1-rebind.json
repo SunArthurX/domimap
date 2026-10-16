@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "m1-rebind",
+  "state": "verified",
+  "spec": "specs/tasks/m1-rebind.md",
+  "requirements": ["R01"],
+  "acceptance_cases": ["AC-R01-02"],
+  "files": ["domimap/source.py", "tests/test_identity.py"],
+  "test_files": ["tests/test_identity.py"]
+}

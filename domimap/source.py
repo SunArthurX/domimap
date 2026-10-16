@@ -26,6 +26,12 @@ class SourceRegistry:
         self.repos[rid] = {"label": label, "path": os.path.abspath(repo_path)}
         return rid
 
+    def rebind(self, rid, new_repo_path):
+        """来源根移动后的显式重绑：只改物理绑定，逻辑身份（sid）不变（AC-R01-02）。"""
+        if rid not in self.repos:
+            raise KeyError("未登记的 repo: %s" % rid)
+        self.repos[rid]["path"] = os.path.abspath(new_repo_path)
+
     # ---- 边界 ----
     def _inside(self, path):
         real = os.path.realpath(path)

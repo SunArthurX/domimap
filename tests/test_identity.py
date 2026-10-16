@@ -100,5 +100,33 @@ class TestSourceRegistry(unittest.TestCase):
             self.assertEqual(reg2.sources[s.sid].sha256, s.sha256, "逻辑 ID 与内容版本必须稳定")
             self.assertNotEqual(reg2.sources[s.sid].repo, "", "登记必须绑定 repo")
 
+class TestRebind(unittest.TestCase):
+    def test_move_then_rebind_keeps_logical_identity(self):
+        import hashlib as _h
+        with tempfile.TemporaryDirectory() as tmp:
+            base = os.path.join(tmp, "root")
+            repo = os.path.join(base, "repoA")
+            os.makedirs(repo, exist_ok=True)
+            f1 = os.path.join(repo, "a.txt")
+            with open(f1, "wb") as f:
+                f.write(b"payload")
+            reg = SourceRegistry(base)
+            rid = reg.register_root(repo, label="repoA")
+            s = reg.register(rid, f1)
+            db = os.path.join(tmp, "sources.json")
+            reg.save(db)
+            # 知识库/来源根移动
+            moved = os.path.join(tmp, "root-moved")
+            os.rename(base, moved)
+            reg2 = SourceRegistry.load(db)
+            with self.assertRaises(OutOfRootError):
+                reg2.register(rid, os.path.join(moved, "repoA", "a.txt"), )  # 未重绑：拒绝并提示
+            reg2.rebind(rid, os.path.join(moved, "repoA"))
+            reg2.root = os.path.realpath(moved)  # 库根随迁（登记根=库根的场景）
+            s2 = reg2.register(rid, os.path.join(moved, "repoA", "a.txt"))
+            self.assertEqual(s2.sid, s.sid, "重绑后逻辑身份不变（AC-R01-02）")
+            self.assertEqual(s2.sha256, s.sha256)
+
+
 if __name__ == "__main__":
     unittest.main()
