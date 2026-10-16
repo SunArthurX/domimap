@@ -37,7 +37,7 @@ def main(primary="domimap"):
     pv = hit_vector(load(primary), qs)
     clusters = sorted({v for v in fam.values() if v != "?"})
     results = {}
-    for baseline in ("cbm", "graphify", "codegraph"):
+    for baseline in ("cbm", "graphify", "codegraph", "claude_obsidian"):
         bv = hit_vector(load(baseline), qs)
         by_fam = {c: [pv, bv] for c in clusters}
         stats = {c: (sum(pv[i] for i in fam if fam[i] == c and i in pv),

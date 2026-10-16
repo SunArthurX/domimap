@@ -198,6 +198,81 @@ def run_codegraph():
     print("codegraph done %ds" % (time.time() - t0))
 
 
+
+
+CO_REPO = os.path.join(COMP, "claude-obsidian")
+
+
+def run_claude_obsidian():
+    """claude-obsidian 核心检索直调：setup-retrieve 建 BM25 索引 + retrieve.py 查询。
+
+    其原生形态为宿主技能会话；此处直调其核心检索脚本（BM25-only 确定性，
+    不用 ollama rerank），vault=各 confirm 族（wiki 页=族内文本文件）。
+    """
+    import re as _re
+    import shutil as _sh
+    import subprocess as _sp
+    import tempfile as _tf
+    setup = os.path.join(CO_REPO, "scripts", "setup-retrieve.sh")
+    retr = os.path.join(CO_REPO, "scripts", "retrieve.py")
+    fams = _family_dirs()
+    work = _tf.mkdtemp(prefix="dm-formal-co-")
+    t0 = time.time()
+    famvault = {}
+    for fam, root in fams.items():
+        vault = os.path.join(work, fam)
+        wiki = os.path.join(vault, "wiki", fam)
+        os.makedirs(wiki, exist_ok=True)
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d not in
+                           {".git", "node_modules", "target", "build", "__pycache__", ".idea"}]
+            for fn in filenames:
+                src = os.path.join(dirpath, fn)
+                rel = os.path.relpath(src, root)
+                dst = os.path.join(wiki, rel.replace("/", "__") + ".md")
+                try:
+                    if os.path.getsize(src) < 400000:
+                        _sh.copyfile(src, dst, follow_symlinks=False)
+                except OSError:
+                    pass
+        # 超大族截断：最多保留 800 页（按路径序，确定性），防索引爆炸
+        pages = sorted(os.listdir(wiki))
+        for extra in pages[800:]:
+            os.remove(os.path.join(wiki, extra))
+        # 大仓分片建索引：限制每族页数与单页大小，避免 setup-retrieve 超时
+        try:
+            _sp.run(["bash", setup, "--vault", vault, "--apply"], cwd=CO_REPO,
+                    capture_output=True, text=True, timeout=900)
+        except Exception:
+            pass  # 索引失败的族在查询时表现为空候选（如实记录）
+        famvault[fam] = vault
+    print("co vaults built %d in %ds" % (len(famvault), time.time() - t0))
+    recs = []
+    default = next(iter(famvault.values()))
+    for q in questions():
+        vault = famvault.get(q["family"].split("+")[0], default)
+        r = _sp.run(["python3", retr, "--vault", vault, q["query"], "--no-rerank"],
+                    capture_output=True, text=True, timeout=120)
+        paths = []
+        try:
+            d = json.loads(r.stdout[r.stdout.index("{"):])
+            for c in d.get("candidates", []):
+                pp = c.get("page_path", "")
+                famname = q["family"].split("+")[0]
+                name = os.path.basename(pp)[:-3] if pp.endswith(".md") else os.path.basename(pp)
+                # 还原 族__rel（.md 后缀为我们添加）
+                name = name.replace("__", "/")
+                if name not in paths:
+                    paths.append(name)
+        except Exception:
+            pass
+        recs.append({"id": q["id"], "status": "ok" if paths else "empty", "top5": paths[:5]})
+    write("claude_obsidian", recs, {"secs": round(time.time() - t0, 1),
+                                    "adapter": "核心检索直调（BM25-only 确定性；原生形态为宿主技能会话）",
+                                    "seed_note": "确定性（BM25-only）"})
+    print("claude_obsidian done %ds" % (time.time() - t0))
+
+
 if __name__ == "__main__":
     which = sys.argv[1] if len(sys.argv) > 1 else "domimap"
     if which == "domimap":
@@ -208,3 +283,5 @@ if __name__ == "__main__":
         run_graphify()
     elif which == "codegraph":
         run_codegraph()
+    elif which == "claude_obsidian":
+        run_claude_obsidian()
