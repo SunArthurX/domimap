@@ -4,7 +4,7 @@
     "M0": "verified",
     "M1": "verified",
     "M2": "verified",
-    "M3": "implementing",
+    "M3": "verified",
     "M4": "planned",
     "M5": "planned"
   },
@@ -112,8 +112,10 @@
       ]
     },
     "AC-F4-02": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-F4-02.json"
+      ]
     },
     "AC-R05-01": {
       "state": "verified",
@@ -140,12 +142,16 @@
       ]
     },
     "AC-R07-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R07-01.json"
+      ]
     },
     "AC-R07-02": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R07-02.json"
+      ]
     },
     "AC-R07-03": {
       "state": "planned",

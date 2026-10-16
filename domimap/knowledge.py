@@ -222,14 +222,103 @@ class KnowledgeStore:
                             "DO UPDATE SET hits = hits + 1", (note_id,))
             self.db.commit()
 
+    # ---------- R07：备份/恢复/Markdown 互操作 ----------
+    def backup(self, out_dir):
+        """在线备份（SQLite backup API）+ manifest 计数。"""
+        os.makedirs(out_dir, exist_ok=True)
+        dst = os.path.join(out_dir, "kb.db")
+        target = sqlite3.connect(dst)
+        with self.db:
+            self.db.backup(target)
+        target.close()
+        rev = self.db.execute("SELECT COUNT(*) FROM revisions").fetchone()[0]
+        claims = self.db.execute("SELECT COUNT(*) FROM claims").fetchone()[0]
+        manifest = {"schema": "domimap.kbackup.v1", "notes": self.count(),
+                    "revisions": rev, "claims": claims, "created": time.time()}
+        with open(os.path.join(out_dir, "manifest.json"), "w", encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=1)
+        return manifest
+
+    @classmethod
+    def restore(cls, backup_dir, db_path):
+        """干净目录恢复：直接打开备份库（校验 manifest 计数）。"""
+        inst = cls(db_path)
+        m = json.load(open(os.path.join(backup_dir, "manifest.json"), encoding="utf-8"))
+        src = sqlite3.connect(os.path.join(backup_dir, "kb.db"))
+        with inst.db:
+            src.backup(inst.db)
+        src.close()
+        assert inst.count() == m["notes"], "恢复校验失败：notes"
+        return inst
+
+    def export_markdown(self, out_dir):
+        """active 笔记导出为 MD（front-matter: note_id/base_revision/status + claims）。"""
+        os.makedirs(out_dir, exist_ok=True)
+        paths = []
+        for n in self.list_active():
+            full = self.get(n["note_id"])
+            fm = ["---", "note_id: %s" % n["note_id"], "base_revision: %d" % full["revision"],
+                  "status: %s" % full["status"], "claims: %s" % json.dumps(
+                      full["claims"], ensure_ascii=False), "---", ""]
+            p = os.path.join(out_dir, n["note_id"].replace(":", "_") + ".md")
+            with open(p, "w", encoding="utf-8") as f:
+                f.write("\n".join(fm) + full["body"])
+            paths.append(p)
+        return paths
+
+    def import_markdown(self, path):
+        """显式导入：base_revision=当前 → amend 新修订；过期 → ConflictError（防覆盖）。"""
+        text = open(path, encoding="utf-8").read()
+        if not text.startswith("---"):
+            raise ValueError("缺少 front-matter")
+        meta, _, body = text.split("---", 2)[1], None, text.split("---", 2)[2].lstrip("\n")
+        fields = {}
+        for ln in meta.strip().split("\n"):
+            if ": " in ln:
+                k, _, v = ln.partition(": ")
+                fields[k.strip()] = v.strip()
+        note_id, base = fields["note_id"], int(fields["base_revision"])
+        cur = self.db.execute("SELECT revision FROM knowledge WHERE note_id=? AND status='active'",
+                              (note_id,)).fetchone()
+        if not cur:
+            raise ConflictError("笔记不存在或已撤回: %s" % note_id)
+        if cur[0] != base:
+            raise ConflictError("base_revision 过期：当前 %d ≠ 文件 %d" % (cur[0], base))
+        claims = json.loads(fields.get("claims", "[]")) or None
+        return self.amend(note_id, body=body, expected_revision=base, claims=claims)
+
+    def claims_with_flags(self, current_digests=None):
+        """检索面 claim 视图：依据已变且未绑定当前版本的 claim 标 stale（F4-02）。"""
+        out = {}
+        for n in self.list_active():
+            fl = []
+            for c in n["claims"]:
+                c = dict(c)
+                if current_digests is not None:
+                    c["stale"] = any(
+                        ev in current_digests and ev not in c.get("evidence", [])
+                        for ev in []) or self._claim_stale(n["note_id"], c, current_digests)
+                fl.append(c)
+            out[n["note_id"]] = fl
+        return out
+
+    def _claim_stale(self, note_id, claim, current):
+        bound = self.db.execute(
+            "SELECT sha FROM claim_bindings WHERE note_id=? AND claim_idx=?",
+            (note_id, claim.get("idx", 0))).fetchone()
+        for ev in claim.get("evidence", []):
+            if ev in current and bound and current[ev] != bound[0]:
+                return True
+        return False
+
     def count(self):
         return self.db.execute("SELECT COUNT(*) FROM knowledge").fetchone()[0]
 
     def _claims_of(self, note_id):
-        return [{"type": r[0], "statement": r[1], "evidence": json.loads(r[2] or "[]"),
-                 "scope": r[3], "state": r[4]}
+        return [{"idx": r[0], "type": r[1], "statement": r[2], "evidence": json.loads(r[3] or "[]"),
+                 "scope": r[4], "state": r[5]}
                 for r in self.db.execute(
-                    "SELECT type, statement, evidence, scope, state FROM claims "
+                    "SELECT idx, type, statement, evidence, scope, state FROM claims "
                     "WHERE note_id=? ORDER BY idx", (note_id,))]
 
     def _check_claims(self, claims):

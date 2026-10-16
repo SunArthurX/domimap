@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "m3-export-restore",
+  "state": "verified",
+  "spec": "specs/tasks/m3-export-restore.md",
+  "requirements": [
+    "R07",
+    "F4"
+  ],
+  "acceptance_cases": [
+    "AC-R07-01",
+    "AC-R07-02",
+    "AC-F4-02"
+  ],
+  "files": [
+    "domimap/knowledge.py",
+    "domimap/search.py",
+    "tests/test_m3_r07.py"
+  ],
+  "test_files": [
+    "tests/test_m3_r07.py"
+  ]
+}

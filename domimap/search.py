@@ -29,13 +29,18 @@ class Searcher:
     def _node(self, nid):
         return self.g.nodes.get(nid) or self.extra[nid]
 
-    def attach_knowledge(self, kb):
-        """把 KnowledgeStore 的 active 笔记挂进检索索引（kind=Knowledge，Doc 路参与）。"""
+    def attach_knowledge(self, kb, current_digests=None):
+        """把 KnowledgeStore 的 active 笔记挂进检索索引（kind=Knowledge，Doc 路参与）。
+
+        current_digests 提供时，依据已变且未绑定当前版本的 claim 标 stale（F4-02）。
+        """
+        flagged = kb.claims_with_flags(current_digests) if current_digests is not None else None
         for note in kb.list_active():
             nid = "kn:" + note["note_id"]
+            claims = flagged[note["note_id"]] if flagged else note["claims"]
             self.extra[nid] = {"id": nid, "kind": "Knowledge",
                                "name": note["body"][:48], "file": "knowledge:" + note["note_id"],
-                               "meta": {"text": note["body"], "claims": note["claims"]},
+                               "meta": {"text": note["body"], "claims": claims},
                                "conf": "HUMAN", "prov": "knowledge"}
             self._index_one(nid)
 
