@@ -1,0 +1,73 @@
+{
+  "date": "2026-10-16",
+  "task": "四项能力现状核对与计划补充",
+  "product_sources": {
+    "domimap/__init__.py": "a92744c861f712e53be61fc641ae47f7a645abde7a258b8881a0b395c9c07a55",
+    "domimap/__main__.py": "3453fc7b943b7e6602ff470ef1332b0d3ada346b6c6821e6164941e29cf89878",
+    "domimap/batch.py": "cf5a5e02f7f7cd17a4ce04137476a2cf1a18fc07a75a7b9fcdc7e3074067af58",
+    "domimap/graph.py": "3fcce9901cbb1af99e6560efb39d3b5ecc9fd74e0a91d4a92c4aa0594b5d88d2",
+    "domimap/lite_scan.py": "4d7e35587675c4f21117df06fc70b464f9602fab8cb465b4d15596ce6e7845b8",
+    "domimap/mcp.py": "7a38b1531966f8ef8ae6725d35ab402a6519c9f83211a743a34bd18b93d432b1",
+    "domimap/scenario.py": "3074d13135f99251fc61890dcb9379b280b976c297d76a45e43eb9d705cde8bc",
+    "domimap/search.py": "2c66e4e1d953aa1b922e806d050d278b18d645b85974ebcdde346f4d6478f352",
+    "domimap/tokenize.py": "28da57be89c6a3f90209cd2d9c091eb64650b71767a187fff07b5ebc2b34f90d"
+  },
+  "capability_status": {
+    "agent_quick_connect": {
+      "status": "partial",
+      "evidence": [
+        "domimap/mcp.py:TOOLS and serve",
+        "README.md:MCP example"
+      ],
+      "missing": [
+        "client-specific setup",
+        "four-client integration acceptance",
+        "instruction bootstrap"
+      ]
+    },
+    "manual_search": {
+      "status": "cli_available",
+      "evidence": [
+        "domimap/__main__.py:cmd_query",
+        "Searcher memory-only query of fixture price_version returned three matches"
+      ],
+      "missing": [
+        "interactive human search UI",
+        "structured output and complete source reader"
+      ]
+    },
+    "agents_and_soul": {
+      "status": "not_implemented_as_context",
+      "evidence": [
+        "lite_scan ingests .md as ordinary docs",
+        "no context/profile resolver in current modules"
+      ]
+    },
+    "temporal_decay": {
+      "status": "not_implemented",
+      "evidence": [
+        "search._score uses only lexical TF/IDF",
+        "mtime used for graph/index invalidation, not document aging"
+      ]
+    }
+  },
+  "completion_audit": {
+    "requirement_checks": {
+      "F1_four_clients_and_acceptance": true,
+      "F2_existing_search_and_human_interface": true,
+      "F3_lightweight_rules_and_persona": true,
+      "F4_decay_metadata_controls_and_tests": true,
+      "main_plan_routes_to_supplement": true,
+      "previous_review_dependency_fixed": true,
+      "previous_review_evidence_retention_fixed": true
+    },
+    "scope": "capability analysis and planning only; implementation remains pending",
+    "manual_search": "verified with fixture graph in memory; no cache output written",
+    "decay_formula_examples_and_monotonicity": "passed; design arithmetic only, not implemented search behavior",
+    "product_code_unchanged": true,
+    "local_document_links_and_fences": "passed",
+    "README_json_example": "parsed",
+    "authoritative_plan_version": "2026-10-16 third revision",
+    "historical_ten_round_evidence": "preserved; belongs to second revision"
+  }
+}

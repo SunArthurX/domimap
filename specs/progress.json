@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "milestones": {
+    "M0": "implementing",
+    "M1": "planned",
+    "M2": "planned",
+    "M3": "planned",
+    "M4": "planned",
+    "M5": "planned"
+  },
+  "cases": {
+    "AC-R01-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R01-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R02-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R02-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R03-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R03-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R04-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R04-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-F1-C1-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-F1-C1-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-F1-C2-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-F1-C2-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-F1-C3-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-F1-C3-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-F1-C4-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-F1-C4-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-F2-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-F3-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-F3-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-F4-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-F4-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R05-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R05-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R06-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R06-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R07-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R07-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R07-03": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R08-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R08-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R08-03": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R09-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R09-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R09-03": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R10-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R10-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R11-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R11-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R12-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R12-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R13-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R13-02": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R14-01": {
+      "state": "planned",
+      "evidence": []
+    },
+    "AC-R14-02": {
+      "state": "planned",
+      "evidence": []
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "track": "end_to_end",
+  "primary_system": "domimap",
+  "baselines": {
+    "claude_obsidian": "https://github.com/AgriciDaniel/claude-obsidian",
+    "codebase_memory_mcp": "https://github.com/DeusData/codebase-memory-mcp",
+    "codegraph": "https://github.com/colbymchenry/codegraph",
+    "graphify": "https://github.com/Graphify-Labs/graphify"
+  },
+  "primary_metrics": [
+    "hit_at_5",
+    "accuracy",
+    "micro_f1"
+  ],
+  "seeds": [
+    11,
+    23,
+    37,
+    53,
+    71
+  ],
+  "minimum_answerable": 300,
+  "minimum_unanswerable": 100,
+  "minimum_clusters": 20,
+  "minimum_answerable_per_category": 50,
+  "categories": [
+    "code_location",
+    "cross_repo_trace",
+    "document_reasoning",
+    "knowledge_freshness"
+  ],
+  "bootstrap_iterations": 20000,
+  "bootstrap_seed": 20261016,
+  "familywise_alpha": 0.05,
+  "minimum_scores": {
+    "hit_at_5": 0.8,
+    "accuracy": 0.85,
+    "micro_f1": 0.85
+  },
+  "minimum_negative_accuracy": 0.99,
+  "required_provenance_roles": [
+    "preregistration",
+    "dataset_manifest",
+    "gold_annotation",
+    "baseline_health",
+    "execution_log",
+    "adjudication",
+    "independent_review"
+  ],
+  "execution_status": "not_run"
+}

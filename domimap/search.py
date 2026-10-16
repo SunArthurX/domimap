@@ -1,0 +1,170 @@
+"""search — 混合检索：词法种子（IDF 加权）→ 1 跳图扩展 → token/字符预算内渲染。
+
+graphify 的 trigram/IDF 思想 lite 版：不做 trigram 倒排（规模小），直接对节点文本建倒排。
+"""
+import json
+import math
+import os
+from collections import Counter, defaultdict
+
+from .tokenize import tokenize
+
+IDX_SCHEMA = "domimap.idx.v1"
+
+class Searcher:
+    def __init__(self, g, cache_path=None):
+        self.g = g
+        self.docs = {}
+        self.df = Counter()
+        self.N = 0
+        if cache_path and self._load_cache(cache_path):
+            return
+        self._build()
+        if cache_path and getattr(g, "sig", None):
+            self._save_cache(cache_path)
+
+    def _sig_ok(self, d):
+        sig = getattr(self.g, "sig", None)
+        return bool(sig and d.get("schema") == IDX_SCHEMA
+                    and d.get("graph_mtime") == sig["mtime"] and d.get("graph_size") == sig["size"]
+                    and d.get("node_count") == len(self.g.nodes))
+
+    def _load_cache(self, path):
+        """命中条件：schema 版本一致 + 图文件 mtime/size/节点数指纹一致（否则重建）。"""
+        try:
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+        except (OSError, ValueError):
+            return False
+        if not self._sig_ok(d):
+            return False
+        self.docs = {nid: Counter(dict(pairs)) for nid, pairs in d["docs"].items()}
+        self.index = defaultdict(set, {t: set(ids) for t, ids in d["index"].items()})
+        self.df = Counter({t: len(v) for t, v in self.index.items()})
+        self.N = d["N"]
+        return True
+
+    def _save_cache(self, path):
+        sig = self.g.sig
+        d = {"schema": IDX_SCHEMA, "graph_mtime": sig["mtime"], "graph_size": sig["size"],
+             "node_count": len(self.g.nodes), "N": self.N,
+             "docs": {nid: [[t, c] for t, c in cnt.items()] for nid, cnt in self.docs.items()},
+             "index": {t: sorted(ids) for t, ids in self.index.items()}}
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False)
+        os.replace(tmp, path)
+
+    def _node_text(self, n):
+        parts = [n["name"], n["kind"], n["file"]]
+        if n["kind"] == "Doc":
+            parts.append(n["meta"].get("text", "")[:50000])
+        if n["kind"] == "SqlStmt":
+            parts.append(n["meta"].get("sql", ""))
+        return " \n ".join(parts)
+
+    def _build(self):
+        self.index = defaultdict(set)
+        for nid, n in self.g.nodes.items():
+            tks = tokenize(self._node_text(n))
+            self.docs[nid] = Counter(tks)
+            for t in set(tks):
+                self.index[t].add(nid)
+            self.N += 1
+        self.df = Counter({t: len(s) for t, s in self.index.items()})
+
+    def _score(self, qtokens, nid):
+        d = self.docs.get(nid, Counter())
+        if not d:
+            return 0.0
+        total = sum(d.values()) or 1
+        s = 0.0
+        for qt in qtokens:
+            if qt in d:
+                idf = math.log(1 + self.N / (1 + self.df.get(qt, 0)))
+                s += idf * (d[qt] / total)
+        return s
+
+    @staticmethod
+    def _units(text):
+        """查询单元：latin 词（小写，含 camelCase/snakeCase 切分，与 tokenize 词表对齐）
+        + CJK 连续段二元组（段长 1 时取单字）。"""
+        import re as _re
+        out = set()
+        for m in _re.finditer(r"[A-Za-z][A-Za-z0-9_]*", text):
+            w = m.group(0)
+            out.add(w.lower())
+            parts = _re.findall(r"[a-z]+|[A-Z][a-z]*", w)
+            if len(parts) > 1:
+                out.update(p.lower() for p in parts if len(p) > 1)
+        for m in _re.finditer(r"[\u4e00-\u9fff\u3040-\u30ff]+", text):
+            seg = m.group(0)
+            if len(seg) == 1:
+                out.add(seg)
+            else:
+                out.update(seg[i:i+2] for i in range(len(seg) - 1))
+        return out
+
+    def query(self, text, top_k=6, expand=True, budget=3800, domain=None, min_cov=0.3):
+        qt = tokenize(text)
+        qset = set(qt)
+        if not qset:
+            return {"seeds": [], "expanded": [], "text": "空查询。", "refused": True}
+        # 词覆盖率门（graphify #1602 思想）+ 语言感知：按"查询单元"计（latin 词 + CJK 二元组），
+        # 纯代码仓无中文语料时中文单元不计分母；命中需至少一个强单元（≥2 字符）。
+        units = self._units(text)
+        if not units:
+            return {"seeds": [], "expanded": [], "text": "空查询。", "refused": True}
+        graph_has_cjk = any(any(ord(c) > 0x2E7F for c in t) for t in self.df)
+        def is_cjk(t):
+            return any(ord(c) > 0x2E7F for c in t)
+        denom = {u for u in units if not is_cjk(u)} | \
+                ({u for u in units if is_cjk(u)} if graph_has_cjk else set())
+        matched = {t for t in denom if t in self.df}
+        cov = (len(matched) / len(denom)) if denom else 0.0
+        cand = set()
+        for t in matched:
+            cand |= self.index.get(t, set())
+        scored = []
+        for nid in cand:
+            n = self.g.nodes[nid]
+            if domain and n["meta"].get("domain") != domain:
+                continue
+            s = self._score(qt, nid) * cov * cov
+            if s > 0:
+                scored.append((s, nid))
+        scored.sort(reverse=True)
+        strong = any(len(t) >= 2 and t in self.df for t in denom)
+        if cov < min_cov or not scored or not strong:
+            return {"seeds": [], "expanded": [],
+                    "text": "（诚实拒答：查询词覆盖率 %.0f%%，不足 %d%% 阈值。已查 %d 节点；建议换关键词/先 build。）" % (cov * 100, min_cov * 100, self.N),
+                    "refused": True}
+        seeds = scored[:top_k]
+        seed_ids = [nid for _, nid in seeds]
+        seen = set(seed_ids)
+        lines = ["## 种子命中（词法 IDF）"]
+        for s, nid in seeds:
+            lines.append(self._render(self.g.nodes[nid], s))
+        exp_lines = []
+        if expand:
+            lines.append("\n## 一跳扩展（图结构）")
+            for nid in seed_ids:
+                for e in self.g.neighbors(nid) + self.g.neighbors(nid, rev=True)[:4]:
+                    other = self.g.nodes.get(e["dst"] if e["src"] == nid else e["src"])
+                    if not other or other["id"] in seen:
+                        continue
+                    seen.add(other["id"])
+                    exp_lines.append("- %s --%s(%s)--> %s" % (self.g.nodes[nid]["name"], e["kind"], e["conf"], other["name"]))
+        out = "\n".join(lines + exp_lines)
+        if len(out) > budget:
+            out = out[:budget] + "\n…(预算截断)"
+        return {"seeds": [self.g.nodes[n] for n in seed_ids], "expanded_count": len(exp_lines),
+                "text": out, "refused": False}
+
+    def _render(self, n, score):
+        head = "- [%s] %s  (score=%.3f, conf=%s, prov=%s)" % (n["kind"], n["name"], score, n["conf"], n["prov"])
+        if n["kind"] == "SqlStmt":
+            head += "\n    SQL: " + n["meta"].get("sql", "")[:160]
+        if n["meta"].get("domain"):
+            head += "  [域:%s%s]" % (n["meta"]["domain"], "/vote" if n["meta"].get("domain_by") else "")
+        return head + "\n    @" + n["file"]

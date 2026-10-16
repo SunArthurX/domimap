@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "m0-git-baseline",
+  "state": "implementing",
+  "spec": "specs/tasks/m0-git-baseline.md",
+  "requirements": ["R11", "R13"],
+  "acceptance_cases": ["AC-R13-01"],
+  "files": [
+    "LICENSE",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "THIRD_PARTY_NOTICES.md",
+    "docs/known-defects.md"
+  ],
+  "test_files": []
+}

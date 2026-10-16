@@ -1,0 +1,260 @@
+{
+  "date": "2026-10-16",
+  "scope": "10 sequential analysis and planning rounds; product implementation unchanged",
+  "initial_plan_sha256": "fb9c89bccef1d8c03df0692fab3d667f5f7f8f51bb38652f2ed4516c65b7f883",
+  "product_source_sha256": {
+    "domimap/__init__.py": "a92744c861f712e53be61fc641ae47f7a645abde7a258b8881a0b395c9c07a55",
+    "domimap/__main__.py": "3453fc7b943b7e6602ff470ef1332b0d3ada346b6c6821e6164941e29cf89878",
+    "domimap/batch.py": "cf5a5e02f7f7cd17a4ce04137476a2cf1a18fc07a75a7b9fcdc7e3074067af58",
+    "domimap/graph.py": "3fcce9901cbb1af99e6560efb39d3b5ecc9fd74e0a91d4a92c4aa0594b5d88d2",
+    "domimap/lite_scan.py": "4d7e35587675c4f21117df06fc70b464f9602fab8cb465b4d15596ce6e7845b8",
+    "domimap/mcp.py": "7a38b1531966f8ef8ae6725d35ab402a6519c9f83211a743a34bd18b93d432b1",
+    "domimap/scenario.py": "3074d13135f99251fc61890dcb9379b280b976c297d76a45e43eb9d705cde8bc",
+    "domimap/search.py": "2c66e4e1d953aa1b922e806d050d278b18d645b85974ebcdde346f4d6478f352",
+    "domimap/tokenize.py": "28da57be89c6a3f90209cd2d9c091eb64650b71767a187fff07b5ebc2b34f90d"
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "title": "明确第一条用户价值路径",
+      "question": "三个场景同时作为主线，会不会继续把知识库做成扫描工具集合？",
+      "finding": "当前 CLI 同时提供 req/trb/domain/impact，夹具覆盖订单改价、价格同步、库存预警；没有保存或修订知识的入口。Java 是已有实现的切入点，用户没有承诺永久限制在 Java。证据：domimap/__main__.py 与 tests/fixtures。",
+      "change": "定位改为『本地研发知识库，以 Java 多仓为首个切入点』。第一条验收只聚焦需求理解→证据包→保存有出处的结论→再次复用；领域图做导航，故障调查做扩展场景。保留长期扩展性，不在首轮交付承诺通用个人知识管理或云协作。",
+      "remaining": "尚无真实使用反馈，不能认定需求定位一定是用户最有价值的场景；在首个可用切片做任务观察后再调整。",
+      "evidence": {
+        "cli_commands": [
+          "build",
+          "update",
+          "query",
+          "domain",
+          "impact",
+          "scenario req",
+          "scenario trb",
+          "review",
+          "serve"
+        ],
+        "knowledge_save_command_present": false
+      },
+      "plan_before_sha256": "fb9c89bccef1d8c03df0692fab3d667f5f7f8f51bb38652f2ed4516c65b7f883",
+      "plan_after_sha256": "672f644db935dfc331c67a91b7952584ad8fe91a40a9ce34c74163cf53402254"
+    },
+    {
+      "round": 2,
+      "title": "削减首阶段前置工作",
+      "question": "上一版把可信底座扩成大量 P0，会不会迟迟无法获得可用反馈？",
+      "finding": "起点计划共有 47 项待办，其中 v0.5 占 23 项，并把 RPC 多 provider、完整发布快照、覆盖清单、真实任务集等都放进首阶段；知识保存要等整阶段结束。它把不同风险与价值混成同一完成门槛。",
+      "change": "把 v0.5 分成两个可演示切片：A=来源/身份及错误关系止损；B=Java+Markdown 的可读证据检索。基础故障必须修，完整框架适配、真文件增量和全部平台验收按依赖后移。v0.6 的知识对象设计在 v0.5 A 后接线，不等待全部规模优化。首个试用不以全面 AST、完整多格式摄入或 50 条真实任务为前置。",
+      "remaining": "切片大小需要在实现开始后按实际改动面调整；所有数据丢失与错来源问题仍是相应功能的硬门槛。",
+      "evidence": {
+        "initial_total_checkboxes": 47,
+        "v05_checkboxes": 23,
+        "v06_checkboxes": 10,
+        "v07_checkboxes": 9,
+        "v08_checkboxes": 5
+      },
+      "plan_before_sha256": "672f644db935dfc331c67a91b7952584ad8fe91a40a9ce34c74163cf53402254",
+      "plan_after_sha256": "c1c07bf1c19d2b6077263a33a1772eabe1e8af505ea219d39513b626c2718db9"
+    },
+    {
+      "round": 3,
+      "title": "区分逻辑身份、源位置与修订",
+      "question": "上一版把文件路径、签名和哈希都放进身份，会不会使改名、移动、重建后人工知识断链？",
+      "finding": "_service_of 把 src/main/java/com/acme/OrderService.java 的服务推成 acme，说明目录启发式会把包名当服务。Graph 对相同 FQN 的两模块类静默合并：保留 module-a 文件却更新为 module-b 元数据。原 ID 同时承载显示、位置、实体与版本，无法可靠承接审定。",
+      "change": "增加三层引用：显式 repo/module 身份；逻辑实体 entity_id；绑定 source_id+content_hash+locator 的不可变 evidence_id。文件/符号搬移生成显式别名或重新绑定事件，不承诺自动识别重构；旧证据仍可查看。配置声明服务边界，未知时回退仓级，不猜包名为服务。哈希用于证据版本，不直接替代逻辑身份；未解析签名使用范围内独立候选，禁止合并。",
+      "remaining": "没有 Git 或重构映射时无法保证实体跨改名连续；允许保留历史引用并提示待重新绑定。数据源未知的表/Topic 默认隔离，不能推定同名即共享。",
+      "evidence": {
+        "service_inference": {
+          "src/main/java/com/acme/OrderService.java": "acme",
+          "order-service/src/main/java/com/acme/OrderService.java": "order-service"
+        },
+        "module_collision": {
+          "input": 2,
+          "output": 1,
+          "file": "module-a/Contract.java",
+          "meta_module": "b"
+        }
+      },
+      "plan_before_sha256": "c1c07bf1c19d2b6077263a33a1772eabe1e8af505ea219d39513b626c2718db9",
+      "plan_after_sha256": "c8c13655bf7c4164dcdad657b799af2a1df713f9902b7eb92e50070c842c55f4"
+    },
+    {
+      "round": 4,
+      "title": "给图查询定义业务语义",
+      "question": "节点不碰撞之后，任意反向遍历是否就能正确表达影响面？",
+      "finding": "合成一个 producer→Topic→consumer 的现有边模型，impact(topic,depth=2) 返回 producer 和 Domain，却遗漏 consumer。原因是 Graph.impact 对所有边无差别反向遍历：SUBSCRIBES 的方向与 PUBLISHES 不同，领域归属和容器也被当依赖。修 ID 本身不能修正这种语义。",
+      "change": "为每种查询维护关系类型、遍历方向与用途的契约：代码调用反向找调用者；Topic 变更同时检查生产与消费角色；路由契约变更找处理方法与前端引用；领域/包含边用于导航而非默认风险传播。标记潜在影响与已观察关系，路径结果逐边携带证据与置信；不把所有邻居列作必受影响对象。",
+      "remaining": "不同变更类型的影响传播规则不同；首切片只支持有夹具证明的几类，不能宣称完整影响半径或根因判定。",
+      "evidence": {
+        "synthetic_topic_impact": {
+          "reported": [
+            "svc:producer",
+            "dom:order"
+          ],
+          "consumer_reported": false,
+          "domain_reported_as_dependent": true
+        },
+        "source": "domimap/graph.py:243 Graph.impact"
+      },
+      "plan_before_sha256": "c8c13655bf7c4164dcdad657b799af2a1df713f9902b7eb92e50070c842c55f4",
+      "plan_after_sha256": "4d0fdf5f370fba8e637fedd29b13437b3973baa6a6445fd33f871d852becd623"
+    },
+    {
+      "round": 5,
+      "title": "把检索命中与回答支撑分开",
+      "question": "找到某个域名或相似符号，能否作为问题已得到证据支持的依据？",
+      "finding": "临时图中有一份包含 refund 的文档和 9 个同词代码节点，kg_doc_search 先取全图 Top-8，结果全被 Class 占据，错误报告文档无匹配。另一张无 Doc 的英文服务图加入默认领域后，查询『订单退款』不拒答，但只命中『订单域』；Domain 名称也让所谓无中文语料判断失效。",
+      "change": "检索先按代码/文档/人工知识分别召回，再做有预算的融合。领域名只作路由与导航，不作功能事实证据；查询状态区分有支撑、部分支撑、未找到和未检查。MCP 与 CLI 共用检索契约并明确 raw/scenario 模式，不能让入口悄悄换排名口径。前 5 个主候选按证据实体评分，扩展邻居不补分。",
+      "remaining": "这些实验说明候选与覆盖门存在缺陷，未量化真实语言理解质量。检索结果仍需对具体结论逐项判定是否受来源支持。",
+      "evidence": {
+        "doc_search": {
+          "matching_document_exists": true,
+          "top8_kinds": [
+            "Class",
+            "Class",
+            "Class",
+            "Class",
+            "Class",
+            "Class",
+            "Class",
+            "Class"
+          ],
+          "tool_reports_no_match": true
+        },
+        "domain_only_query": {
+          "query": "订单退款",
+          "document_nodes": 0,
+          "refused": false,
+          "hit_kinds": [
+            "Domain"
+          ],
+          "graph_has_cjk_tokens": true
+        }
+      },
+      "plan_before_sha256": "4d0fdf5f370fba8e637fedd29b13437b3973baa6a6445fd33f871d852becd623",
+      "plan_after_sha256": "b1c5992e8d62c59123d848db638611b9c56d9e20e84551767d70f7b72b4aa58a"
+    },
+    {
+      "round": 6,
+      "title": "简化知识保存并补齐生命周期",
+      "question": "是否一开始就需要多页联动事务、完整主张账本和自动知识合并？",
+      "finding": "这是对计划的数据模型推演：『已审定但来源变更』『已审定且来源暂时不可检查』『人工架构决策』『引用过时但历史上成立的故障结论』必须能同时表达。单一状态字段会把接受、真伪和新鲜度混在一起；上一版又把多文件事务与 Obsidian 受管页同步都前置，扩大首个保存功能。现有产品没有保存入口，不能声称这些行为已验证。",
+      "change": "v0.6 先用单条知识记录作为提交单元，正文、来源摘录与元数据一起保存；索引/导出可重建，Obsidian 首版只导出，不修改用户现有页面。分别记录类型（事实/解释/决策）、review_state（draft/accepted/withdrawn）与 evidence_status（unchanged/changed/missing/unchecked）；已接受不等于源码明确事实，changed 不等于错误。CAS 冲突检查、失败恢复、幂等与可查看旧修订保留为保存硬门槛；自动合并和多页联动后移。",
+      "remaining": "单文件的具体编码与历史保留策略需在保存工作包中用回滚演练选择；默认仅保留已引用的有限摘录，不承诺归档整个仓库。互相矛盾的结论先并列提示，人工解决。",
+      "evidence": {
+        "kind": "design_counterexamples_not_implemented_behavior",
+        "cases": [
+          "accepted+changed",
+          "accepted+unchecked",
+          "decision+author_rationale",
+          "historically_valid+source_missing"
+        ],
+        "initial_multi_page_transaction_prerequisite_removed": true
+      },
+      "plan_before_sha256": "b1c5992e8d62c59123d848db638611b9c56d9e20e84551767d70f7b72b4aa58a",
+      "plan_after_sha256": "ef6e818ed7d75342c49c88ba7eb0f4cb9aad5d6f361f0c1035cb9511f9cf8b39"
+    },
+    {
+      "round": 7,
+      "title": "建立更新恢复与新鲜度契约",
+      "question": "怎样以最小机制避免旧图被当作最新、失败更新无法自行恢复，以及读入未登记来源？",
+      "finding": "临时仓实测：删除 graph.json 后仍返回 no-op；强制在图构建前失败后，manifest 已更新，再重试继续 no-op，图保留旧正文；指纹匹配但缺 docs 键的索引导致 KeyError。另一个合成仓中的文件符号链接会读入登记根目录外的内容，且以仓内路径呈现。全部为临时合成数据。",
+      "change": "把输出完整性、同 generation 发布与缓存可重建列为首切片硬门槛，先允许正确的全量回退，不要求首阶段实现真文件增量。新鲜度分『已索引快照』与『当前文件已核验』；查询仅对实际返回的少量证据做内容核验，其他来源标 unchecked，避免每次全仓扫描。来源 realpath 必须落在登记范围，越界链接拒绝或明确登记额外根；来源正文只作数据，不触发工具执行或网络操作。",
+      "remaining": "跨仓工作目录不是原子快照；需要展示各源 revision/hash 与扫描期间变化状态，不能把同一次构建时间当作所有仓的同一业务版本。派生缓存损坏应回退重建，人工知识损坏则保留副本并报告。",
+      "evidence": {
+        "missing_graph_noop": true,
+        "interrupted_build": {
+          "retry_noop": true,
+          "graph_text": "old revision",
+          "source_text": "new changed source revision"
+        },
+        "broken_matching_cache_error": "KeyError: docs",
+        "outside_root_symlink_ingested": true
+      },
+      "plan_before_sha256": "ef6e818ed7d75342c49c88ba7eb0f4cb9aad5d6f361f0c1035cb9511f9cf8b39",
+      "plan_after_sha256": "2541d88daa5caf844055cf053e73ccdde7e92edb86b833a1c82219eeccdd5e83"
+    },
+    {
+      "round": 8,
+      "title": "解析器选型前移但控制试验范围",
+      "question": "先修完整身份、方法边界和签名，再到 v0.7 才评估解析器，会不会重复造解析器？",
+      "finding": "合成 Caller 中 first 为空，只有 second 调用 worker.work；现扫描器却同时生成 first→work 和 second→work。把字段 worker 改名 dependency 后，所有调用又消失。分别对应 3000 字符窗口和按类名小驼峰猜接收者。上一版计划要求较完整语义，却把结构后端决策放得太晚。",
+      "change": "把小型解析器验证前移到身份契约实施前，完整集成仍按需求后置。只用同名/重载、方法边界、字段别名这组反例，比较当前 lite、一个可直接嵌入的 Java AST 方案、一个经接口筛选的现成后端；不同时接四家。先确定 records 的 owner/span/signature 契约，选方案再迁移图。暂时无法解析时返回未知，首版本不承诺完整调用图。",
+      "remaining": "本轮验证了 lite 的失败构造，没有运行任何上游引擎，不能据此宣布某引擎已胜出。现成后端的接口、部署与来源定位能力仍需固定版本实测。",
+      "evidence": {
+        "synthetic_expected_calls": [
+          "second→work"
+        ],
+        "lite_calls": [
+          "first→work",
+          "second→work"
+        ],
+        "renamed_receiver_calls": 0,
+        "upstream_engines_tested": 0
+      },
+      "plan_before_sha256": "2541d88daa5caf844055cf053e73ccdde7e92edb86b833a1c82219eeccdd5e83",
+      "plan_after_sha256": "f348b6ca2c95c1c88c986ddc55af581c3a8068977e27888d49e713fbcd496e98"
+    },
+    {
+      "round": 9,
+      "title": "防止验收指标自证正确",
+      "question": "纠正 Top-5/Top-10 混用之后，现有评分是否足以证明真实任务效果？",
+      "finding": "用不存在于图中的假 ID、仅名称包含期望子串的仿造结果，现有 test_top5_hit_rate 仍报告 8/8。真实夹具查询『订单改价 防并发』原始排名是 Domain+两份 Doc，返回 0 个 Class/Method/Route/SqlStmt；这不表示文档无用，但说明『任意一个可接受字符串命中』无法证明实现定位证据完整。",
+      "change": "gold 以独立标注的源位置、关键事实与允许实体为锚，映射到冻结版本的 evidence/entity ID，不能由待测图自动生成。开发集与验收集按来源/任务族隔离；raw Top-5、scenario Top-5、证据链完整率、支持准确率、误拒答与任务成功分别报告。保留旧 8 条仅作 smoke；小样本指标报告分子分母，禁止写成总体保证。困难负例包含同名归档表、过期说明、相似服务和只有领域词的假相关。",
+      "remaining": "20 个需求、10 个故障、20 个负例是首批试点样本目标，不是统计充分性证明，也不阻塞合成数据上的正确性修复；真实样本缺失仍要在发布状态中明确。",
+      "evidence": {
+        "fake_node_metric_passed": true,
+        "fake_id": "not-a-real-node",
+        "raw_implementation_query_kinds": [
+          "Domain",
+          "Doc",
+          "Doc"
+        ],
+        "raw_code_candidate_count": 0,
+        "gold_generation_from_tested_graph_allowed": false
+      },
+      "plan_before_sha256": "f348b6ca2c95c1c88c986ddc55af581c3a8068977e27888d49e713fbcd496e98",
+      "plan_after_sha256": "e758f9b8bc1c1b596e794bc909ec4f6e3eefca868f3a03abc3694bc176726377"
+    },
+    {
+      "round": 10,
+      "title": "按依赖收敛为可执行工作包",
+      "question": "十轮新增约束是否反而再次扩大计划？如何让下一步具体且可交付？",
+      "finding": "对前九轮做依赖复核：身份/来源与最小解析契约先于知识引用；恢复和快照先于宣称最新；检索结果先可读才能保存复用；数据库、完整类型解析、监听和独立界面都不必阻塞首个知识闭环。上一版 47 项平铺待办与 23 项首阶段任务不能代表一个可控交付切片。",
+      "change": "合并为 6 个有出口的工作包：WP1 身份/解析边界→WP2 恢复→WP3 证据检索→WP4 单条知识生命周期；WP5 规模增强由测量触发，WP6 的试用反馈从 WP3 提前开始。新增 WP1 执行单，明确失败夹具、schema 示例、受限选型、接线文件与未覆盖范围。删除无测量依据的统一工期与规模延迟门槛；保留功能正确性硬门槛和独立业务试点目标。",
+      "remaining": "尚未做用户任务观察、上游引擎实测或真实业务评测；这些是计划明确保留的待办。本次没有把任何产品功能标记为已实现。",
+      "evidence": {
+        "sequential_rounds": 10,
+        "work_packages": [
+          "WP1 身份与解析边界",
+          "WP2 构建恢复",
+          "WP3 证据检索",
+          "WP4 知识生命周期",
+          "WP5 条件增强",
+          "WP6 试用与发布"
+        ],
+        "next_work_package_document": "docs/plans/2026-10-16-v0.5a-WP1-来源身份与解析边界.md",
+        "initial_total_checkboxes": 47,
+        "initial_v05_checkboxes": 23
+      },
+      "plan_before_sha256": "e758f9b8bc1c1b596e794bc909ec4f6e3eefca868f3a03abc3694bc176726377",
+      "plan_after_sha256": "07a9d7dad67f90cd4634a48391fd43efecd54fd243da7dbacec484d909f0f2e4"
+    }
+  ],
+  "final_validation": {
+    "round_count": 10,
+    "plan_hash_chain_valid": true,
+    "product_python_sources_unchanged": true,
+    "link_and_fence_checks": "all README/docs Markdown paths and fences passed, including archived roadmap",
+    "final_plan_sha256": "07a9d7dad67f90cd4634a48391fd43efecd54fd243da7dbacec484d909f0f2e4",
+    "note": "No product tests repeated: Python source unchanged; prior 22-test result belongs to baseline. Diagnostics are synthetic or plan counterexamples, not business acceptance."
+  },
+  "archive_presentation": {
+    "original_plan_sha256": "fb9c89bccef1d8c03df0692fab3d667f5f7f8f51bb38652f2ed4516c65b7f883",
+    "archived_document_sha256": "2f9ff3576780e76280162cac6c8ef9c64528ce918f6d85c3240b9a8a309ef15e",
+    "changes": [
+      "mark historical status",
+      "repair links for archive location"
+    ],
+    "planning_task_content_preserved": true
+  }
+}

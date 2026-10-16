@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "requirements": [
+    {
+      "id": "R01",
+      "title": "稳定身份与适用范围",
+      "milestones": [
+        "M1"
+      ],
+      "cases": [
+        "AC-R01-01",
+        "AC-R01-02"
+      ]
+    },
+    {
+      "id": "R02",
+      "title": "版本化证据与覆盖缺口",
+      "milestones": [
+        "M1",
+        "M2"
+      ],
+      "cases": [
+        "AC-R02-01",
+        "AC-R02-02"
+      ]
+    },
+    {
+      "id": "R03",
+      "title": "构建一致性与恢复",
+      "milestones": [
+        "M1"
+      ],
+      "cases": [
+        "AC-R03-01",
+        "AC-R03-02"
+      ]
+    },
+    {
+      "id": "R04",
+      "title": "公共检索与有界图语义",
+      "milestones": [
+        "M2"
+      ],
+      "cases": [
+        "AC-R04-01",
+        "AC-R04-02"
+      ]
+    },
+    {
+      "id": "F1-C1",
+      "title": "Claude Code 真实接入",
+      "milestones": [
+        "M2",
+        "M4"
+      ],
+      "cases": [
+        "AC-F1-C1-01",
+        "AC-F1-C1-02"
+      ]
+    },
+    {
+      "id": "F1-C2",
+      "title": "Codex 真实接入",
+      "milestones": [
+        "M2",
+        "M4"
+      ],
+      "cases": [
+        "AC-F1-C2-01",
+        "AC-F1-C2-02"
+      ]
+    },
+    {
+      "id": "F1-C3",
+      "title": "ZCode 真实接入",
+      "milestones": [
+        "M0",
+        "M4"
+      ],
+      "cases": [
+        "AC-F1-C3-01",
+        "AC-F1-C3-02"
+      ]
+    },
+    {
+      "id": "F1-C4",
+      "title": "DSH Code Agent 真实接入",
+      "milestones": [
+        "M0",
+        "M4"
+      ],
+      "cases": [
+        "AC-F1-C4-01",
+        "AC-F1-C4-02"
+      ]
+    },
+    {
+      "id": "F2",
+      "title": "人工 CLI/JSON/UI 搜索",
+      "milestones": [
+        "M2"
+      ],
+      "cases": [
+        "AC-F2-01"
+      ]
+    },
+    {
+      "id": "F3",
+      "title": "可信 AGENTS/SOUL 上下文",
+      "milestones": [
+        "M2",
+        "M4"
+      ],
+      "cases": [
+        "AC-F3-01",
+        "AC-F3-02"
+      ]
+    },
+    {
+      "id": "F4",
+      "title": "时间策略与版本复核",
+      "milestones": [
+        "M1",
+        "M2",
+        "M3"
+      ],
+      "cases": [
+        "AC-F4-01",
+        "AC-F4-02"
+      ]
+    },
+    {
+      "id": "R05",
+      "title": "知识保存修订审定与复用",
+      "milestones": [
+        "M3"
+      ],
+      "cases": [
+        "AC-R05-01",
+        "AC-R05-02"
+      ]
+    },
+    {
+      "id": "R06",
+      "title": "依赖失效与反馈闭环",
+      "milestones": [
+        "M3"
+      ],
+      "cases": [
+        "AC-R06-01",
+        "AC-R06-02"
+      ]
+    },
+    {
+      "id": "R07",
+      "title": "导出恢复与知识互操作",
+      "milestones": [
+        "M3",
+        "M4"
+      ],
+      "cases": [
+        "AC-R07-01",
+        "AC-R07-02",
+        "AC-R07-03"
+      ]
+    },
+    {
+      "id": "R08",
+      "title": "信任边界与安全资源限制",
+      "milestones": [
+        "M0",
+        "M1",
+        "M2",
+        "M4"
+      ],
+      "cases": [
+        "AC-R08-01",
+        "AC-R08-02",
+        "AC-R08-03"
+      ]
+    },
+    {
+      "id": "R09",
+      "title": "格式框架与平台支持矩阵",
+      "milestones": [
+        "M1",
+        "M4"
+      ],
+      "cases": [
+        "AC-R09-01",
+        "AC-R09-02",
+        "AC-R09-03"
+      ]
+    },
+    {
+      "id": "R10",
+      "title": "运行资源迁移与恢复",
+      "milestones": [
+        "M1",
+        "M4",
+        "M5"
+      ],
+      "cases": [
+        "AC-R10-01",
+        "AC-R10-02"
+      ]
+    },
+    {
+      "id": "R11",
+      "title": "开源与分发交付",
+      "milestones": [
+        "M0",
+        "M5"
+      ],
+      "cases": [
+        "AC-R11-01",
+        "AC-R11-02"
+      ]
+    },
+    {
+      "id": "R12",
+      "title": "真实任务与消融收益",
+      "milestones": [
+        "M2",
+        "M5"
+      ],
+      "cases": [
+        "AC-R12-01",
+        "AC-R12-02"
+      ]
+    },
+    {
+      "id": "R13",
+      "title": "Spec-driven 防偏离约束",
+      "milestones": [
+        "M0",
+        "M5"
+      ],
+      "cases": [
+        "AC-R13-01",
+        "AC-R13-02"
+      ]
+    },
+    {
+      "id": "R14",
+      "title": "四竞品三指标严格胜出",
+      "milestones": [
+        "M0",
+        "M2",
+        "M5"
+      ],
+      "cases": [
+        "AC-R14-01",
+        "AC-R14-02"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "REPLACE-task-id",
+  "state": "planned",
+  "spec": "specs/tasks/REPLACE-task-id.md",
+  "requirements": [],
+  "acceptance_cases": [],
+  "files": [],
+  "test_files": []
+}

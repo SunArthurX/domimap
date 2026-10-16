@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="com.example.trade.OrderMapper">
+  <update id="updatePrice">
+    UPDATE t_order SET price = #{price}, price_version = price_version + 1 WHERE id = #{orderId}
+  </update>
+  <select id="selectById" resultType="Order">
+    SELECT id, price, price_version, status FROM t_order WHERE id = #{orderId}
+  </select>
+</mapper>

@@ -1,0 +1,196 @@
+{
+  "date": "2026-10-16",
+  "version": "0.4.0",
+  "scope": "synthetic fixtures and temporary repositories only; no private workspace rescan",
+  "checks": {
+    "replay": {
+      "samples": 8,
+      "raw_top5_hits": 6,
+      "existing_mixed_metric_hits": 8,
+      "scenario_card_default_top": 10,
+      "rows": [
+        {
+          "query": "订单改价 防并发",
+          "raw_top5_hit": true,
+          "scenario_card_fallback_hit": false,
+          "raw_names": [
+            "订单域",
+            "改价需求PRD.md",
+            "上线checklist.md"
+          ]
+        },
+        {
+          "query": "price_version 并发控制",
+          "raw_top5_hit": true,
+          "scenario_card_fallback_hit": false,
+          "raw_names": [
+            "price_version",
+            "OrderMapper.updatePrice",
+            "price",
+            "price",
+            "OrderMapper.selectById"
+          ]
+        },
+        {
+          "query": "order price update 需求",
+          "raw_top5_hit": true,
+          "scenario_card_fallback_hit": false,
+          "raw_names": [
+            "OrderMapper.updatePrice",
+            "updatePrice",
+            "mini:order-service",
+            "OrderPriceService",
+            "trade-price-changed"
+          ]
+        },
+        {
+          "query": "商品 价格同步 监听",
+          "raw_top5_hit": false,
+          "scenario_card_fallback_hit": true,
+          "raw_names": [
+            "商品域",
+            "改价需求PRD.md",
+            "上线checklist.md"
+          ]
+        },
+        {
+          "query": "库存预警 消费 重试",
+          "raw_top5_hit": false,
+          "scenario_card_fallback_hit": true,
+          "raw_names": [
+            "库存域",
+            "上线checklist.md",
+            "改价需求PRD.md"
+          ]
+        },
+        {
+          "query": "ware_stock 表结构",
+          "raw_top5_hit": true,
+          "scenario_card_fallback_hit": false,
+          "raw_names": [
+            "t_ware_stock",
+            "WareStock",
+            "stock-warn",
+            "warn_threshold",
+            "sku_code"
+          ]
+        },
+        {
+          "query": "上线 检查 清单",
+          "raw_top5_hit": true,
+          "scenario_card_fallback_hit": false,
+          "raw_names": [
+            "上线checklist.md"
+          ]
+        },
+        {
+          "query": "rocketmq 发消息 topic",
+          "raw_top5_hit": true,
+          "scenario_card_fallback_hit": false,
+          "raw_names": [
+            "stock-warn",
+            "trade-price-changed",
+            "stock-warn-dlq",
+            "上线checklist.md",
+            "改价需求PRD.md"
+          ]
+        }
+      ]
+    },
+    "method_collisions": {
+      "mth:order-service.changePrice": [
+        {
+          "file": "order-service/src/main/java/com/example/trade/OrderController.java",
+          "line": 10
+        },
+        {
+          "file": "order-service/src/main/java/com/example/trade/OrderPriceService.java",
+          "line": 11
+        }
+      ]
+    },
+    "cross_repo_collisions": {
+      "input_repositories": 2,
+      "docs_expected": 2,
+      "docs_actual": 1,
+      "same_fqn_classes_expected": 2,
+      "same_fqn_classes_actual": 1,
+      "doc_node": {
+        "id": "doc:README.md",
+        "kind": "Doc",
+        "name": "README.md",
+        "file": "README.md",
+        "meta": {
+          "text": "repo-b evidence unique"
+        },
+        "conf": "EXTRACTED",
+        "prov": "doc:ingest"
+      }
+    },
+    "mybatis_without_ddl": {
+      "sql_nodes": 2,
+      "table_present": true,
+      "read_write_edges": 0
+    },
+    "dirty_update": {
+      "statuses": [
+        [
+          "repo-a",
+          "rebuild"
+        ],
+        [
+          "repo-b",
+          "no-op"
+        ]
+      ],
+      "scan_calls": [
+        {
+          "label": "repo-a",
+          "path_exists": false,
+          "absolute_path": false
+        },
+        {
+          "label": "repo-a",
+          "path_exists": true,
+          "absolute_path": true
+        },
+        {
+          "label": "repo-b",
+          "path_exists": true,
+          "absolute_path": true
+        }
+      ],
+      "existing_repositories_scanned": [
+        "repo-a",
+        "repo-b"
+      ],
+      "note": "dirty pre-scan receives relative labels; cache uses label keys but merge looks up absolute roots, so unchanged repos are scanned again"
+    },
+    "seeds_change": {
+      "changed_seeds_with_unchanged_source_files": true,
+      "graph_rebuilt": false,
+      "statuses": [
+        [
+          "repo-a",
+          "no-op"
+        ],
+        [
+          "repo-b",
+          "no-op"
+        ]
+      ]
+    },
+    "mcp_query_required_schema": {
+      "inside_input_schema": null,
+      "outside_input_schema": [
+        "query"
+      ]
+    },
+    "source_payload": {
+      "query": "price_version",
+      "method_line_stored": true,
+      "rendered_text": "## 种子命中（词法 IDF）\n- [Column] price_version  (score=0.826, conf=EXTRACTED, prov=sql:ddl)  [域:订单域/vote]\n    @db/schema.sql\n- [SqlStmt] OrderMapper.updatePrice  (score=0.425, conf=EXTRACTED, prov=synth:mybatis)\n    SQL: UPDATE t_order SET price = #{price}, price_version = price_version + 1 WHERE id = #{orderId}  [域:订单域/vote]\n    @order-service/src/main/resources/mappers/OrderMapper.xml\n- [Column] price  (score=0.277, conf=EXTRACTED, prov=sql:ddl)  [域:订单域/vote]\n    @db/schema.sql",
+      "note": "renderer exposes file paths but no source spans or verbatim Java method bodies"
+    }
+  }
+}

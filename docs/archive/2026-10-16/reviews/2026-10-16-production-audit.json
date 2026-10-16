@@ -1,0 +1,237 @@
+{
+  "audit_date": "2026-10-16",
+  "scope": "current local source, isolated fixture tests and synthetic fault probes; no real business repository or client end-to-end test",
+  "environment": {
+    "python": "3.14.4",
+    "platform": "darwin"
+  },
+  "source_hashes_before": {
+    "domimap/__init__.py": "a92744c861f712e53be61fc641ae47f7a645abde7a258b8881a0b395c9c07a55",
+    "domimap/__main__.py": "3453fc7b943b7e6602ff470ef1332b0d3ada346b6c6821e6164941e29cf89878",
+    "domimap/batch.py": "cf5a5e02f7f7cd17a4ce04137476a2cf1a18fc07a75a7b9fcdc7e3074067af58",
+    "domimap/graph.py": "3fcce9901cbb1af99e6560efb39d3b5ecc9fd74e0a91d4a92c4aa0594b5d88d2",
+    "domimap/lite_scan.py": "4d7e35587675c4f21117df06fc70b464f9602fab8cb465b4d15596ce6e7845b8",
+    "domimap/mcp.py": "7a38b1531966f8ef8ae6725d35ab402a6519c9f83211a743a34bd18b93d432b1",
+    "domimap/scenario.py": "3074d13135f99251fc61890dcb9379b280b976c297d76a45e43eb9d705cde8bc",
+    "domimap/search.py": "2c66e4e1d953aa1b922e806d050d278b18d645b85974ebcdde346f4d6478f352",
+    "domimap/tokenize.py": "28da57be89c6a3f90209cd2d9c091eb64650b71767a187fff07b5ebc2b34f90d"
+  },
+  "repository_hygiene": {
+    ".git": false,
+    ".gitignore": true,
+    "LICENSE": false,
+    "CONTRIBUTING.md": false,
+    "SECURITY.md": false,
+    "CHANGELOG.md": false,
+    ".github/workflows": false,
+    "git_repo_or_parent": false,
+    "gitignore_content": "out/\n__pycache__/\n*.pyc\ndist/\n*.egg-info/\n",
+    "generated_outputs_present": [
+      "tests/out",
+      "tests/out_multi",
+      "tests/out_replay",
+      "domimap.egg-info"
+    ]
+  },
+  "client_discovery": {
+    "claude": true,
+    "codex": true,
+    "zcode": false,
+    "dsh": false
+  },
+  "baseline_tests": {
+    "command": "python -B -m unittest discover -s tests -v",
+    "isolated_copy": true,
+    "exit_code": 0,
+    "stdout": "[replay] Top-5 命中率 100% (8/8) —— 验收线 80%\n",
+    "stderr": "test_page_to_route (test_golden.TestCrossEnd.test_page_to_route) ... ok\ntest_service_domain_and_shared (test_golden.TestDomain.test_service_domain_and_shared) ... ok\ntest_rpc_edge (test_golden.TestDubbo.test_rpc_edge) ... ok\ntest_reverse_dependency (test_golden.TestImpact.test_reverse_dependency) ... ok\ntest_controller_to_dao_calls (test_golden.TestMethodCalls.test_controller_to_dao_calls) ... ok\ntest_sqlstmt_and_table_bridge (test_golden.TestMyBatis.test_sqlstmt_and_table_bridge) ... ok\ntest_pub_sub_edges (test_golden.TestRocketMQ.test_pub_sub_edges) ... ok\ntest_query_chinese_and_english (test_golden.TestSearch.test_query_chinese_and_english) ... ok\ntest_refusal_when_no_match (test_golden.TestSearch.test_refusal_when_no_match) ... ok\ntest_route_node_and_handles (test_golden.TestSpringRoute.test_route_node_and_handles) ... ok\ntest_rpc_across_repos (test_p1.TestCrossRepoRPC.test_rpc_across_repos) ... ok\ntest_two_repos_found (test_p1.TestDiscover.test_two_repos_found) ... ok\ntest_kafka_topics_subscribed (test_p1.TestGenericMQ.test_kafka_topics_subscribed) ... ok\ntest_second_build_is_noop (test_p1.TestIncremental.test_second_build_is_noop) ... ok\ntest_cache_roundtrip_and_invalidate (test_p1.TestIndexCache.test_cache_roundtrip_and_invalidate) ... ok\ntest_entity_maps_table_and_columns (test_p1.TestJPA.test_entity_maps_table_and_columns) ... ok\ntest_req_card_mentions_order_domain (test_p1.TestScenarioReq.test_req_card_mentions_order_domain) ... ok\ntest_trb_card_has_snippets (test_p1.TestScenarioTrb.test_trb_card_has_snippets) ... ok\ntest_domain_classify (test_replay.TestReplayAcceptance.test_domain_classify) ... ok\ntest_refusals (test_replay.TestReplayAcceptance.test_refusals) ... ok\ntest_scenario_cards (test_replay.TestReplayAcceptance.test_scenario_cards) ... ok\ntest_top5_hit_rate (test_replay.TestReplayAcceptance.test_top5_hit_rate)\n命中口径 = 原始 query Top-5 或 scenario req 定位卡（含领域词表扩展）任一命中。 ... ok\n\n----------------------------------------------------------------------\nRan 22 tests in 0.061s\n\nOK\n",
+    "limits": "passing existing tests does not establish production readiness; replay test mixes raw retrieval and scenario fallback"
+  },
+  "missing_graph_probe": {
+    "graph_missing_before": true,
+    "states": [
+      [
+        "mini",
+        "no-op"
+      ]
+    ],
+    "returned_graph_is_none": true,
+    "graph_exists_after": false
+  },
+  "malformed_mcp_probe": {
+    "input": "JSON array followed by valid ping",
+    "exit_code": 1,
+    "stdout": "",
+    "exception": "AttributeError",
+    "limits": "synthetic local input; no remote transport tested"
+  },
+  "mcp_schema_probe": {
+    "required_inside_inputSchema": false,
+    "required_outside_inputSchema": true
+  },
+  "symlink_probe": {
+    "synthetic_external_file": true,
+    "outside_content_ingested": true,
+    "skips": []
+  },
+  "raw_top5_recheck": {
+    "hits": 6,
+    "total": 8,
+    "method": "same historical accepted name substrings, raw Top5 only; diagnostic, not new ID-based gold",
+    "cases": [
+      {
+        "query": "订单改价 防并发",
+        "hit": true
+      },
+      {
+        "query": "price_version 并发控制",
+        "hit": true
+      },
+      {
+        "query": "order price update 需求",
+        "hit": true
+      },
+      {
+        "query": "商品 价格同步 监听",
+        "hit": false
+      },
+      {
+        "query": "库存预警 消费 重试",
+        "hit": false
+      },
+      {
+        "query": "ware_stock 表结构",
+        "hit": true
+      },
+      {
+        "query": "上线 检查 清单",
+        "hit": true
+      },
+      {
+        "query": "rocketmq 发消息 topic",
+        "hit": true
+      }
+    ]
+  },
+  "packaging_local_prerequisites": {
+    "setuptools_available": false,
+    "wheel_available": true,
+    "status": "not_built",
+    "reason": "local interpreter lacks setuptools; no build backend installed during planning audit"
+  },
+  "upstream_references": [
+    {
+      "repository": "AgriciDaniel/claude-obsidian",
+      "url": "https://github.com/AgriciDaniel/claude-obsidian",
+      "checked_at": "2026-10-16",
+      "default_branch": "main",
+      "license_spdx": "MIT",
+      "head_sha": "32ac5a02c4e082e4a5628ca810776375e134708e",
+      "commit_url": "https://github.com/AgriciDaniel/claude-obsidian/commit/32ac5a02c4e082e4a5628ca810776375e134708e",
+      "limits": "reference metadata only; no installation, parser evaluation, benchmark reproduction, or license compatibility conclusion"
+    },
+    {
+      "repository": "DeusData/codebase-memory-mcp",
+      "url": "https://github.com/DeusData/codebase-memory-mcp",
+      "checked_at": "2026-10-16",
+      "default_branch": "main",
+      "license_spdx": "MIT",
+      "head_sha": "ec6427c38176efcd37b28682e82f2491afda94be",
+      "commit_url": "https://github.com/DeusData/codebase-memory-mcp/commit/ec6427c38176efcd37b28682e82f2491afda94be",
+      "limits": "reference metadata only; no installation, parser evaluation, benchmark reproduction, or license compatibility conclusion"
+    },
+    {
+      "repository": "colbymchenry/codegraph",
+      "url": "https://github.com/colbymchenry/codegraph",
+      "checked_at": "2026-10-16",
+      "default_branch": "main",
+      "license_spdx": "MIT",
+      "head_sha": "98127e54d0090723855dd098e7badf211c6de437",
+      "commit_url": "https://github.com/colbymchenry/codegraph/commit/98127e54d0090723855dd098e7badf211c6de437",
+      "limits": "reference metadata only; no installation, parser evaluation, benchmark reproduction, or license compatibility conclusion"
+    },
+    {
+      "repository": "Graphify-Labs/graphify",
+      "url": "https://github.com/Graphify-Labs/graphify",
+      "checked_at": "2026-10-16",
+      "default_branch": "v8",
+      "license_spdx": "Apache-2.0",
+      "head_sha": "10130e79ed9caf8f60d998073e097531eaa1a395",
+      "commit_url": "https://github.com/Graphify-Labs/graphify/commit/10130e79ed9caf8f60d998073e097531eaa1a395",
+      "limits": "reference metadata only; no installation, parser evaluation, benchmark reproduction, or license compatibility conclusion"
+    }
+  ],
+  "publishing_state": "no Git repository or remote verified; no GitHub publication performed; pyproject homepage is metadata only",
+  "protocol_reference": {
+    "checked_at": "2026-10-16",
+    "latest_redirect_observed": "https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning",
+    "policy": "implementation must select and test actual client/SDK-supported stable protocol versions; no assumption of compatibility from latest documentation"
+  },
+  "test_isolation_probe": {
+    "command": "python -B -m unittest discover -s tests -p test_p1.py -k TestIndexCache",
+    "isolated_clean_copy": true,
+    "exit_code": 1,
+    "missing_preexisting_graph": true,
+    "limits": "test-order dependency; this is not evidence that the production cache implementation always fails"
+  },
+  "planning_delivery_audit": {
+    "objective": "根据以上对话，以及整个项目，重新分析整个计划，我要做一个生产级别的知识库（如 claude-obsidian / Codebase-Memory-MCP / CodeGraph / Graphify），后续会放到 github 上",
+    "completion_scope": "whole-project reanalysis and revised production/open-source plan; product implementation and publication remain planned",
+    "checks": {
+      "requirements_have_stage_and_direct_evidence": true,
+      "all_milestones_defined": true,
+      "feature_implementation_unchecked": true,
+      "current_baseline_and_plan_separated": true,
+      "performance_targets_explicitly_unverified": true,
+      "four_client_acceptance_not_substituted": true,
+      "production_release_invariants_defined": true,
+      "github_actual_artifacts_gate_defined": true,
+      "legacy_work_package_mapping_defined": true,
+      "readme_current_plan": true,
+      "old_roadmap_superseded": true,
+      "ownership_and_restore_contract": true,
+      "multi_process_publication_protocol": true,
+      "product_sources_unchanged": true,
+      "links_and_fences_valid": true,
+      "isolated_baseline_verified": true,
+      "failure_evidence_not_conflated_with_pass": true,
+      "upstream_references_fixed": true
+    },
+    "requirement_rows": {
+      "R01": true,
+      "R02": true,
+      "R03": true,
+      "R04": true,
+      "R05": true,
+      "R06": true,
+      "R07": true,
+      "R08": true,
+      "R09": true,
+      "R10": true,
+      "R11": true,
+      "R12": true,
+      "F1-C1": true,
+      "F1-C2": true,
+      "F1-C3": true,
+      "F1-C4": true,
+      "F2": true,
+      "F3": true,
+      "F4": true
+    },
+    "local_links_checked": 50,
+    "link_or_fence_errors": [],
+    "changed_product_sources": [],
+    "artifact_sha256": {
+      "docs/plans/2026-10-16-生产级知识库主计划.md": "56cc6799bb8a592c822d100ce56d1d8e100f139053b4ae2b89b0565cfcb56b33",
+      "docs/design/production-architecture.md": "49aed77bedc070b3775d7b67fbdd333da2c111740b01760f69503ee775016f29",
+      "docs/reviews/2026-10-16-production-readiness.md": "b52deb45e74cf7a9b8d906e09068a7ceeb17f06f5dddd7efb81e246167e3d387",
+      "README.md": "dd8189a3030bfaeaa598ea698c5a70edfc548d7787a7a0ef646a327beb4318e3"
+    },
+    "limits": [
+      "no production functionality was implemented",
+      "no real business task, upstream parser or client end-to-end evaluation was run",
+      "no package built or published, no remote repository created",
+      "performance and cross-platform gates are proposed unverified requirements"
+    ]
+  }
+}

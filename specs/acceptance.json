@@ -1,0 +1,357 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "AC-R01-01",
+      "requirement": "R01",
+      "stage": "M1",
+      "given": "跨仓/模块同名、重载、同路径文档",
+      "when": "以不同根顺序构建并保存回读",
+      "then": "所有实体、owner、签名和来源独立且不串接"
+    },
+    {
+      "id": "AC-R01-02",
+      "requirement": "R01",
+      "stage": "M1",
+      "given": "知识库移动或来源根重新绑定",
+      "when": "以原登记身份重新打开",
+      "then": "逻辑身份保持；无依据的移动只提示重绑"
+    },
+    {
+      "id": "AC-R02-01",
+      "requirement": "R02",
+      "stage": "M1",
+      "given": "无 Git 来源首次返回可引用 ID",
+      "when": "修改/删除源后读取旧 ID",
+      "then": "仍为固定旧片段或明确不可用，绝不冒充当前内容"
+    },
+    {
+      "id": "AC-R02-02",
+      "requirement": "R02",
+      "stage": "M2",
+      "given": "损坏/超限/缺依赖与未解析资料",
+      "when": "检索并读取证据",
+      "then": "定位、采集状态、覆盖缺口和未检查范围可见"
+    },
+    {
+      "id": "AC-R03-01",
+      "requirement": "R03",
+      "stage": "M1",
+      "given": "已有完整 generation",
+      "when": "在每个发布阶段中断或并发写入",
+      "then": "读者只见上一完整代或新完整代，确认数据不丢"
+    },
+    {
+      "id": "AC-R03-02",
+      "requirement": "R03",
+      "stage": "M1",
+      "given": "图丢失/坏缓存/删改/规则种子改变",
+      "when": "手动更新并与全量比较",
+      "then": "不误报 no-op，规范化集合等价"
+    },
+    {
+      "id": "AC-R04-01",
+      "requirement": "R04",
+      "stage": "M2",
+      "given": "代码占榜、相关文档与重复来源",
+      "when": "分路召回并融合",
+      "then": "文档不饥饿，主候选去重且保留各自适用范围"
+    },
+    {
+      "id": "AC-R04-02",
+      "requirement": "R04",
+      "stage": "M2",
+      "given": "高出度/MQ 生产消费/领域归属",
+      "when": "查询定位和影响路径",
+      "then": "预算在遍历中执行，方向正确，引用完整，partial 可见"
+    },
+    {
+      "id": "AC-F1-C1-01",
+      "requirement": "F1-C1",
+      "stage": "M4",
+      "given": "实际版本客户端与已安装 domimap",
+      "when": "新会话发现→查询→读取→上下文任务",
+      "then": "工具和指引实际生效，记录版本和原始结果"
+    },
+    {
+      "id": "AC-F1-C1-02",
+      "requirement": "F1-C1",
+      "stage": "M4",
+      "given": "已有用户配置与含空格路径",
+      "when": "连接两次再撤销受管条目",
+      "then": "幂等且保留其他设置，可在异目录启动"
+    },
+    {
+      "id": "AC-F1-C2-01",
+      "requirement": "F1-C2",
+      "stage": "M4",
+      "given": "实际版本客户端与已安装 domimap",
+      "when": "新会话发现→查询→读取→上下文任务",
+      "then": "采用该客户端原生接口并留下真实记录"
+    },
+    {
+      "id": "AC-F1-C2-02",
+      "requirement": "F1-C2",
+      "stage": "M4",
+      "given": "已有用户配置与含空格路径",
+      "when": "连接两次再撤销受管条目",
+      "then": "幂等且保留其他设置，可在异目录启动"
+    },
+    {
+      "id": "AC-F1-C3-01",
+      "requirement": "F1-C3",
+      "stage": "M4",
+      "given": "已唯一定位产品/版本与官方接口",
+      "when": "新会话发现→查询→读取→上下文任务",
+      "then": "真实运行成功；CLI/mock 不能代替"
+    },
+    {
+      "id": "AC-F1-C3-02",
+      "requirement": "F1-C3",
+      "stage": "M4",
+      "given": "实际 ZCode 配置和路径",
+      "when": "连接/重连/撤销",
+      "then": "只改受管条目且故障可诊断"
+    },
+    {
+      "id": "AC-F1-C4-01",
+      "requirement": "F1-C4",
+      "stage": "M4",
+      "given": "已唯一定位产品/版本与官方接口",
+      "when": "新会话发现→查询→读取→上下文任务",
+      "then": "真实运行成功；CLI/mock 不能代替"
+    },
+    {
+      "id": "AC-F1-C4-02",
+      "requirement": "F1-C4",
+      "stage": "M4",
+      "given": "实际 DSH 配置和路径",
+      "when": "连接/重连/撤销",
+      "then": "只改受管条目且故障可诊断"
+    },
+    {
+      "id": "AC-F2-01",
+      "requirement": "F2",
+      "stage": "M2",
+      "given": "无 AI 客户端、模型和 API Key",
+      "when": "CLI/JSON/UI 发出同范围同查询",
+      "then": "主候选同源同序，可打开完整证据、筛选与错误状态"
+    },
+    {
+      "id": "AC-F3-01",
+      "requirement": "F3",
+      "stage": "M2",
+      "given": "可信和普通摄入的规则文件、嵌套作用域",
+      "when": "加载/修改/超预算查询上下文",
+      "then": "来源哈希独立生效，不串规则，不静默截断，不扩权限"
+    },
+    {
+      "id": "AC-F3-02",
+      "requirement": "F3",
+      "stage": "M4",
+      "given": "四个实际客户端",
+      "when": "修改人设后在新会话执行任务",
+      "then": "桥接机制和语言/引用行为实际验证，缺条件不勾完成"
+    },
+    {
+      "id": "AC-F4-01",
+      "requirement": "F4",
+      "stage": "M2",
+      "given": "冻结 as_of 与旧/未知/未来/有效/替代资料",
+      "when": "查询、touch、复制、重建",
+      "then": "资格先筛选，衰减可解释，复制不刷新，历史范围正确"
+    },
+    {
+      "id": "AC-F4-02",
+      "requirement": "F4",
+      "stage": "M3",
+      "given": "已复核知识的依据内容或范围改变",
+      "when": "再次查询/复核",
+      "then": "旧审定不继承新版本，确认绑定当前证据"
+    },
+    {
+      "id": "AC-R05-01",
+      "requirement": "R05",
+      "stage": "M3",
+      "given": "并发/重复提交、旧 expected_revision、进程中断",
+      "when": "保存/重试/撤回/读取历史",
+      "then": "事务、幂等与冲突正确，确认写入不丢"
+    },
+    {
+      "id": "AC-R05-02",
+      "requirement": "R05",
+      "stage": "M3",
+      "given": "至少十条带独立 claims 的知识",
+      "when": "新会话检索并重建机器图",
+      "then": "人工知识不丢，需求/实现/决策/推断不混为事实"
+    },
+    {
+      "id": "AC-R06-01",
+      "requirement": "R06",
+      "stage": "M3",
+      "given": "一篇笔记的两个陈述仅一条依据变化",
+      "when": "扫描变化与重复更新",
+      "then": "只产生相关待复核项且不重复，提供差异和处理动作"
+    },
+    {
+      "id": "AC-R06-02",
+      "requirement": "R06",
+      "stage": "M3",
+      "given": "已处理复核项与负反馈",
+      "when": "修改/确认/撤回后再次搜索",
+      "then": "状态与证据一致；点击和频率不变成真实性证明"
+    },
+    {
+      "id": "AC-R07-01",
+      "requirement": "R07",
+      "stage": "M3",
+      "given": "运行中的知识库与固定证据",
+      "when": "在线备份并在干净目录恢复",
+      "then": "正文/修订/审定/范围/引用完整且可检索"
+    },
+    {
+      "id": "AC-R07-02",
+      "requirement": "R07",
+      "stage": "M3",
+      "given": "外部修改的 Markdown 导出页",
+      "when": "显式导入及冲突提交",
+      "then": "稳定 ID/base_revision 生效，导出不回灌为独立证据"
+    },
+    {
+      "id": "AC-R07-03",
+      "requirement": "R07",
+      "stage": "M4",
+      "given": "归档路径穿越/链接与主动遗忘",
+      "when": "恢复/清理/删除",
+      "then": "不越界；删除与保留/备份效果可解释"
+    },
+    {
+      "id": "AC-R08-01",
+      "requirement": "R08",
+      "stage": "M1",
+      "given": "允许根内指向外部文件的链接",
+      "when": "扫描/引用读取",
+      "then": "越界拒绝或显式登记，不默读外部内容"
+    },
+    {
+      "id": "AC-R08-02",
+      "requirement": "R08",
+      "stage": "M4",
+      "given": "恶意文档脚本/跨站请求/不可信人设",
+      "when": "UI 阅读与写入调用",
+      "then": "资料不执行脚本，非授权请求不写入，不扩大权限"
+    },
+    {
+      "id": "AC-R08-03",
+      "requirement": "R08",
+      "stage": "M2",
+      "given": "非法 MCP 对象/入参/超大请求",
+      "when": "发送异常后再发送有效请求",
+      "then": "错误有界且后续请求可用，stdout 仅协议"
+    },
+    {
+      "id": "AC-R09-01",
+      "requirement": "R09",
+      "stage": "M4",
+      "given": "PDF/DOCX 缺依赖/损坏/加密/无文本/超限",
+      "when": "摄入和定位",
+      "then": "状态区分且片段与页/段落可核对"
+    },
+    {
+      "id": "AC-R09-02",
+      "requirement": "R09",
+      "stage": "M4",
+      "given": "声明支持的 Java/SQL/RPC/MQ/JPA/路由构造",
+      "when": "解析/查询",
+      "then": "每构造正确或明确未知，多 provider/数据源不默取首个"
+    },
+    {
+      "id": "AC-R09-03",
+      "requirement": "R09",
+      "stage": "M4",
+      "given": "发布声明的 OS/Python/extras 组合",
+      "when": "安装并运行最小知识闭环",
+      "then": "实际矩阵记录，未运行不宣称支持"
+    },
+    {
+      "id": "AC-R10-01",
+      "requirement": "R10",
+      "stage": "M4",
+      "given": "四客户端八个在途读与串行保存/构建",
+      "when": "混合负载/取消/锁超时",
+      "then": "无混代/丢写，队列/资源有界且诊断可用"
+    },
+    {
+      "id": "AC-R10-02",
+      "requirement": "R10",
+      "stage": "M5",
+      "given": "旧知识格式、升级失败与冻结性能集",
+      "when": "迁移/回退/24h负载/恢复",
+      "then": "数据不丢且预登记预算满足，完整日志可复查"
+    },
+    {
+      "id": "AC-R11-01",
+      "requirement": "R11",
+      "stage": "M5",
+      "given": "净化源码、许可证与受支持平台",
+      "when": "构建 sdist/wheel 并在干净环境异目录安装",
+      "then": "资源与 CLI/MCP/UI/保存闭环完整，CI 对应实际工件"
+    },
+    {
+      "id": "AC-R11-02",
+      "requirement": "R11",
+      "stage": "M5",
+      "given": "待公开源码/历史/日志/附件/构建物",
+      "when": "检查 allowlist 和发布说明",
+      "then": "无用户资料/凭证，支持矩阵/迁移/哈希一致；无授权不上传"
+    },
+    {
+      "id": "AC-R12-01",
+      "requirement": "R12",
+      "stage": "M2",
+      "given": "十个经许可的真实问题",
+      "when": "完成首条路径并分类失败",
+      "then": "记录可核验依据时间及适用/正确/维护成本，非夹具冒充"
+    },
+    {
+      "id": "AC-R12-02",
+      "requirement": "R12",
+      "stage": "M5",
+      "given": "独立任务/来源族与同预算对照",
+      "when": "文本/加图/加人工知识消融",
+      "then": "点估计和分层/成本报告，开发/确认不泄漏"
+    },
+    {
+      "id": "AC-R13-01",
+      "requirement": "R13",
+      "stage": "M0",
+      "given": "需求、案例、任务清单与实际 Git diff",
+      "when": "运行结构和 task/base 检查并故意插入越界改动",
+      "then": "孤儿/未知/越界/假 verified 被拒绝，合法任务通过"
+    },
+    {
+      "id": "AC-R13-02",
+      "requirement": "R13",
+      "stage": "M5",
+      "given": "全部案例状态与当前来源指纹",
+      "when": "运行 release-check",
+      "then": "缺证据/旧证据/失败/未完成阶段均拒绝，完整证据可核对"
+    },
+    {
+      "id": "AC-R14-01",
+      "requirement": "R14",
+      "stage": "M5",
+      "given": "冻结真实留出集、五系统五种子与原始工件",
+      "when": "独立裁决后重算指标和成对置信界",
+      "then": "12 项点差及修正下界全部 >0，工程底线与负例处理达标"
+    },
+    {
+      "id": "AC-R14-02",
+      "requirement": "R14",
+      "stage": "M0",
+      "given": "合成包/缺系统/错分母/打平/假 ID/坏哈希",
+      "when": "评分器与最终门槛负面测试",
+      "then": "不可假通过，合成仅诊断，正式比较缺失明确未完成"
+    }
+  ]
+}

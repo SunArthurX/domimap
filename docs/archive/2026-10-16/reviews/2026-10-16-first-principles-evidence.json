@@ -1,0 +1,118 @@
+{
+  "date": "2026-10-16",
+  "scope": "in-memory synthetic graphs and current source inspection; no business workspace rescan",
+  "product_sources": {
+    "domimap/__init__.py": "a92744c861f712e53be61fc641ae47f7a645abde7a258b8881a0b395c9c07a55",
+    "domimap/__main__.py": "3453fc7b943b7e6602ff470ef1332b0d3ada346b6c6821e6164941e29cf89878",
+    "domimap/batch.py": "cf5a5e02f7f7cd17a4ce04137476a2cf1a18fc07a75a7b9fcdc7e3074067af58",
+    "domimap/graph.py": "3fcce9901cbb1af99e6560efb39d3b5ecc9fd74e0a91d4a92c4aa0594b5d88d2",
+    "domimap/lite_scan.py": "4d7e35587675c4f21117df06fc70b464f9602fab8cb465b4d15596ce6e7845b8",
+    "domimap/mcp.py": "7a38b1531966f8ef8ae6725d35ab402a6519c9f83211a743a34bd18b93d432b1",
+    "domimap/scenario.py": "3074d13135f99251fc61890dcb9379b280b976c297d76a45e43eb9d705cde8bc",
+    "domimap/search.py": "2c66e4e1d953aa1b922e806d050d278b18d645b85974ebcdde346f4d6478f352",
+    "domimap/tokenize.py": "28da57be89c6a3f90209cd2d9c091eb64650b71767a187fff07b5ebc2b34f90d"
+  },
+  "observations": {
+    "applicability_scope": {
+      "query_parameters": [
+        "self",
+        "text",
+        "top_k",
+        "expand",
+        "budget",
+        "domain",
+        "min_cov"
+      ],
+      "returned_scopes": [
+        "development-v2",
+        "production-v1"
+      ],
+      "rendered_scope_visible": false,
+      "interpretation": "current query has domain filtering but no explicit version/environment eligibility filter"
+    },
+    "graph_budget": {
+      "outgoing_neighbors": 2000,
+      "requested_character_budget": 120,
+      "expanded_before_render_cut": 2000,
+      "returned_text_characters": 128,
+      "truncation_marker": true,
+      "interpretation": "output truncation does not impose a traversal-work limit"
+    },
+    "duplicate_dominance": {
+      "input_documents": 11,
+      "input_source_families": 2,
+      "top5_source_families": [
+        "same-original",
+        "same-original",
+        "same-original",
+        "same-original",
+        "same-original"
+      ],
+      "distinct_top5_families": 1
+    },
+    "time_vs_authority_counterexample": {
+      "kind": "design counterexample",
+      "same_relevance": 1,
+      "one_year_old_active_policy_factor": 0.8120277979611769,
+      "one_day_old_draft_factor": 0.9984655892525888,
+      "note": "age alone cannot distinguish an effective rule from a proposal; applicability and source status must be established first"
+    },
+    "knowledge_claim_granularity": {
+      "kind": "design counterexample",
+      "note_claims": [
+        "refund implementation owner",
+        "refund time limit"
+      ],
+      "change": "only time-limit source changes",
+      "required_behavior": "mark affected claim pending; retain independent owner evidence; do not accept whole note by one citation"
+    },
+    "development_state": {
+      "package_version": "0.4.0",
+      "git_repository_present": false,
+      "note": "new capabilities in plan revisions remain unimplemented; repository state rechecked this turn"
+    },
+    "requirement_vs_implementation": {
+      "kind": "fixture contract counterexample; in-memory sequential execution of a possible two-writer interleaving, not a production database audit",
+      "requirement_source": "tests/fixtures/mini/docs/改价需求PRD.md",
+      "requirement": "使用 price_version 乐观锁，需要防并发覆盖",
+      "implementation_source": "tests/fixtures/mini/order-service/src/main/resources/mappers/OrderMapper.xml",
+      "actual_sql": "UPDATE t_order SET price = #{price}, price_version = price_version + 1 WHERE id = #{orderId}",
+      "two_writers_observed_versions": [
+        0,
+        0
+      ],
+      "affected_row_counts": [
+        1,
+        1
+      ],
+      "final_price_and_version": [
+        300,
+        2
+      ],
+      "service_updates_without_checking_row_count": true,
+      "conclusion": "Finding price_version is not evidence that optimistic conflict rejection is implemented by the shown update; preserve the requirement/implementation distinction and report missing support."
+    }
+  },
+  "completion_audit": {
+    "scope": "first-principles analysis and recommendations; product implementation not changed",
+    "checks": {
+      "first_principles_objective_and_costs": true,
+      "current_state_revalidated": true,
+      "evidence_vs_inference_distinguished": true,
+      "recommendations_have_minimum_implementation_and_acceptance": true,
+      "real_task_validation_and_priority": true,
+      "existing_four_requirements_preserved": true,
+      "business_production_audit_not_claimed": true,
+      "requirement_implementation_counterexample": true,
+      "dedup_and_budget_probes_verified": true
+    },
+    "product_code_unchanged": true,
+    "all_local_document_links_and_fences": "passed",
+    "report_sha256": "f9f6707f4a3bb0e80609f08ee808b9e778ccc21309ae1694bbba07172b9d4210",
+    "evidence_limits": [
+      "synthetic probes are not production benchmarks",
+      "model counterexamples are labeled as reasoning",
+      "no real-user validation or upstream engine evaluation performed"
+    ]
+  }
+}

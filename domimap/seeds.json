@@ -1,0 +1,22 @@
+{
+  "订单域": {
+    "keywords": ["order", "trade", "cart", "订单", "履约", "发货", "oms"],
+    "prefixes": ["t_order", "t_trade", "t_cart", "trade-service"]
+  },
+  "商品域": {
+    "keywords": ["item", "sku", "spu", "product", "listing", "商品", "刊登", "刊登"],
+    "prefixes": ["t_item", "t_product", "item-service"]
+  },
+  "库存域": {
+    "keywords": ["stock", "inventory", "wms", "库存", "占用"],
+    "prefixes": ["t_stock", "stock-service"]
+  },
+  "物流域": {
+    "keywords": ["logistics", "track", "waybill", "物流", "轨迹", "承运"],
+    "prefixes": ["t_track", "t_logistics", "logistics-service"]
+  },
+  "财务域": {
+    "keywords": ["finance", "settlement", "对账", "结算", "财务", "科目"],
+    "prefixes": ["t_fin", "finance-service"]
+  }
+}
