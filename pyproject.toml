@@ -31,6 +31,7 @@ Homepage = "https://github.com/SunArthurX/domimap"
 [project.optional-dependencies]
 docs = ["python-docx", "pypdf"]
 cn = ["jieba"]
+mcp = ["mcp>=2.3.0,<3"]   # 官方 MCP SDK（Python>=3.10）；自研 stdlib 服务端不受影响
 
 [project.scripts]
 domimap = "domimap.__main__:main"

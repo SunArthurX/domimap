@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "id": "m0-interface-survey",
+  "state": "verified",
+  "spec": "specs/tasks/m0-interface-survey.md",
+  "requirements": [
+    "R13"
+  ],
+  "acceptance_cases": [
+    "AC-R13-01"
+  ],
+  "files": [
+    "docs/clients.md",
+    "scripts/mcp_sdk_spike.py",
+    "scripts/refresh_evidence.py",
+    "tests/test_clients_doc.py",
+    "pyproject.toml"
+  ],
+  "test_files": [
+    "tests/test_clients_doc.py"
+  ]
+}
