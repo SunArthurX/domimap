@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "milestones": {
-    "M0": "implementing",
-    "M1": "implementing",
+    "M0": "verified",
+    "M1": "verified",
     "M2": "planned",
     "M3": "planned",
     "M4": "planned",

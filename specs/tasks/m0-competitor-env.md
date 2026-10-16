@@ -8,3 +8,5 @@
   - codebase-memory-mcp：C 单二进制，Makefile.cbm 构建后台进行中；未完成前如实记"未就绪"。
 - 交付：benchmarks/env/competitors.md（版本/入口/健康状态/缺口）、benchmarks/DATA_LAYOUT.md（dev/确认隔离设计）、benchmarks/tiny_dev/{questions.json,runner.py}（公共输出映射 + Hit@5 文件级评分 + domimap/graphify 真适配器 + --selfcheck）。
 - 判定：五系统全部真跑通 tiny 回放前，M0 保持 implementing；任何系统未就绪都记录"缺什么"而非零分。
+
+- 范围补充（收口）：tests/test_release_gate.py —— M0/M1 置 verified 后原用 M1 做'天然未完成'样本的阶段门测试改用 M5（行为不变，样本更新）；cbm 适配器经实测修正（项目名取 index 返回 slug、默认 full 模式公平性）。

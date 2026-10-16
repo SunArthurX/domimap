@@ -7,7 +7,7 @@
 | claude-obsidian | `claude_obsidian.__version__ == 2.2.0`（克隆内 import OK） | `python3 -m claude_obsidian`（doctor/transaction/capture…）+ 15 Skill（vault 工作流） | import OK；CLI help OK | **可运行**；检索适配器经其核心（BM25+CJK，检索代码在 core/transaction 体系内），M2 dev 适配时接线 |
 | graphify | pyproject `graphifyy 0.9.91` | venv `pip install <克隆>` → `graphify` CLI | venv 安装 OK；tiny 语料（domimap mini 夹具）`graphify update .` 建图 45 节点；`graphify query "price_version"` 返回子图（file:line） | **全链路真跑通** |
 | codegraph | package.json `@colbymchenry/codegraph 1.6.2` | `dist/bin/codegraph.js`（需先 `npm run build`：tsc+assets+ui） | `npm ci` 183 包 OK；`--version` 1.6.2 OK；dist 构建中 | **安装中**（构建完成后补 init/index/explore tiny 实跑记录） |
-| codebase-memory-mcp | Makefile.cbm（C 单二进制工程，1.7G 含 vendored 语法） | `make -f Makefile.cbm build/c/codebase-memory-mcp`（scripts/build.sh 同义） | 正确目标确认（此前误用无 /c 路径）；C 编译后台进行中 | **构建中**（未完成前比较判"未就绪"，不给零分） |
+| codebase-memory-mcp | Makefile.cbm 构建 `build/c/codebase-memory-mcp`（304MB） | MCP stdio（initialize OK，17 工具） | 二进制构建完成；tiny 语料 index_repository(full)+search_graph 真跑通（3/5） | **全链路真跑通**（注：项目名为路径派生 slug；fast 模式会排除源目录，公平比较用默认 full） |
 
 ## 公平性要点（对齐 specs/benchmark.md）
 

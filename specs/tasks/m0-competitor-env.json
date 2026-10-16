@@ -13,7 +13,8 @@
     "benchmarks/env/competitors.md",
     "benchmarks/DATA_LAYOUT.md",
     "benchmarks/tiny_dev/questions.json",
-    "benchmarks/tiny_dev/runner.py"
+    "benchmarks/tiny_dev/runner.py",
+    "tests/test_release_gate.py"
   ],
   "test_files": [
     "benchmarks/tiny_dev/runner.py"

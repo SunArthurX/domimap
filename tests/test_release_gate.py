@@ -25,8 +25,8 @@ class TestReleaseGate(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_stage_gate_fails_while_cases_pending(self):
-        """任一阶段案例未 verified 时 --stage 必须非零退出（当前 M1 全部 planned，天然满足）。"""
-        r = run_checker("--stage", "M1")
+        """任一阶段案例未 verified 时 --stage 必须非零退出（用始终未完成的远端阶段做样本）。"""
+        r = run_checker("--stage", "M5")
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
 
 if __name__ == "__main__":

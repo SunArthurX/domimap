@@ -114,7 +114,75 @@ def run_codegraph(corpus, out):
     return results
 
 
-ADAPTERS = {"domimap": run_domimap, "graphify": run_graphify, "codegraph": run_codegraph}
+# ---------------- codebase-memory-mcp 适配器（原生 MCP stdio：index_repository + search_graph） ----------------
+def run_cbm(corpus, out):
+    import selectors
+    binary = os.path.join(COMP, "codebase-memory-mcp", "build", "c", "codebase-memory-mcp")
+    if not os.path.exists(binary):
+        raise SystemExit("cbm 二进制未构建（make -f Makefile.cbm build/c/codebase-memory-mcp）")
+    work = tempfile.mkdtemp(prefix="dm-tiny-cbm-")
+    shutil.copytree(corpus, os.path.join(work, "mini"))
+    wmini = os.path.join(work, "mini")
+    proc = subprocess.Popen([binary], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL, text=True, bufsize=1)
+    rid = [0]
+
+    def call(method, params=None, notify=False):
+        rid[0] += 1
+        msg = {"jsonrpc": "2.0", "method": method}
+        if params:
+            msg["params"] = params
+        if not notify:
+            msg["id"] = rid[0]
+        proc.stdin.write(json.dumps(msg) + "\n")
+        proc.stdin.flush()
+        if notify:
+            return None
+        while True:
+            line = proc.stdout.readline()
+            if not line:
+                raise RuntimeError("cbm stdio closed")
+            d = json.loads(line)
+            if d.get("id") == rid[0]:
+                return d.get("result") or d.get("error")
+
+    call("initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
+                        "clientInfo": {"name": "dm-tiny", "version": "0"}})
+    call("notifications/initialized", notify=True)
+    # 公平性：用默认 full 模式（fast 会按其启发式排除源目录，非其正常全量工作流）
+    idx = call("tools/call", {"name": "index_repository",
+                              "arguments": {"repo_path": wmini}})
+    project = json.loads(idx["content"][0]["text"])["project"]  # 项目名=路径派生 slug，必须用返回值
+    results = []
+    for q in QUESTIONS:
+        r = call("tools/call", {"name": "search_graph",
+                                "arguments": {"query": q["query"], "project": project}})
+        text = ""
+        if isinstance(r, dict):
+            text = "".join(c.get("text", "") for c in r.get("content", []))
+        paths = []
+        for m in re.findall(r"[\w./-]+\.[A-Za-z]{2,4}", text):
+            p = m if not os.path.isabs(m) else os.path.relpath(m, wmini)
+            if p.startswith("mini/") or "/" in p:
+                p2 = norm_path(p if p.startswith("mini/") else "mini/" + p, wmini)
+            else:
+                continue
+            if p2 and p2 not in paths:
+                paths.append(p2)
+        results.append({"question_id": q["id"], "candidates": [{"path": p} for p in paths[:10]]})
+    proc.stdin.close()
+    proc.wait(timeout=30)
+    return results
+
+
+# claude-obsidian：原生检索为宿主 LLM 技能驱动（wiki-query skill + .vault-meta/bm25 核心），
+# 无独立查询 CLI；适配器需 Claude Code 宿主会话（M2/M4 客户端工具链），此处如实记边界不替代不零分。
+def run_claude_obsidian(corpus, out):
+    raise SystemExit("claude-obsidian 适配器需宿主技能会话（见 benchmarks/env/competitors.md），tiny 阶段不伪造")
+
+
+ADAPTERS = {"domimap": run_domimap, "graphify": run_graphify, "codegraph": run_codegraph,
+            "cbm": run_cbm}
 
 
 def selfcheck():
