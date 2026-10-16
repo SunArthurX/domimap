@@ -19,7 +19,13 @@ class TestGovernanceFiles(unittest.TestCase):
         with open(os.path.join(ROOT, "docs", "known-defects.md"), encoding="utf-8") as f:
             text = f.read()
         for i in range(1, 8):
-            self.assertIn("| D%d |" % i, text, "缺陷登记缺少 D%d" % i)
+            self.assertTrue(("| D%d |" % i) in text or ("~~D%d~~" % i) in text,
+                            "缺陷登记缺少 D%d" % i)
+        # 已关闭行必须注明关闭任务与回归测试，防止口头关闭
+        for line in text.split("\n"):
+            if "~~D" in line and "已关闭" in line:
+                self.assertIn("(", line)
+                self.assertIn("回归", line), line
         # 已验证为不复现的旧诊断必须显式记录，防止以讹传讹
         self.assertIn("不复现", text)
 

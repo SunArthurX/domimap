@@ -11,5 +11,6 @@
   2. AC-R03-01：三阶段中断（tmp 残留/校验失败/事务前 kill）→ active 恒为上一完整代；并发双写者→ active 始终完整合法。
   3. AC-R03-02：manifest 不变但删 active 代文件→update 重建且节点集=全量重建；改 seeds.json→重建；空 roots update→非零报错不 no-op。
 - refresh_evidence.py 扩展：按 progress 全量 verified 案例重跑其 command 并刷新指纹（本切片学到的纪律固化）。
+- 范围补充：tests/test_governance.py —— 缺陷登记行改为已关闭格式后守护测试同步（并强化：关闭必须注明回归测试）。
 - 验证：unittest tests.test_evidence_store -v；make verify；task diff --base bc2eab9；progress 三案例 verified。
 - 回退：revert 任务文件；store.db/gens 属生成物（out/，gitignore）。
