@@ -67,22 +67,29 @@ class Graph:
                                 {"rest": c["rest_controller"], "dubbo": c["dubbo_service"]}, conf="EXTRACTED", prov=c["prov"])
             self.add_edge("svc:" + c["service"], cid, "CONTAINS", "EXTRACTED", "java")
         for m in R["methods"]:
-            mid = self.add_node("mth:%s:%s.%s" % (m["service"], m.get("cls") or "-", m["name"]),
+            mid = self.add_node("mth:%s:%s.%s#%s" % (m["service"], m.get("cls") or "-",
+                                                      m["name"], m.get("argc", -1)),
                                 "Method", m["name"], m["file"],
-                                {"line": m.get("line"), "cls": m.get("cls") or ""},
+                                {"line": m.get("line"), "cls": m.get("cls") or "",
+                                 "argc": m.get("argc", -1)},
                                 conf="EXTRACTED", prov=m["prov"])
             self.add_edge("svc:" + m["service"], mid, "CONTAINS", "EXTRACTED", "java")
         # 方法级调用（lite 正则合成；Method 节点 service 级命名，同名方法跨类共点的限制待 AST 引擎解决）
         for c in R.get("calls", []):
-            src = "mth:%s:%s.%s" % (c["service"], c.get("from_cls") or "-", c["from"])
-            dst = "mth:%s:%s.%s" % (c["service"], c.get("to_cls") or "-", c["to_method"])
-            if src in self.nodes and dst in self.nodes and src != dst:
-                self.add_edge(src, dst, "CALLS", c["conf"], c["prov"])
+            src = "mth:%s:%s.%s#%s" % (c["service"], c.get("from_cls") or "-",
+                                       c["from"], c.get("from_argc", -1))
+            if src not in self.nodes:
+                continue
+            for argc in c.get("to_argcs", [-1]):  # 重载多候选：逐候选连边，置信随 dispatch 已知性
+                dst = "mth:%s:%s.%s#%s" % (c["service"], c.get("to_cls") or "-", c["to_method"], argc)
+                if dst in self.nodes and dst != src:
+                    self.add_edge(src, dst, "CALLS", c["conf"], c["prov"])
         # Spring 路由
         for r in R["routes"]:
             rid = self.add_node("route:%s %s" % (r["method"], r["path"]), "Route",
                                 "%s %s" % (r["method"], r["path"]), r["file"], {}, conf=r["conf"], prov=r["prov"])
-            mid = "mth:%s:%s.%s" % (r["service"], r.get("cls") or "-", r["java_method"])
+            mid = "mth:%s:%s.%s#%s" % (r["service"], r.get("cls") or "-",
+                                        r["java_method"], r.get("argc", -1))
             if mid in self.nodes:
                 self.add_edge(mid, rid, "HANDLES", r["conf"], r["prov"])
         # MyBatis：SQL 语句 + 接口方法桥 + 表/列读写
@@ -90,9 +97,10 @@ class Graph:
             sid = self.add_node("sql:%s.%s" % (s["iface"], s["id"]), "SqlStmt",
                                 "%s.%s" % (s["iface"], s["id"]), s["file"],
                                 {"verb": s["verb"], "sql": s["sql"]}, conf=s["conf"], prov=s["prov"])
-            mid = "mth:%s:%s.%s" % (s["service"], s["iface"], s["id"])
-            if mid in self.nodes:  # DAO 接口方法（同名）桥接
-                self.add_edge(mid, sid, "CALLS_SQL", s["conf"], s["prov"])
+            for m in R["methods"]:  # DAO 接口方法（同名，重载逐版本桥接）
+                if m["service"] == s["service"] and m.get("cls") == s["iface"] and m["name"] == s["id"]:
+                    mid = "mth:%s:%s.%s#%s" % (m["service"], m["cls"], m["name"], m.get("argc", -1))
+                    self.add_edge(mid, sid, "CALLS_SQL", s["conf"], s["prov"])
             for t in s["tables"]:
                 if "tbl:" + t in self.nodes:
                     self.add_edge(sid, "tbl:" + t,
@@ -117,7 +125,8 @@ class Graph:
         # MQ Topic
         for t in R["topics"]:
             tid = self.add_node("topic:" + t["topic"], "Topic", t["topic"], t["file"], {}, conf=t["conf"], prov=t["prov"])
-            _mid = "mth:%s:%s.%s" % (t["service"], t.get("cls") or "-", t["by"])
+            _mid = "mth:%s:%s.%s#%s" % (t["service"], t.get("cls") or "-",
+                                         t["by"], t.get("argc", -1))
             src = _mid if _mid in self.nodes else "svc:" + t["service"]
             if t["dir"] == "PUBLISHES":
                 self.add_edge(src, tid, "PUBLISHES", t["conf"], t["prov"])

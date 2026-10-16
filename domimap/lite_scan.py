@@ -22,8 +22,9 @@ _SPRING_MAP = [
 _RE_MAPPING = re.compile(r'@(Request|Get|Post|Put|Delete|Patch)Mapping\s*\(\s*(?:value\s*=\s*)?"([^"]*)"')
 _RE_MAPPING_ANY = re.compile(r'@(Request|Get|Post|Put|Delete|Patch)Mapping\s*\(\s*(?:value\s*=\s*)?"([^"]*)"|@RequestMapping\s*\(\s*(?:value\s*=\s*)?"([^"]*)"')
 _RE_CLASS = re.compile(r'(?:public\s+)?(?:abstract\s+)?class\s+(\w+)|(?:public\s+)?interface\s+(\w+)')
+# 类型段必须以非空白开头：裸调用行（如 `    changePrice(1L, x);`）不得被当作方法声明
 _RE_METHOD_LINE = re.compile(r'^\s*(?:(?:public|protected|private|static|final|synchronized|default|abstract)\s+)*'
-                             r'[\w<>\[\],.\s]+?\s+(\w+)\s*\(')
+                             r'[\w<>\[\],.][\w<>\[\],.\s]*?\s+(\w+)\s*\(')
 _RE_PKG = re.compile(r'^\s*package\s+([\w\.]+)\s*;', re.M)
 _RE_DUBBO_SVC = re.compile(r'@DubboService\b|@org\.apache\.dubbo.*Service\b')
 _RE_DUBBO_REF = re.compile(r'@DubboReference\s*(?:\([^)]*\))?\s*\n?\s*(?:private|protected|public)?\s*([\w\.]+?)\s+(\w+)\s*;')
@@ -41,8 +42,10 @@ _RE_GEN_TOPIC = re.compile(r'(?:topics?|queues?|destination|value)\s*=\s*(?:"([^
 _RE_ENTITY = re.compile(r'@Entity\b')
 _RE_TABLE = re.compile(r'@Table\s*\(\s*name\s*=\s*"([^"]+)"')
 _RE_JPA_COL = re.compile(r'@Column\s*\(\s*name\s*=\s*"([^"]+)"[^)]*\)\s*\n?\s*(?:private|protected|public)\s+[\w.<>\[\]]+\s+(\w+)')
-# 方法级调用（lite）：接收者.方法( 形态；接收者按"已知类名小驼峰"解析（link_calls 二遍法）
+# 方法级调用（lite）：接收者.方法( 形态；接收者按"字段声明类型 → 已知类名小驼峰"解析（link_calls 二遍法）
 _RE_CALL = re.compile(r'\b([a-z]\w*)\.(\w+)\s*\(')
+_RE_FIELD = re.compile(r'(?:private|protected|public)\s+(?:final\s+)?([\w.]+)\s+(\w+)\s*;')
+_RE_LAMBDA_LINE = re.compile(r'->|new\s+\w+\s*\([^)]*\)\s*\{')
 SKIP_RECV = {"this", "super", "system", "math", "objects", "string", "integer",
              "long", "boolean", "double", "log", "logger", "strings", "collections"}
 
@@ -136,16 +139,54 @@ def scan_repo(root, repo_label=None):
 def _lower_first(s):
     return s[0].lower() + s[1:] if s else s
 
+def _argc_of(line, meth):
+    """声明行内取参数个数；跨行签名返回 -1（显式未知，不猜）。"""
+    i = line.find(meth + "(")
+    if i < 0:
+        return -1
+    rest = line[i + len(meth) + 1:]
+    j = rest.find(")")
+    if j < 0:
+        return -1
+    inner = rest[:j].strip()
+    if not inner:
+        return 0
+    depth = 0
+    count = 1
+    for ch in inner:
+        if ch in "(<[":
+            depth += 1
+        elif ch in ")>]":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            count += 1
+    return count
+
 def link_calls(R):
-    """二遍法：walk 结束后类名 registry 齐全，把 raw_calls 的接收者解析为已知类（小驼峰同名）。
-    仅当接收者命中已知类才合成（INFERRED）；被调方法节点是否存在由 graph 层把门。"""
+    """二遍法：接收者解析顺序 = 文件内字段声明类型 → 类名小驼峰；目标为重载多候选时
+    conf=AMBIGUOUS（不默取第一个），无候选不产边（未知可见）。"""
     recv2cls = {_lower_first(c["name"]): c["name"] for c in R["classes"]}
+    fields = {}
+    for f in R.get("fields", []):
+        fields.setdefault(f["var"], f["type"].split(".")[-1])
+    mth_index = {}
+    for m in R["methods"]:
+        mth_index.setdefault((m["service"], m["cls"], m["name"]), []).append(m.get("argc", -1))
     for rc in R.pop("raw_calls", []):
-        if rc["recv"] in recv2cls:
-            R["calls"].append({"from": rc["from"], "from_cls": rc["from_cls"],
-                               "to_method": rc["to"], "to_cls": recv2cls[rc["recv"]], "recv": rc["recv"],
-                               "service": rc["service"], "file": rc["file"],
-                               "prov": "synth:java-call", "conf": "INFERRED"})
+        recv_cls = fields.get(rc["recv"]) or recv2cls.get(rc["recv"]) or \
+            (rc["from_cls"] if rc["recv"] == "" else None)
+        if not recv_cls:
+            continue
+        cand = mth_index.get((rc["service"], recv_cls, rc["to"]))
+        if not cand:
+            continue
+        rec = {"from": rc["from"], "from_cls": rc["from_cls"], "from_argc": rc["from_argc"],
+               "to_method": rc["to"], "to_cls": recv_cls, "recv": rc["recv"],
+               "to_argcs": sorted(set(cand)), "service": rc["service"], "file": rc["file"],
+               "prov": "synth:java-call", "conf": "INFERRED" if len(set(cand)) == 1 else "AMBIGUOUS"}
+        if len(set(cand)) > 1:
+            rec["prov"] = "synth:java-call+overload-unknown"
+        R["calls"].append(rec)
 
 def _scan_java(R, path, rel, svc, text, routes_by_class):
     pkg = (_RE_PKG.search(text) or [None, ""])[1]
@@ -161,6 +202,9 @@ def _scan_java(R, path, rel, svc, text, routes_by_class):
         cm = re.search(r'@RequestMapping\s*\(\s*(?:value\s*=\s*)?"([^"]*)"\s*\)', text[:m.start() + 2000])
         routes_by_class[name] = cm.group(1) if cm else ""
         break  # MVP：每文件取首个主类
+    for fm in _RE_FIELD.finditer(text):
+        R.setdefault("fields", []).append({"type": fm.group(1), "var": fm.group(2),
+                                           "service": svc, "file": rel})
     # 方法 + 路由 + MQ 发送 + Dubbo 引用（逐行匹配声明；接口方法无修饰符也可命中）
     is_ctrl = "@RestController" in text or "@Controller" in text
     class_ranges = [(m.start(), m.group(1) or m.group(2)) for m in _RE_CLASS.finditer(text)]
@@ -174,15 +218,32 @@ def _scan_java(R, path, rel, svc, text, routes_by_class):
                 break
         return cur
 
+    def anonymous_at(offset):
+        """方法声明处于匿名内部类体内（其上方最近 new X(){..{ 多于 }）→ 归 (anonymous)，不假归属外层。"""
+        seg = text[max(0, offset - 300):offset]
+        m = None
+        for m in re.finditer(r'new\s+[\w.]+(?:<[^>]*>)?\s*\([^)]*\)\s*\{', seg):
+            pass
+        if not m:
+            return False
+        tail = seg[m.start():]
+        return tail.count("{") > tail.count("}")
+
+    entries = []
     for ln, line in enumerate(text.split("\n"), 1):
         mm = _RE_METHOD_LINE.match(line)
         if not mm or mm.group(1) in {"if", "for", "while", "switch", "catch", "return", "new", "throw"}:
             continue
         meth = mm.group(1)
         off = text.find(line)
-        cur_cls = cls_at(off)
-        R["methods"].append({"name": meth, "cls": cur_cls, "service": svc, "file": rel,
-                             "line": ln, "prov": "java:method"})
+        cls_here = "(anonymous)" if anonymous_at(off) else cls_at(off)
+        entries.append({"name": meth, "off": off, "ln": ln, "cls": cls_here,
+                        "argc": _argc_of(line, meth)})
+        R["methods"].append({"name": meth, "cls": cls_here, "argc": _argc_of(line, meth),
+                             "service": svc, "file": rel, "line": ln, "prov": "java:method"})
+    for ent in entries:
+        meth, off, ln, cur_cls, argc = ent["name"], ent["off"], ent["ln"], ent["cls"], ent["argc"]
+        line = text.split("\n")[ln - 1]
         if is_ctrl:
             seg = text[max(0, text.find(line) - 400):text.find(line)]
             anns = list(_RE_MAPPING_ANY.finditer(seg))
@@ -196,17 +257,47 @@ def _scan_java(R, path, rel, svc, text, routes_by_class):
                 http = dict(_SPRING_MAP).get((am.group(1) or "") + "Mapping", "ANY")
                 pathv = am.group(2) or am.group(3) or ""
                 R["routes"].append({"method": http, "path": (prefix or "") + pathv,
-                                    "java_method": meth, "cls": cur_cls, "service": svc,
+                                    "java_method": meth, "cls": cur_cls, "argc": argc, "service": svc,
                                     "file": rel, "prov": "synth:spring-route", "conf": "INFERRED"})
         body = text[text.find(line):text.find(line) + 3000]
         for sm in _RE_MQ_SEND.finditer(body):
             R["topics"].append({"topic": sm.group(1), "dir": "PUBLISHES", "by": meth, "cls": cur_cls,
-                                "service": svc, "file": rel, "prov": "synth:rocketmq-send", "conf": "INFERRED"})
-        for cm in _RE_CALL.finditer(body):
-            recv, callee = cm.group(1), cm.group(2)
-            if recv not in SKIP_RECV:
-                R["raw_calls"].append({"from": meth, "from_cls": cur_cls, "recv": recv, "to": callee,
-                                       "service": svc, "file": rel})
+                                "argc": argc, "service": svc, "file": rel,
+                                "prov": "synth:rocketmq-send", "conf": "INFERRED"})
+        # lambda/匿名类行内的调用保守跳过（不假归属外层方法），显式记 coverage
+        for bl in body.split("\n"):
+            for cm in _RE_CALL.finditer(bl):
+                recv, callee = cm.group(1), cm.group(2)
+                if recv in SKIP_RECV:
+                    continue
+                if _RE_LAMBDA_LINE.search(bl):
+                    if not R["coverage"]["skipped"] or R["coverage"]["skipped"][-1].get("file") != rel or \
+                           "lambda" not in R["coverage"]["skipped"][-1].get("reason", ""):
+                        R["coverage"]["skipped"].append(
+                            {"file": rel, "reason": "lambda/匿名上下文调用未解析（保守跳过，不归属外层方法）"})
+                    continue
+                R["raw_calls"].append({"from": meth, "from_cls": cur_cls, "from_argc": argc,
+                                       "recv": recv, "to": callee, "service": svc, "file": rel})
+        # 同类裸调用（两遍法已见全部方法，含前向声明；lambda/匿名行保守跳过并记录）
+        for other in [m for m in R["methods"] if m.get("cls") == cur_cls and m["name"] != meth]:
+            pat = re.compile(r'(?<![\w.])' + re.escape(other["name"]) + r'\s*\(')
+            hit_lambda = False
+            hit_plain = False
+            for bl in body.split("\n"):
+                if not pat.search(bl):
+                    continue
+                if _RE_METHOD_LINE.match(bl):
+                    continue  # 声明行不是调用点
+                if _RE_LAMBDA_LINE.search(bl):
+                    hit_lambda = True
+                else:
+                    hit_plain = True
+            if hit_plain:
+                R["raw_calls"].append({"from": meth, "from_cls": cur_cls, "from_argc": argc,
+                                       "recv": "", "to": other["name"], "service": svc, "file": rel})
+            if hit_lambda:
+                R["coverage"]["skipped"].append(
+                    {"file": rel, "reason": "lambda/匿名上下文调用未解析（保守跳过，不归属外层方法）"})
     # MQ 监听（类级）
     for lm in _RE_MQ_LISTEN.finditer(text):
         tm = _RE_MQ_TOPIC.search(lm.group(1))

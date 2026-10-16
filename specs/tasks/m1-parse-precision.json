@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "m1-parse-precision",
+  "state": "verified",
+  "spec": "specs/tasks/m1-parse-precision.md",
+  "requirements": [
+    "R01",
+    "R09"
+  ],
+  "acceptance_cases": [
+    "AC-R01-01"
+  ],
+  "files": [
+    "domimap/lite_scan.py",
+    "domimap/graph.py",
+    "tests/test_precision.py",
+    "tests/test_golden.py",
+    "tests/fixtures/precision/pom.xml",
+    "tests/fixtures/precision/Overload.java",
+    "tests/fixtures/precision/FieldAlias.java",
+    "tests/fixtures/precision/EmptyAndNested.java",
+    "scripts/ast_trial.py",
+    "docs/implementation/parse-trial.md"
+  ],
+  "test_files": [
+    "tests/test_precision.py"
+  ]
+}
