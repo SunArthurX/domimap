@@ -48,23 +48,34 @@ class TestReplayAcceptance(unittest.TestCase):
         cls.g = G()
         cls.s = Searcher(cls.g)
 
-    def test_retrieval_smoke(self):
-        """命中口径 = 原始 query Top-5 或 scenario req 定位卡（含领域词表扩展）任一命中。
-        纯中文需求文本按产品设计走场景扩展路径（scenario_req），标识符类查询走原始检索。"""
+    def _raw_hit(self, text, accepts):
+        r = self.s.query(text, top_k=5, expand=False)
+        names = " ".join(n["name"] for n in r["seeds"])
+        return (not r["refused"]) and any(a in names for a in accepts), names
+
+    def test_raw_hit_rate(self):
+        """raw 口径：仅原始 query Top-5 种子命中（不含场景卡兜底）。roadmap 基线 6/8。"""
+        hit = 0
+        for text, accepts, _dom in REPLAY_REQ:
+            ok, names = self._raw_hit(text, accepts)
+            hit += ok
+            if not ok:
+                print("[replay raw MISS] %r -> %s" % (text, names or "REFUSED"))
+        rate = hit / len(REPLAY_REQ)
+        print("[replay] raw Top-5 命中率 %.0f%% (%d/%d)" % (rate * 100, hit, len(REPLAY_REQ)))
+        self.assertGreaterEqual(rate, 0.75, "raw 检索不得低于已登记基线（发现退化先修检索，不改分母）")
+
+    def test_scenario_hit_rate(self):
+        """scenario 口径：raw 命中或 scenario req 定位卡（领域词表扩展）命中，独立统计。"""
         hit = 0
         for text, accepts, dom in REPLAY_REQ:
-            r = self.s.query(text, top_k=5, expand=False)
-            names = " ".join(n["name"] for n in r["seeds"])
-            ok = (not r["refused"]) and any(a in names for a in accepts)
+            ok, _names = self._raw_hit(text, accepts)
             if not ok and dom is not None:
                 card = scenario.scenario_req(self.g, self.s, text, SEEDS)
                 ok = any(a in card for a in accepts)
-            if ok:
-                hit += 1
-            else:
-                print("[replay MISS] %r -> raw=%s" % (text, names or "REFUSED"))
+            hit += ok
         rate = hit / len(REPLAY_REQ)
-        print("[replay smoke] query/scenario 混合命中 %.0f%% (%d/%d)" % (rate * 100, hit, len(REPLAY_REQ)))
+        print("[replay] scenario 口径命中率 %.0f%% (%d/%d)" % (rate * 100, hit, len(REPLAY_REQ)))
         self.assertGreaterEqual(rate, 0.8)
 
     def test_refusals(self):

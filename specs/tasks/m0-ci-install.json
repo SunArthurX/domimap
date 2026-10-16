@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "m0-ci-install",
+  "state": "verified",
+  "spec": "specs/tasks/m0-ci-install.md",
+  "requirements": [
+    "R13"
+  ],
+  "acceptance_cases": [
+    "AC-R13-01"
+  ],
+  "files": [
+    ".github/workflows/ci.yml",
+    "scripts/install_check.sh",
+    "tests/test_replay.py",
+    "tests/test_spec_contracts.py"
+  ],
+  "test_files": [
+    "tests/test_replay.py"
+  ]
+}

@@ -1,0 +1,29 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Core tests and spec checks
+        run: make verify
+      - name: Build and clean-environment install smoke
+        run: bash scripts/install_check.sh
+      - name: Release gate stays closed without evidence
+        run: |
+          if make release-check; then
+            echo "::error::release-check 不应在缺真实比较证据时通过"; exit 1
+          else
+            echo "release-check 按预期失败（证据未完成）"
+          fi

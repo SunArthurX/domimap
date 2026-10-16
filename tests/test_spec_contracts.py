@@ -20,6 +20,13 @@ class TestSpecContracts(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         shutil.copytree(ROOT / "specs", self.root / "specs")
+        # 中性化 progress：契约测试在临时树里只断言结构语义；真实仓库的 verified 证据
+        # （指纹/工件在 out/verification，不随 specs 拷贝）由 spec-check/stage/release 模式校验。
+        progress = json.loads((self.root / "specs/progress.json").read_text(encoding="utf-8"))
+        progress["cases"] = {cid: {"state": "planned", "evidence": []} for cid in progress["cases"]}
+        progress["milestones"] = {m: "planned" for m in progress["milestones"]}
+        (self.root / "specs/progress.json").write_text(
+            json.dumps(progress, ensure_ascii=False, indent=2), encoding="utf-8")
         for name in ("AGENTS.md", "docs/roadmap.md", "benchmarks/protocol.json"):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
