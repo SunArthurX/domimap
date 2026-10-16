@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS claim_bindings (
   PRIMARY KEY (note_id, claim_idx));
 CREATE TABLE IF NOT EXISTS usage (
   note_id TEXT PRIMARY KEY, hits INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS tombstones (
+  note_id TEXT PRIMARY KEY, reason TEXT, forgotten_at REAL);  -- 受管遗忘：可审计，过期清理
 """
 
 CLAIM_TYPES = {"requirement", "implementation", "observation", "decision", "inference"}
@@ -223,6 +225,39 @@ class KnowledgeStore:
                             "DO UPDATE SET hits = hits + 1", (note_id,))
             self.db.commit()
 
+    # ---------- R07-03：受管遗忘与硬删 ----------
+    def forget(self, note_id, reason=""):
+        """主动遗忘：主表/检索/导出移除，留墓碑（审计+保留期）。
+        历史备份不受影响（备份时点语义，效果可解释）。"""
+        with self.db:
+            if self.get(note_id):
+                self.db.execute("INSERT OR REPLACE INTO tombstones VALUES (?,?,?)",
+                                (note_id, reason, time.time()))
+                self.db.execute("DELETE FROM knowledge WHERE note_id=?", (note_id,))
+                self.db.execute("DELETE FROM claims WHERE note_id=?", (note_id,))
+                self.db.commit()
+
+    def purge_expired(self, retention_days):
+        with self.db:
+            self.db.execute("DELETE FROM tombstones WHERE forgotten_at < ?",
+                            (time.time() - retention_days * 86400,))
+            self.db.commit()
+
+    def purge(self, note_id):
+        """硬删：含修订历史（显式操作，区别于 forget 的受管遗忘）。"""
+        with self.db:
+            self.db.execute("DELETE FROM knowledge WHERE note_id=?", (note_id,))
+            self.db.execute("DELETE FROM claims WHERE note_id=?", (note_id,))
+            self.db.execute("DELETE FROM revisions WHERE note_id=?", (note_id,))
+            self.db.execute("DELETE FROM review_pending WHERE note_id=?", (note_id,))
+            self.db.execute("DELETE FROM claim_bindings WHERE note_id=?", (note_id,))
+            self.db.commit()
+
+    def tombstones(self):
+        return [{"note_id": r[0], "reason": r[1], "forgotten_at": r[2]}
+                for r in self.db.execute(
+                    "SELECT note_id, reason, forgotten_at FROM tombstones ORDER BY forgotten_at")]
+
     # ---------- R07：备份/恢复/Markdown 互操作 ----------
     def backup(self, out_dir):
         """在线备份（SQLite backup API）+ manifest 计数。"""
@@ -242,7 +277,14 @@ class KnowledgeStore:
 
     @classmethod
     def restore(cls, backup_dir, db_path):
-        """干净目录恢复：直接打开备份库（校验 manifest 计数）。"""
+        """干净目录恢复：直接打开备份库（校验 manifest 计数；拒绝符号链接成员防穿越）。"""
+        base = os.path.realpath(backup_dir)
+        for member in ("kb.db", "manifest.json"):
+            p = os.path.join(backup_dir, member)
+            real = os.path.realpath(p)
+            inside = os.path.commonpath([real, base]) == base  # 解析后仍在归档目录内
+            if os.path.islink(p) or not os.path.isfile(real) or not inside:
+                raise ValueError("归档成员非法（符号链接/穿越）：%s" % member)
         inst = cls(db_path)
         m = json.load(open(os.path.join(backup_dir, "manifest.json"), encoding="utf-8"))
         src = sqlite3.connect(os.path.join(backup_dir, "kb.db"))

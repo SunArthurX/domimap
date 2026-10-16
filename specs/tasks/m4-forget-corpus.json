@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "m4-forget-corpus",
+  "state": "verified",
+  "spec": "specs/tasks/m4-forget-corpus.md",
+  "requirements": [
+    "R07",
+    "R14"
+  ],
+  "acceptance_cases": [
+    "AC-R07-03"
+  ],
+  "files": [
+    "domimap/knowledge.py",
+    "tests/test_m4_forget.py",
+    "benchmarks/corpus/manifest.py"
+  ],
+  "test_files": [
+    "tests/test_m4_forget.py"
+  ]
+}
