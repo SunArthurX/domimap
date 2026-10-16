@@ -5,7 +5,7 @@
     "M1": "verified",
     "M2": "verified",
     "M3": "verified",
-    "M4": "planned",
+    "M4": "implementing",
     "M5": "planned"
   },
   "cases": {
@@ -58,24 +58,30 @@
       ]
     },
     "AC-F1-C1-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-F1-C1-01.json"
+      ]
     },
     "AC-F1-C1-02": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-F1-C1-02.json"
+      ]
     },
     "AC-F1-C2-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "blocked",
+      "evidence": [],
+      "note": "Codex 0.148.0 已注册 enabled+传输通；模型后端账号级封锁（所有尝试模型被 ChatGPT 账号拒）。最小输入：受支持模型名或 API-key 认证"
     },
     "AC-F1-C2-02": {
       "state": "planned",
       "evidence": []
     },
     "AC-F1-C3-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "blocked",
+      "evidence": [],
+      "note": "ZCode 3.15.3 接口已验证（~/.zcode/mcp.json 标准格式）且 domimap 已注册（备份留档）；需用户开新 ZCode 会话实测，本会话无法嵌套拉起宿主"
     },
     "AC-F1-C3-02": {
       "state": "planned",

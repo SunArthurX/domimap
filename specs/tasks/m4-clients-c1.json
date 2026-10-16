@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "id": "m4-clients-c1",
+  "state": "verified",
+  "spec": "specs/tasks/m4-clients-c1.md",
+  "requirements": [
+    "F1-C1",
+    "F1-C2",
+    "F1-C3",
+    "F1-C4"
+  ],
+  "acceptance_cases": [
+    "AC-F1-C1-01",
+    "AC-F1-C1-02"
+  ],
+  "files": [
+    "docs/clients.md"
+  ],
+  "test_files": [
+    "docs/clients.md"
+  ]
+}
