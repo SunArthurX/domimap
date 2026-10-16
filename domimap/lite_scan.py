@@ -118,7 +118,14 @@ def scan_repo(root, repo_label=None):
         elif ext == ".sql":
             _scan_sql(R, path, rel, text)
         elif ext in DOC_EXT:
-            R["docs"].append({"path": rel, "text": text[:200000], "service": svc})
+            meta = {}
+            if text.startswith("---"):  # front-matter：valid_until/superseded_by（F4 时间资格）
+                for ln in text.split("---")[1].split("\n")[:12]:
+                    if ":" in ln:
+                        k, _, v = ln.partition(":")
+                        if k.strip() in ("valid_until", "superseded_by"):
+                            meta[k.strip()] = v.strip()
+            R["docs"].append({"path": rel, "text": text[:200000], "service": svc, **meta})
         elif ext == ".docx":
             t = _docx_text(path)
             if t is None:

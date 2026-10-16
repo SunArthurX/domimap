@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "m2-time-tasks",
+  "state": "implementing",
+  "spec": "specs/tasks/m2-time-tasks.md",
+  "requirements": [
+    "F4",
+    "R12",
+    "F1-C1"
+  ],
+  "acceptance_cases": [
+    "AC-F4-01",
+    "AC-R12-01"
+  ],
+  "files": [
+    "domimap/search.py",
+    "domimap/lite_scan.py",
+    "domimap/mcp.py",
+    "tests/test_m2_f4.py",
+    "benchmarks/real_tasks/tasks.json",
+    "domimap/graph.py"
+  ],
+  "test_files": [
+    "tests/test_m2_f4.py"
+  ]
+}

@@ -54,11 +54,35 @@ class Server:
         except OSError:
             pass
 
+    def _ev_map(self):
+        """rel 路径 → 证据 ID（惰性构建，源文件级）。"""
+        if getattr(self, "_ev_map_cache", None) is not None:
+            return self._ev_map_cache
+        out = {}
+        db = os.path.join(os.path.dirname(os.path.abspath(self.graph_path)), "store.db")
+        if os.path.exists(db):
+            from .store import EvidenceStore
+            store = EvidenceStore(db)
+            for s in store.list_sources():
+                out[s["rel"]] = "ev:" + s["sha256"][:20]
+            store.close()
+        self._ev_map_cache = out
+        return out
+
     def handle(self, name, args):
+        self._ev_map_cache = None  # 热重载后失效重建
         self._fresh()
         if name == "kg_explore":
             r = self.s.query(args["query"], top_k=int(args.get("top_k", 6)),
                              domain=args.get("domain"), seeds=self.seeds)
+            ev_map = self._ev_map()
+            extra = []
+            for n in r["seeds"]:
+                ev = ev_map.get(n["file"])
+                if ev:
+                    extra.append("  ev_id=%s  @%s" % (ev, n["file"]))
+            if extra:
+                return r["text"] + "\n## 证据 ID（kg_read 可读固化片段）\n" + "\n".join(extra[:8])
             return r["text"]
         if name == "kg_read":
             import json as _j

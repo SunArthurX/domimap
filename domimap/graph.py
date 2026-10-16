@@ -168,7 +168,9 @@ class Graph:
         for d in R["docs"]:
             did = self.add_node("doc:%s:%s" % (d.get("service", "(root)"), d["path"]), "Doc",
                                 os.path.basename(d["path"]), d["path"],
-                                {"text": d["text"]}, conf="EXTRACTED", prov="doc:ingest")
+                                {"text": d["text"],
+                                 **{k: d[k] for k in ("valid_until", "superseded_by") if d.get(k)}},
+                                conf="EXTRACTED", prov="doc:ingest")
             hits = Counter()
             for tk in tokenize(d["text"]):
                 for nid in names_idx.get(tk, ()):  # 词面命中

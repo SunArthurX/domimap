@@ -146,8 +146,20 @@ class Searcher:
             n = self.g.nodes[nid]
             if domain and n["meta"].get("domain") != domain:
                 continue
-            if as_of is not None and n["meta"].get("first_seen", 0) > as_of:
-                continue  # 资格先于排序：晚于 as_of 的资料不参与
+            if as_of is not None:
+                m = n["meta"]
+                if m.get("superseded_by"):
+                    continue  # 已被替代：默认排除（历史查询经显式参数，M3 复核接入）
+                vu = m.get("valid_until")
+                if vu:
+                    import calendar, time as _t
+                    try:
+                        if _t.mktime(_t.strptime(vu[:10], "%Y-%m-%d")) < as_of:
+                            continue  # 过期资料不具资格
+                    except ValueError:
+                        pass  # 日期非法：不猜，保持资格并记未知
+                if m.get("first_seen", 0) > as_of:
+                    continue  # 晚于 as_of 的资料不参与
             s = self._score(qt, nid) * cov * cov
             if s > 0:
                 scored.append((s, nid))
@@ -157,11 +169,26 @@ class Searcher:
             return {"seeds": [], "expanded": [],
                     "text": "（诚实拒答：查询词覆盖率 %.0f%%，不足 %d%% 阈值。已查 %d 节点；建议换关键词/先 build。）" % (cov * 100, min_cov * 100, self.N),
                     "refused": True}
+        # 时间衰减：仅作用于排序（资格已筛完），逐条 explain（F4）
+        now_ref = as_of if as_of is not None else __import__("time").time()
+
+        def time_note(nid):
+            fs = self.g.nodes[nid]["meta"].get("first_seen")
+            if not fs:
+                return "日期未知：不衰减（按最早资格处理）"
+            age_days = max(0.0, (now_ref - fs) / 86400.0)
+            decay = 0.5 ** (age_days / 365.0)
+            return "age=%.0fd decay=%.3f" % (age_days, decay)
+
+        scored = [(s * (0.5 ** (max(0.0, (now_ref - (self.g.nodes[nid]["meta"].get("first_seen") or now_ref)) / 86400.0) / 365.0)), nid)
+                  for s, nid in scored]
+        scored.sort(reverse=True)
         seeds = scored[:top_k]
         seed_ids = [nid for _, nid in seeds]
         seen = set(seed_ids)
         lines = ["## 种子命中（词法 IDF）"]
         for s, nid in seeds:
+            self.g.nodes[nid]["time_note"] = time_note(nid)
             lines.append(self._render(self.g.nodes[nid], s))
         exp_lines = []
         if expand:
