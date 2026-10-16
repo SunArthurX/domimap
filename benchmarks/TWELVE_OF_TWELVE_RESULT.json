@@ -1,0 +1,59 @@
+{
+ "grade": "独立裁决后 12 项 Bonferroni（候选精剪后 domimap 重跑）",
+ "domimap": {
+  "hit_at_5": 0.644,
+  "micro_f1": 0.458,
+  "note": "精剪换 precision：hit 微降 67.5→64.4，f1 升 0.413→0.458"
+ },
+ "all_pass": true,
+ "results": {
+  "cbm:hit": {
+   "lower_bound": 0.0051,
+   "pass": true
+  },
+  "cbm:acc": {
+   "lower_bound": 0.0051,
+   "pass": true
+  },
+  "cbm:f1": {
+   "lower_bound": 0.1389,
+   "pass": true
+  },
+  "graphify:hit": {
+   "lower_bound": 0.0411,
+   "pass": true
+  },
+  "graphify:acc": {
+   "lower_bound": 0.0411,
+   "pass": true
+  },
+  "graphify:f1": {
+   "lower_bound": 0.1017,
+   "pass": true
+  },
+  "codegraph:hit": {
+   "lower_bound": 0.4198,
+   "pass": true
+  },
+  "codegraph:acc": {
+   "lower_bound": 0.4198,
+   "pass": true
+  },
+  "codegraph:f1": {
+   "lower_bound": 0.2861,
+   "pass": true
+  },
+  "claude_obsidian:hit": {
+   "lower_bound": 0.0071,
+   "pass": true
+  },
+  "claude_obsidian:acc": {
+   "lower_bound": 0.0071,
+   "pass": true
+  },
+  "claude_obsidian:f1": {
+   "lower_bound": 0.0412,
+   "pass": true
+  }
+ }
+}

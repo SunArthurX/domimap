@@ -240,6 +240,13 @@ class Searcher:
                                                if self._node(nid)["kind"] in ("Doc", "Knowledge")) >= 4
         want_docs = min(3 if doc_dense else 2, len(doc_hits)) if doc_hits else 0
         merged = (code_hits[:top_k - want_docs] + doc_hits[:want_docs]) if want_docs else capped[:top_k]
+        # 候选精剪（precision）：与上一名得分断崖 >55% 时截断（丢弃低置信尾部，减 FP）
+        if len(merged) >= 2:
+            keep = [merged[0]]
+            for i in range(1, len(merged)):
+                if merged[i][0] >= 0.45 * merged[0][0]:
+                    keep.append(merged[i])
+            merged = keep
         seeds = merged[:top_k]
         seed_ids = [nid for _, nid in seeds]
         seen = set(seed_ids)
