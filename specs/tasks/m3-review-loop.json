@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "m3-review-loop",
+  "state": "verified",
+  "spec": "specs/tasks/m3-review-loop.md",
+  "requirements": [
+    "R06"
+  ],
+  "acceptance_cases": [
+    "AC-R06-01",
+    "AC-R06-02"
+  ],
+  "files": [
+    "domimap/knowledge.py",
+    "tests/test_m3_review.py"
+  ],
+  "test_files": [
+    "tests/test_m3_review.py"
+  ]
+}

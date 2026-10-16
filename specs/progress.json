@@ -128,12 +128,16 @@
       ]
     },
     "AC-R06-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R06-01.json"
+      ]
     },
     "AC-R06-02": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R06-02.json"
+      ]
     },
     "AC-R07-01": {
       "state": "planned",

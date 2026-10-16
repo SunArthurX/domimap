@@ -27,6 +27,16 @@ CREATE TABLE IF NOT EXISTS revisions (
   PRIMARY KEY (note_id, revision));
 CREATE TABLE IF NOT EXISTS idempotency (
   key TEXT PRIMARY KEY, note_id TEXT, content_sha TEXT, result TEXT);
+CREATE TABLE IF NOT EXISTS baselines (
+  evkey TEXT PRIMARY KEY, sha TEXT, recorded REAL);
+CREATE TABLE IF NOT EXISTS review_pending (
+  note_id TEXT, claim_idx INTEGER, evkey TEXT, old_sha TEXT, new_sha TEXT, since REAL,
+  PRIMARY KEY (note_id, claim_idx, new_sha));
+CREATE TABLE IF NOT EXISTS claim_bindings (
+  note_id TEXT, claim_idx INTEGER, sha TEXT, confirmed_at REAL,
+  PRIMARY KEY (note_id, claim_idx));
+CREATE TABLE IF NOT EXISTS usage (
+  note_id TEXT PRIMARY KEY, hits INTEGER DEFAULT 0);
 """
 
 CLAIM_TYPES = {"requirement", "implementation", "observation", "decision", "inference"}
@@ -152,6 +162,65 @@ class KnowledgeStore:
                 for r in self.db.execute(
                     "SELECT note_id, body, updated FROM knowledge WHERE status='active' "
                     "ORDER BY updated DESC")]
+
+    # ---------- R06：依赖失效复核 ----------
+    def record_baseline(self, current):
+        """登记证据键基线摘要（扫描方提供，如 EvidenceStore 的 sha 映射）。"""
+        with self.db:
+            for key, sha in current.items():
+                self.db.execute("INSERT OR REPLACE INTO baselines VALUES (?,?,?)",
+                                (key, sha, time.time()))
+
+    def scan_dependencies(self, current):
+        """当前摘要 vs 基线：仅受影响 claim 入待复核队列（幂等，主键去重）。
+
+        点击/使用频率不参与（真实性只由确认绑定或修改/撤回改变）。
+        """
+        with self.db:
+            self.db.execute("BEGIN IMMEDIATE")
+            old = {r[0]: r[1] for r in self.db.execute("SELECT evkey, sha FROM baselines")}
+            queue = []
+            for note in self.db.execute(
+                    "SELECT note_id FROM knowledge WHERE status='active'"):
+                note_id = note[0]
+                for idx, ev_json in self.db.execute(
+                        "SELECT idx, evidence FROM claims WHERE note_id=?", (note_id,)):
+                    for evkey in json.loads(ev_json or "[]"):
+                        if evkey in current and evkey in old and current[evkey] != old[evkey]:
+                            bound = self.db.execute(
+                                "SELECT sha FROM claim_bindings WHERE note_id=? AND claim_idx=?",
+                                (note_id, idx)).fetchone()
+                            if bound and bound[0] == current[evkey]:
+                                continue  # 已确认绑定当前版本
+                            self.db.execute(
+                                "INSERT OR IGNORE INTO review_pending VALUES (?,?,?,?,?,?)",
+                                (note_id, idx, evkey, old[evkey], current[evkey], time.time()))
+            for r in self.db.execute(
+                    "SELECT note_id, claim_idx, evkey, old_sha, new_sha FROM review_pending"):
+                queue.append({"note_id": r[0], "claim_idx": r[1], "evidence": r[2],
+                              "old_sha": r[3], "new_sha": r[4],
+                              "actions": ["confirm(绑定新证据)", "amend(修改)", "withdraw(撤回)"]})
+            self.db.commit()
+            return queue
+
+    def confirm_review(self, note_id, claim_idx, new_evidence, new_sha):
+        """确认 = 显式绑定新证据摘要（不是点击即真）。"""
+        with self.db:
+            self.db.execute("UPDATE claims SET evidence=?, state='confirmed' "
+                            "WHERE note_id=? AND idx=?",
+                            (json.dumps(new_evidence, ensure_ascii=False), note_id, claim_idx))
+            self.db.execute("INSERT OR REPLACE INTO claim_bindings VALUES (?,?,?,?)",
+                            (note_id, claim_idx, new_sha, time.time()))
+            self.db.execute("DELETE FROM review_pending WHERE note_id=? AND claim_idx=?",
+                            (note_id, claim_idx))
+            self.db.commit()
+
+    def touch_note(self, note_id):
+        """使用/点击计数——显式不影响复核状态与真实性（R06-02 负例语义）。"""
+        with self.db:
+            self.db.execute("INSERT INTO usage VALUES (?, 1) ON CONFLICT(note_id) "
+                            "DO UPDATE SET hits = hits + 1", (note_id,))
+            self.db.commit()
 
     def count(self):
         return self.db.execute("SELECT COUNT(*) FROM knowledge").fetchone()[0]
