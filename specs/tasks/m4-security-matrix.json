@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "m4-security-matrix",
+  "state": "verified",
+  "spec": "specs/tasks/m4-security-matrix.md",
+  "requirements": [
+    "R08",
+    "R09"
+  ],
+  "acceptance_cases": [
+    "AC-R08-02",
+    "AC-R09-02"
+  ],
+  "files": [
+    "domimap/ui.py",
+    "domimap/graph.py",
+    "domimap/lite_scan.py",
+    "docs/capability-matrix.md",
+    "tests/test_m4_security.py",
+    "tests/test_m4_matrix.py"
+  ],
+  "test_files": [
+    "tests/test_m4_security.py",
+    "tests/test_m4_matrix.py"
+  ]
+}

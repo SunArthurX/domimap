@@ -27,7 +27,7 @@ _RE_METHOD_LINE = re.compile(r'^\s*(?:(?:public|protected|private|static|final|s
                              r'[\w<>\[\],.][\w<>\[\],.\s]*?\s+(\w+)\s*\(')
 _RE_PKG = re.compile(r'^\s*package\s+([\w\.]+)\s*;', re.M)
 _RE_DUBBO_SVC = re.compile(r'@DubboService\b|@org\.apache\.dubbo.*Service\b')
-_RE_DUBBO_REF = re.compile(r'@DubboReference\s*(?:\([^)]*\))?\s*\n?\s*(?:private|protected|public)?\s*([\w\.]+?)\s+(\w+)\s*;')
+_RE_DUBBO_REF = re.compile(r'@(?:[\w.]+\.)?DubboReference\s*(?:\([^)]*\))?\s*\n?\s*(?:private|protected|public)?\s*([\w\.]+?)\s+(\w+)\s*;')
 _RE_MQ_LISTEN = re.compile(r'@RocketMQMessageListener\s*\(([^)]*)\)', re.S)
 _RE_MQ_TOPIC = re.compile(r'topic\s*=\s*"([^"]+)"')
 _RE_MQ_SEND = re.compile(r'(?:rocketMQTemplate|rocketMqTemplate)\s*\.\s*(?:syncSend|asyncSend|send|convertAndSend)\s*\(\s*"([^"]+)"')
@@ -357,7 +357,8 @@ def _scan_mybatis(R, path, rel, svc, text):
         tag = stmt.tag.split("}")[-1]
         if tag in {"select", "insert", "update", "delete"}:
             sid = stmt.get("id", "")
-            sql = " ".join((stmt.text or "").split())
+            # 动态 SQL（<if>/<foreach>）：取全部后代文本节点，标签即动态结构
+            sql = " ".join(t.strip() for t in stmt.itertext() if t and t.strip())
             tables = set(re.findall(r'(?:FROM|JOIN|INTO|UPDATE)\s+`?(\w+)`?', sql, re.I))
             cols = set(re.findall(r'(\w+)\s*=', sql))
             R["sqlstmts"].append({"iface": iface, "id": sid, "verb": tag.upper(), "sql": sql[:500],

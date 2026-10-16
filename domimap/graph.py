@@ -137,16 +137,19 @@ class Graph:
         # Dubbo/Feign RPC（按接口名对齐生产/消费；缺一侧仍记录挂起引用）
         provs = {}
         for r in R["rpc"]:
-            provs.setdefault(r["iface"], {"consumers": set()})
+            provs.setdefault(r["iface"], {"consumers": set(), "providers": []})
             provs[r["iface"]]["consumers"].add(r["service"])
         for c in R["classes"]:
             if c["dubbo_service"] and c["name"] in provs:
-                provs[c["name"]]["provider"] = c["service"]
+                provs[c["name"]]["providers"].append(c["service"])
         for iface, info in provs.items():
-            pid = info.get("provider")
+            multi = len(set(info["providers"])) > 1
             for cons in info["consumers"]:
-                if pid and pid != cons:
-                    self.add_edge("svc:" + cons, "svc:" + pid, "RPC", "INFERRED", "synth:dubbo")
+                for pid in set(info["providers"]):
+                    if pid != cons:
+                        self.add_edge("svc:" + cons, "svc:" + pid, "RPC",
+                                      "AMBIGUOUS" if multi else "INFERRED",
+                                      "synth:dubbo+multi-provider" if multi else "synth:dubbo")
         # 跨端连线：page 调用 → 后端 Route（URL 精确→前缀匹配，method 兼容）
         routes = [n for n in self.nodes.values() if n["kind"] == "Route"]
         for p in R["pages"]:

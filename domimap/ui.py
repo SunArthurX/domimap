@@ -54,6 +54,48 @@ def make_server(graph_path, host="127.0.0.1", port=0):
             self.end_headers()
             self.wfile.write(data)
 
+        _LOOPBACK = ("http://127.0.0.1", "http://localhost", "http://[::1]")
+
+        def _origin_ok(self):
+            """R08-02：Host 必须回环；Origin/Referer 若存在必须回环（跨站写拒绝）。"""
+            host = (self.headers.get("Host") or "").split(":")[0]
+            if host not in ("127.0.0.1", "localhost", "[::1]", "::1"):
+                return False
+            for h in ("Origin", "Referer"):
+                v = self.headers.get(h)
+                if v and not any(v.startswith(p) for p in self._LOOPBACK):
+                    return False
+            return True
+
+        def do_POST(self):
+            if self.path == "/api/note/save":
+                if not self._origin_ok():
+                    n = int(self.headers.get("Content-Length") or 0)
+                    if n:
+                        self.rfile.read(min(n, 1 << 20))  # 排空请求体再应答，保证连接语义
+                    self._send(403, json.dumps({"error": "跨站/非回环来源写入被拒绝"}, ensure_ascii=False))
+                    return
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                    body = json.loads(self.rfile.read(min(n, 1 << 20)).decode("utf-8"))
+                except Exception:
+                    self._send(400, json.dumps({"error": "非法请求体"}, ensure_ascii=False))
+                    return
+                from .knowledge import KnowledgeStore
+                kb_path = os.path.join(os.path.dirname(os.path.abspath(graph_path)), "knowledge.db")
+                kb = KnowledgeStore(kb_path)
+                try:
+                    r = kb.submit(body.get("body", ""), body.get("claims") or [],
+                                  idempotency_key=body.get("idempotency_key"))
+                except ValueError as e:
+                    self._send(409, json.dumps({"error": str(e)}, ensure_ascii=False))
+                    return
+                finally:
+                    kb.close()
+                self._send(200, json.dumps(r, ensure_ascii=False))
+                return
+            self._send(404, json.dumps({"error": "not found"}))
+
         def do_GET(self):
             u = urlparse(self.path)
             if u.path == "/":
