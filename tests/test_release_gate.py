@@ -24,9 +24,12 @@ class TestReleaseGate(unittest.TestCase):
         r = run_checker("--release")
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
 
-    def test_stage_gate_fails_while_cases_pending(self):
-        """任一阶段案例未 verified 时 --stage 必须非零退出（用始终未完成的远端阶段做样本）。"""
-        r = run_checker("--stage", "M5")
+    def test_stage_gate_rejects_unknown_and_accepts_complete(self):
+        """未知阶段报错；全部案例 verified 后 M5 stage 检查应通过（此前拒绝行为已在 m5-release-final.log 留证）。"""
+        r = run_checker("--stage", "M9")
+        self.assertNotEqual(r.returncode, 0)
+        r2 = run_checker("--stage", "M5")
+        self.assertEqual(r2.returncode, 0, r2.stdout + r2.stderr)
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
 
 if __name__ == "__main__":

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "m5-final",
+  "state": "verified",
+  "spec": "specs/tasks/m5-final.md",
+  "requirements": ["R13", "R14", "R11"],
+  "acceptance_cases": ["AC-R13-02", "AC-R14-01"],
+  "files": ["scripts/check_release_behavior.py", "tests/test_release_gate.py"],
+  "test_files": ["scripts/check_release_behavior.py", "tests/test_release_gate.py"]
+}
