@@ -208,8 +208,10 @@
       ]
     },
     "AC-R10-02": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R10-02.json"
+      ]
     },
     "AC-R11-01": {
       "state": "planned",
