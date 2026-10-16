@@ -139,7 +139,19 @@ class Searcher:
 
     def query(self, text, top_k=6, expand=True, budget=3800, domain=None, min_cov=0.3, seeds=None,
               as_of=None):
-        """as_of（epoch 秒）给定时时先做资格筛选：first_seen 晚于 as_of 的节点不进候选（F4）。"""
+        """as_of（epoch 秒）给定时时先做资格筛选：first_seen 晚于 as_of 的节点不进候选（F4）。
+
+        标识符守门（先于词表扩展）：单一 latin 标识符且图中无任何节点名/索引词包含它时
+        直接拒答——不猜相近名（防变异标识符的幻觉命中，负例底线）。
+        """
+        import re as _reG
+        _o = text.strip()
+        if (_reG.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", _o)
+                and not any(_o.lower() in n["name"].lower()
+                            for n in list(self.g.nodes.values())[:200000] + list(self.extra.values()))
+                and not any(_o.lower() in t for t in self.df)):
+            return {"seeds": [], "expanded": [],
+                    "text": "（诚实拒答：标识符 %s 在图中不存在。）" % _o, "refused": True}
         """seeds（领域种子词表）提供时启用查询期领域扩展：命中域的关键词拼入检索，
         解决纯中文查询与 latin 词面节点的词法鸿沟（与 scenario_req 同一公共语义）。"""
         if seeds:
@@ -232,6 +244,24 @@ class Searcher:
             fam[f] = fam.get(f, 0) + 1
             if fam[f] <= 2:
                 capped.append((s, nid))
+        # 跨族覆盖：top_k 选择后，若得分前 20 的其它族无代表，则用该族最佳替换选择尾部最低分项
+        # （全局最佳始终保留；替换按族头得分与被替项得分顺序进行——不破坏排序质量）
+        sel = capped[:top_k]
+        pool = capped[:max(20, top_k)]
+        sel_fams = {self._node(nid)["file"].split("/", 1)[0] for _, nid in sel}
+        for sc, nid in pool:
+            fseg = self._node(nid)["file"].split("/", 1)[0]
+            if fseg in sel_fams:
+                continue
+            if len(sel) >= top_k and sc > sel[-1][0]:
+                sel[-1] = (sc, nid)          # 替换最低分尾部
+            elif len(sel) < top_k:
+                sel.append((sc, nid))
+            else:
+                break
+            sel_fams.add(fseg)
+            sel.sort(reverse=True)
+        capped = sel + capped[top_k:]
         doc_hits = [x for x in capped if self._node(x[1])["kind"] in ("Doc", "Knowledge")]
         code_hits = [x for x in capped if self._node(x[1])["kind"] not in ("Doc", "Knowledge")]
         # 文档路配额自适应：候选头部文档浓度高（文档型查询）时扩到 3 席，防代码挤占
