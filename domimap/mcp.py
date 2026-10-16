@@ -38,7 +38,15 @@ class Server:
         from .graph import Graph
         from .search import Searcher
         self.g = Graph.load(self.graph_path)
-        self.s = Searcher(self.g, cache_path=self.graph_path + ".idx.json")
+        cov = os.path.join(os.path.dirname(os.path.abspath(self.graph_path)), "coverage.json")
+        coverage = {}
+        if os.path.exists(cov):
+            try:
+                import json as _cj
+                coverage = _cj.load(open(cov, encoding="utf-8"))
+            except Exception:
+                coverage = {}
+        self.s = Searcher(self.g, cache_path=self.graph_path + ".idx.json", coverage=coverage)
         from .graph import load_seeds
         self.seeds = load_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
         try:
@@ -70,6 +78,13 @@ class Server:
         return out
 
     def handle(self, name, args):
+        """进程内/协议共用的有界入口：非法入参返回结构化错误串，不抛不崩（R08-03）。"""
+        try:
+            return self._dispatch(name, args if isinstance(args, dict) else {})
+        except Exception:
+            return "错误: 非法参数（invalid params）"
+
+    def _dispatch(self, name, args):
         self._ev_map_cache = None  # 热重载后失效重建
         self._fresh()
         if name == "kg_explore":
@@ -148,6 +163,10 @@ def serve(graph_path):
         line = line.strip()
         if not line:
             continue
+        if len(line) > (1 << 20):  # R08-03：超大请求有界错误，不解析不崩溃
+            send({"jsonrpc": "2.0", "id": None, "error": {"code": -32600,
+                                                          "message": "request too large"}})
+            continue
         try:
             req = json.loads(line)
         except json.JSONDecodeError:
@@ -167,13 +186,16 @@ def serve(graph_path):
         elif method == "tools/call":
             try:
                 p = req.get("params", {})
+                if not isinstance(p, dict):
+                    raise TypeError("params 必须为对象")
                 text = srv.handle(p.get("name", ""), p.get("arguments", {}))
                 send({"jsonrpc": "2.0", "id": rid, "result": {
                     "content": [{"type": "text", "text": text}],
                     "isError": False}})
-            except Exception as e:
+            except Exception:
+                # R08-03：有界结构化错误，不泄漏内部异常文本（D2 残留收口）
                 send({"jsonrpc": "2.0", "id": rid, "result": {
-                    "content": [{"type": "text", "text": "错误: %s" % e}], "isError": True}})
+                    "content": [{"type": "text", "text": "错误: 非法参数（invalid params）"}], "isError": True}})
         elif method == "ping":
             send({"jsonrpc": "2.0", "id": rid, "result": {}})
         elif rid is not None:

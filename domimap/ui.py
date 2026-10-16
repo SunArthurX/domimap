@@ -69,7 +69,8 @@ def make_server(graph_path, host="127.0.0.1", port=0):
                 self._send(200, json.dumps(
                     {"seeds": [{"id": n["id"], "kind": n["kind"], "name": n["name"],
                                 "file": n["file"]} for n in r["seeds"]],
-                     "refused": r.get("refused", False), "text": r["text"][:400]},
+                     "refused": r.get("refused", False), "text": r["text"][:400],
+                     "coverage": r.get("coverage")},
                     ensure_ascii=False))
                 return
             if u.path == "/api/read":

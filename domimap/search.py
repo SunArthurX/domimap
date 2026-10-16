@@ -12,8 +12,9 @@ from .tokenize import tokenize
 IDX_SCHEMA = "domimap.idx.v1"
 
 class Searcher:
-    def __init__(self, g, cache_path=None):
+    def __init__(self, g, cache_path=None, coverage=None):
         self.g = g
+        self.coverage = coverage or {}
         self.docs = {}
         self.df = Counter()
         self.N = 0
@@ -183,7 +184,18 @@ class Searcher:
         scored = [(s * (0.5 ** (max(0.0, (now_ref - (self.g.nodes[nid]["meta"].get("first_seen") or now_ref)) / 86400.0) / 365.0)), nid)
                   for s, nid in scored]
         scored.sort(reverse=True)
-        seeds = scored[:top_k]
+        # R04-01：①来源家族去重（同文件 ≤2 席，防 seeds/README 型噪声霸榜）②分路融合（Doc 保底）
+        fam, capped = {}, []
+        for s, nid in scored:
+            f = self.g.nodes[nid]["file"]
+            fam[f] = fam.get(f, 0) + 1
+            if fam[f] <= 2:
+                capped.append((s, nid))
+        doc_hits = [x for x in capped if self.g.nodes[x[1]]["kind"] == "Doc"]
+        code_hits = [x for x in capped if self.g.nodes[x[1]]["kind"] != "Doc"]
+        want_docs = min(2, len(doc_hits)) if doc_hits else 0
+        merged = (code_hits[:top_k - want_docs] + doc_hits[:want_docs]) if want_docs else capped[:top_k]
+        seeds = merged[:top_k]
         seed_ids = [nid for _, nid in seeds]
         seen = set(seed_ids)
         lines = ["## 种子命中（词法 IDF）"]
@@ -203,8 +215,15 @@ class Searcher:
         out = "\n".join(lines + exp_lines)
         if len(out) > budget:
             out = out[:budget] + "\n…(预算截断)"
+        reasons = {}
+        for s in (self.coverage.get("skipped") or []):
+            for key in ("解析失败", "旧格式", "大小上限", "越界", "lambda", "未解析"):
+                if key in s.get("reason", ""):
+                    reasons[key] = reasons.get(key, 0) + 1
         return {"seeds": [self.g.nodes[n] for n in seed_ids], "expanded_count": len(exp_lines),
-                "text": out, "refused": False}
+                "text": out, "refused": False,
+                "coverage": {"files_scanned": self.coverage.get("files_scanned"),
+                             "skipped": len(self.coverage.get("skipped") or []), "reasons": reasons}}
 
     def _render(self, n, score):
         head = "- [%s] %s  (score=%.3f, conf=%s, prov=%s)" % (n["kind"], n["name"], score, n["conf"], n["prov"])

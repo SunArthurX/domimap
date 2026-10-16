@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "m2-closeout",
+  "state": "implementing",
+  "spec": "specs/tasks/m2-closeout.md",
+  "requirements": [
+    "R02",
+    "R04",
+    "R08"
+  ],
+  "acceptance_cases": [
+    "AC-R02-02",
+    "AC-R04-01",
+    "AC-R08-03"
+  ],
+  "files": [
+    "domimap/search.py",
+    "domimap/mcp.py",
+    "domimap/__main__.py",
+    "tests/test_m2_closeout.py",
+    "domimap/ui.py"
+  ],
+  "test_files": [
+    "tests/test_m2_closeout.py"
+  ]
+}
