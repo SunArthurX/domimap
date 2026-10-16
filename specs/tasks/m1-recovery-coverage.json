@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "m1-recovery-coverage",
+  "state": "verified",
+  "spec": "specs/tasks/m1-recovery-coverage.md",
+  "requirements": [
+    "R03",
+    "R02"
+  ],
+  "acceptance_cases": [
+    "AC-R03-02"
+  ],
+  "files": [
+    "domimap/batch.py",
+    "tests/test_recovery_coverage.py",
+    "tests/fixtures/coverage/pom.xml",
+    "tests/fixtures/coverage/broken-mapper.xml",
+    "tests/fixtures/coverage/legacy.doc",
+    "domimap/lite_scan.py"
+  ],
+  "test_files": [
+    "tests/test_recovery_coverage.py"
+  ]
+}

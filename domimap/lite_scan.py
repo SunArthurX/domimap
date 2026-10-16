@@ -95,7 +95,7 @@ def scan_repo(root, repo_label=None):
     routes_by_class = {}
     for path, rel in _walk(root, on_skip=R["coverage"]["skipped"].append):
         ext = os.path.splitext(rel)[1].lower()
-        if ext not in CODE_EXT and ext not in DOC_EXT and ext not in {".docx", ".pdf"}:
+        if ext not in CODE_EXT and ext not in DOC_EXT and ext not in {".docx", ".pdf", ".doc"}:
             continue
         try:
             with open(path, encoding="utf-8", errors="replace") as f:

@@ -1,0 +1,1 @@
+<mapper namespace="com.example.Broken"><select id="a">SELECT * FROM t_x WHERE

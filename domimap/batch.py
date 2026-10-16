@@ -72,6 +72,12 @@ def scan_many(roots, jobs=8):
             merged["coverage"]["skipped"].extend(R["coverage"]["skipped"])
     return merged
 
+def normalized(g):
+    """规范化等价视图（增量=全量收敛比较用）：(节点ID集, 规范化边五元组集)。"""
+    return (frozenset(g.nodes),
+            frozenset((e["src"], e["dst"], e["kind"], e["conf"], e["prov"]) for e in g.edges))
+
+
 def _seeds_digest(path):
     import hashlib
     return hashlib.sha256(open(path, "rb").read()).hexdigest()
