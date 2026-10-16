@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "m3-knowledge-txn",
+  "state": "verified",
+  "spec": "specs/tasks/m3-knowledge-txn.md",
+  "requirements": [
+    "R05"
+  ],
+  "acceptance_cases": [
+    "AC-R05-01"
+  ],
+  "files": [
+    "domimap/knowledge.py",
+    "tests/test_m3_knowledge.py"
+  ],
+  "test_files": [
+    "tests/test_m3_knowledge.py"
+  ]
+}

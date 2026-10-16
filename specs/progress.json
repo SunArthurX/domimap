@@ -4,7 +4,7 @@
     "M0": "verified",
     "M1": "verified",
     "M2": "verified",
-    "M3": "planned",
+    "M3": "implementing",
     "M4": "planned",
     "M5": "planned"
   },
@@ -116,8 +116,10 @@
       "evidence": []
     },
     "AC-R05-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R05-01.json"
+      ]
     },
     "AC-R05-02": {
       "state": "planned",
