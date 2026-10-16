@@ -39,7 +39,8 @@ class EvidenceStore:
         self.gens = os.path.join(self.dir, "gens")
         os.makedirs(self.blobs, exist_ok=True)
         os.makedirs(self.gens, exist_ok=True)
-        self.db = sqlite3.connect(db_path, timeout=30)
+        # 多 Agent 会话并发（R10）：跨线程共用连接，写入由 BEGIN EXCLUSIVE 串行化
+        self.db = sqlite3.connect(db_path, timeout=30, check_same_thread=False)
         self.db.executescript(SCHEMA)
         self.db.commit()
         self._fail_stage = None  # 测试注入口

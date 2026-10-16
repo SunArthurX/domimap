@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "m4-formats-platform",
+  "state": "verified",
+  "spec": "specs/tasks/m4-formats-platform.md",
+  "requirements": [
+    "R09",
+    "R10"
+  ],
+  "acceptance_cases": [
+    "AC-R09-01",
+    "AC-R09-03",
+    "AC-R10-01"
+  ],
+  "files": [
+    "domimap/lite_scan.py",
+    "docs/platform-matrix.md",
+    "tests/test_m4_formats.py",
+    "tests/test_m4_concurrency.py",
+    "domimap/knowledge.py",
+    "domimap/store.py"
+  ],
+  "test_files": [
+    "tests/test_m4_formats.py",
+    "tests/test_m4_concurrency.py"
+  ]
+}

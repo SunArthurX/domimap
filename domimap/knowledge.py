@@ -50,7 +50,8 @@ class KnowledgeStore:
     def __init__(self, db_path):
         self.db_path = db_path
         os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
-        self.db = sqlite3.connect(db_path, timeout=30)
+        # 多会话并发（R05/R10）：跨线程共用，BEGIN IMMEDIATE 串行化写入
+        self.db = sqlite3.connect(db_path, timeout=30, check_same_thread=False)
         self.db.executescript(SCHEMA)
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.commit()

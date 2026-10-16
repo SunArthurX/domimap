@@ -182,8 +182,10 @@
       ]
     },
     "AC-R09-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R09-01.json"
+      ]
     },
     "AC-R09-02": {
       "state": "verified",
@@ -192,12 +194,16 @@
       ]
     },
     "AC-R09-03": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R09-03.json"
+      ]
     },
     "AC-R10-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R10-01.json"
+      ]
     },
     "AC-R10-02": {
       "state": "planned",

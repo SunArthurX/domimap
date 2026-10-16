@@ -126,18 +126,23 @@ def scan_repo(root, repo_label=None):
                         if k.strip() in ("valid_until", "superseded_by"):
                             meta[k.strip()] = v.strip()
             R["docs"].append({"path": rel, "text": text[:200000], "service": svc, **meta})
-        elif ext == ".docx":
-            t = _docx_text(path)
-            if t is None:
-                R["coverage"]["skipped"].append({"file": rel, "reason": "python-docx 未安装（可选依赖）"})
+        elif ext in (".docx", ".pdf"):
+            ex = extract_document(path)
+            if ex["status"] == "ok":
+                meta = {}
+                if "pages" in ex:
+                    meta["pages"] = ex["pages"]  # 页级定位核对
+                R["docs"].append({"path": rel, "text": ex["text"][:200000],
+                                  "service": svc, **meta})
+            elif ex["status"] == "no-dep":
+                R["coverage"]["skipped"].append(
+                    {"file": rel, "reason": "可选依赖未安装（docx 用 python-docx / pdf 用 pypdf）"})
+            elif ex["status"] == "corrupt":
+                R["coverage"]["skipped"].append({"file": rel, "reason": "文档损坏（解析失败）"})
+            elif ex["status"] == "encrypted":
+                R["coverage"]["skipped"].append({"file": rel, "reason": "加密文档（无密码不可读）"})
             else:
-                R["docs"].append({"path": rel, "text": t[:200000]})
-        elif ext == ".pdf":
-            t = _pdf_text(path)
-            if t is None:
-                R["coverage"]["skipped"].append({"file": rel, "reason": "pypdf 未安装（可选依赖）"})
-            else:
-                R["docs"].append({"path": rel, "text": t[:200000]})
+                R["coverage"]["skipped"].append({"file": rel, "reason": "文档无文本层（可能为扫描件）"})
         elif ext == ".doc":
             R["coverage"]["skipped"].append({"file": rel, "reason": ".doc 旧格式：请先 `soffice --headless --convert-to docx`"})
     link_calls(R)
@@ -384,18 +389,48 @@ def _scan_sql(R, path, rel, text):
                 if c.upper() not in {'PRIMARY', 'UNIQUE', 'KEY', 'INDEX', 'CONSTRAINT', 'FOREIGN', 'CREATE'}]
         R["tables"].append({"table": tbl, "cols": cols, "file": rel, "prov": "sql:ddl", "conf": "EXTRACTED"})
 
-def _docx_text(path):
-    try:
-        import docx
-        d = docx.Document(path)
-        return "\n".join(p.text for p in d.paragraphs)
-    except Exception:
-        return None
+def _import_optional(mod):
+    __import__(mod)
+    return __import__(mod)
 
-def _pdf_text(path):
+
+def extract_document(path):
+    """PDF/DOCX 状态化抽取（R09-01）：
+
+    返回 {"status": ok|no-dep|corrupt|encrypted|no-text, "text"?, "pages"?}。
+    修正历史缺陷：解析失败不再误标"未安装"。
+    """
+    ext = os.path.splitext(path)[1].lower()
     try:
+        if ext == ".docx":
+            docx = _import_optional("docx")
+        else:
+            _import_optional("pypdf")
+    except ImportError:
+        return {"status": "no-dep"}
+    try:
+        if ext == ".docx":
+            d = docx.Document(path)
+            text = "\n".join(p.text for p in d.paragraphs).strip()
+            return {"status": "ok" if text else "no-text", "text": text}
         from pypdf import PdfReader
-        r = PdfReader(path)
-        return "\n".join((pg.extract_text() or "") for pg in r.pages)
-    except Exception:
-        return None
+        try:
+            r = PdfReader(path)
+            if r.is_encrypted:
+                try:
+                    r.decrypt("")
+                except Exception:
+                    return {"status": "encrypted"}
+            pages = [pg.extract_text() or "" for pg in r.pages]
+            text = "\n".join(pages).strip()
+            return {"status": "ok" if text else "no-text", "text": text, "pages": len(pages)}
+        except Exception as e:
+            msg = str(e).lower()
+            if "encrypt" in msg or "decrypt" in msg or "password" in msg:
+                return {"status": "encrypted"}
+            return {"status": "corrupt"}
+    except Exception as e:
+        msg = str(e).lower()
+        if "encrypt" in msg or "decrypt" in msg or "password" in msg:
+            return {"status": "encrypted"}
+        return {"status": "corrupt"}
