@@ -37,13 +37,13 @@ class TestSpringRoute(unittest.TestCase):
         routes = find(g, "Route")
         self.assertTrue(any("POST /trade/price" == n["name"] for n in routes), [n["name"] for n in routes])
         self.assertTrue(any("GET /item/list" == n["name"] for n in routes))
-        self.assertTrue(has_edge(g, "mth:order-service.changePrice", "HANDLES", "route:POST /trade/price"))
+        self.assertTrue(has_edge(g, "mth:order-service:OrderController.changePrice", "HANDLES", "route:POST /trade/price"))
 
 class TestMyBatis(unittest.TestCase):
     def test_sqlstmt_and_table_bridge(self):
         g = G()
         self.assertTrue(find(g, "SqlStmt", "OrderMapper.updatePrice"))
-        self.assertTrue(has_edge(g, "mth:order-service.updatePrice", "CALLS_SQL", "sql:OrderMapper.updatePrice"))
+        self.assertTrue(has_edge(g, "mth:order-service:OrderMapper.updatePrice", "CALLS_SQL", "sql:OrderMapper.updatePrice"))
         self.assertTrue(has_edge(g, "sql:OrderMapper.updatePrice", "WRITES", "tbl:t_order"),
                         "mapper UPDATE 应产出 WRITES 边")
         self.assertTrue(has_edge(g, "sql:OrderMapper.selectById", "READS", "tbl:t_order"))
@@ -52,7 +52,7 @@ class TestRocketMQ(unittest.TestCase):
     def test_pub_sub_edges(self):
         g = G()
         self.assertTrue(find(g, "Topic", "trade-price-changed"))
-        self.assertTrue(has_edge(g, "mth:order-service.changePrice", "PUBLISHES", "topic:trade-price-changed"))
+        self.assertTrue(has_edge(g, "mth:order-service:OrderPriceService.changePrice", "PUBLISHES", "topic:trade-price-changed"))
         self.assertTrue(has_edge(g, "topic:trade-price-changed", "SUBSCRIBES", "cls:PriceSyncListener") or
                         has_edge(g, "topic:trade-price-changed", "SUBSCRIBES", "svc:item-service"))
 
@@ -109,13 +109,17 @@ def json_dump(r):
 class TestMethodCalls(unittest.TestCase):
     def test_controller_to_dao_calls(self):
         g = G()
-        # 夹具真实调用点：orderMapper.updatePrice(（可解析 OrderMapper）→ 唯一 CALLS 边；
-        # orderPriceService.changePrice( 因同名方法共点（service 级 Method id）被设计性跳过；
-        # req.getOrderId( 等接收者解析不到类，不产边。
-        self.assertTrue(has_edge(g, "mth:order-service.changePrice", "CALLS", "mth:order-service.updatePrice"),
+        # D4 修复后（m1-identity-sources）：Method id 类限定，跨类同名不再共点——
+        # OrderController.changePrice --CALLS--> OrderPriceService.changePrice（此前因共点丢失）
+        # OrderPriceService.changePrice --CALLS--> OrderMapper.updatePrice（orderMapper 调用）
+        self.assertTrue(has_edge(g, "mth:order-service:OrderController.changePrice", "CALLS",
+                                 "mth:order-service:OrderPriceService.changePrice"),
+                        "跨类同名方法调用边必须存在（D4 修复回归）")
+        self.assertTrue(has_edge(g, "mth:order-service:OrderPriceService.changePrice", "CALLS",
+                                 "mth:order-service:OrderMapper.updatePrice"),
                         "changePrice --CALLS--> updatePrice（orderMapper 调用）")
         calls = [e for e in g.edges if e["kind"] == "CALLS"]
-        self.assertEqual(len(calls), 1, "夹具内可解析的调用边应恰为 1 条（新增夹具时同步本契约）")
+        self.assertEqual(len(calls), 2, "夹具内可解析的调用边应为 2 条（新增夹具时同步本契约）")
         self.assertEqual(calls[0]["conf"], "INFERRED")
         self.assertEqual(calls[0]["prov"], "synth:java-call")
 

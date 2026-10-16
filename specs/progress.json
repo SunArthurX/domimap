@@ -2,7 +2,7 @@
   "schema_version": 1,
   "milestones": {
     "M0": "implementing",
-    "M1": "planned",
+    "M1": "implementing",
     "M2": "planned",
     "M3": "planned",
     "M4": "planned",
@@ -10,8 +10,10 @@
   },
   "cases": {
     "AC-R01-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R01-01.json"
+      ]
     },
     "AC-R01-02": {
       "state": "planned",
@@ -122,8 +124,10 @@
       "evidence": []
     },
     "AC-R08-01": {
-      "state": "planned",
-      "evidence": []
+      "state": "verified",
+      "evidence": [
+        "out/verification/AC-R08-01.json"
+      ]
     },
     "AC-R08-02": {
       "state": "planned",

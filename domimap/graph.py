@@ -63,24 +63,26 @@ class Graph:
                 self.add_edge("tbl:" + t["table"], cid, "CONTAINS", "EXTRACTED", "sql:ddl")
         # 类/方法
         for c in R["classes"]:
-            cid = self.add_node("cls:" + c["fqn"], "Class", c["name"], c["file"],
+            cid = self.add_node("cls:%s:%s" % (c["service"], c["fqn"]), "Class", c["name"], c["file"],
                                 {"rest": c["rest_controller"], "dubbo": c["dubbo_service"]}, conf="EXTRACTED", prov=c["prov"])
             self.add_edge("svc:" + c["service"], cid, "CONTAINS", "EXTRACTED", "java")
         for m in R["methods"]:
-            mid = self.add_node("mth:%s.%s" % (m["service"], m["name"]), "Method", m["name"], m["file"],
-                                {"line": m.get("line")}, conf="EXTRACTED", prov=m["prov"])
+            mid = self.add_node("mth:%s:%s.%s" % (m["service"], m.get("cls") or "-", m["name"]),
+                                "Method", m["name"], m["file"],
+                                {"line": m.get("line"), "cls": m.get("cls") or ""},
+                                conf="EXTRACTED", prov=m["prov"])
             self.add_edge("svc:" + m["service"], mid, "CONTAINS", "EXTRACTED", "java")
         # 方法级调用（lite 正则合成；Method 节点 service 级命名，同名方法跨类共点的限制待 AST 引擎解决）
         for c in R.get("calls", []):
-            src = "mth:%s.%s" % (c["service"], c["from"])
-            dst = "mth:%s.%s" % (c["service"], c["to_method"])
+            src = "mth:%s:%s.%s" % (c["service"], c.get("from_cls") or "-", c["from"])
+            dst = "mth:%s:%s.%s" % (c["service"], c.get("to_cls") or "-", c["to_method"])
             if src in self.nodes and dst in self.nodes and src != dst:
                 self.add_edge(src, dst, "CALLS", c["conf"], c["prov"])
         # Spring 路由
         for r in R["routes"]:
             rid = self.add_node("route:%s %s" % (r["method"], r["path"]), "Route",
                                 "%s %s" % (r["method"], r["path"]), r["file"], {}, conf=r["conf"], prov=r["prov"])
-            mid = "mth:%s.%s" % (r["service"], r["java_method"])
+            mid = "mth:%s:%s.%s" % (r["service"], r.get("cls") or "-", r["java_method"])
             if mid in self.nodes:
                 self.add_edge(mid, rid, "HANDLES", r["conf"], r["prov"])
         # MyBatis：SQL 语句 + 接口方法桥 + 表/列读写
@@ -88,7 +90,7 @@ class Graph:
             sid = self.add_node("sql:%s.%s" % (s["iface"], s["id"]), "SqlStmt",
                                 "%s.%s" % (s["iface"], s["id"]), s["file"],
                                 {"verb": s["verb"], "sql": s["sql"]}, conf=s["conf"], prov=s["prov"])
-            mid = "mth:%s.%s" % (s["service"], s["id"])
+            mid = "mth:%s:%s.%s" % (s["service"], s["iface"], s["id"])
             if mid in self.nodes:  # DAO 接口方法（同名）桥接
                 self.add_edge(mid, sid, "CALLS_SQL", s["conf"], s["prov"])
             for t in s["tables"]:
@@ -115,8 +117,8 @@ class Graph:
         # MQ Topic
         for t in R["topics"]:
             tid = self.add_node("topic:" + t["topic"], "Topic", t["topic"], t["file"], {}, conf=t["conf"], prov=t["prov"])
-            src = "mth:%s.%s" % (t["service"], t["by"]) if ("mth:%s.%s" % (t["service"], t["by"])) in self.nodes \
-                else "cls:%s" % t["by"] if ("cls:" + t["by"]) in self.nodes else "svc:" + t["service"]
+            _mid = "mth:%s:%s.%s" % (t["service"], t.get("cls") or "-", t["by"])
+            src = _mid if _mid in self.nodes else "svc:" + t["service"]
             if t["dir"] == "PUBLISHES":
                 self.add_edge(src, tid, "PUBLISHES", t["conf"], t["prov"])
             else:
@@ -155,7 +157,8 @@ class Graph:
                     if len(tk) > 2 or ord(tk[0]) > 0x2e80:
                         names_idx.setdefault(tk, set()).add(n["id"])
         for d in R["docs"]:
-            did = self.add_node("doc:" + d["path"], "Doc", os.path.basename(d["path"]), d["path"],
+            did = self.add_node("doc:%s:%s" % (d.get("service", "(root)"), d["path"]), "Doc",
+                                os.path.basename(d["path"]), d["path"],
                                 {"text": d["text"]}, conf="EXTRACTED", prov="doc:ingest")
             hits = Counter()
             for tk in tokenize(d["text"]):

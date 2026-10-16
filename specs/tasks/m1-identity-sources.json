@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "m1-identity-sources",
+  "state": "verified",
+  "spec": "specs/tasks/m1-identity-sources.md",
+  "requirements": [
+    "R01",
+    "R08"
+  ],
+  "acceptance_cases": [
+    "AC-R01-01",
+    "AC-R08-01"
+  ],
+  "files": [
+    "domimap/source.py",
+    "domimap/lite_scan.py",
+    "domimap/graph.py",
+    "tests/test_identity.py",
+    "tests/test_golden.py",
+    "docs/known-defects.md",
+    "tests/fixtures/identity/repoA/pom.xml",
+    "tests/fixtures/identity/repoA/README.md",
+    "tests/fixtures/identity/repoA/SameName.java",
+    "tests/fixtures/identity/repoB/pom.xml",
+    "tests/fixtures/identity/repoB/README.md",
+    "tests/fixtures/identity/repoB/SameName.java"
+  ],
+  "test_files": [
+    "tests/test_identity.py"
+  ]
+}

@@ -46,7 +46,9 @@ _RE_CALL = re.compile(r'\b([a-z]\w*)\.(\w+)\s*\(')
 SKIP_RECV = {"this", "super", "system", "math", "objects", "string", "integer",
              "long", "boolean", "double", "log", "logger", "strings", "collections"}
 
-def _walk(root):
+def _walk(root, on_skip=None):
+    """遍历登记根内文件。symlink 解析后越界（D3）与大文件跳过经 on_skip 显式上报，不静默。"""
+    root_real = os.path.realpath(root)
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         for fn in filenames:
@@ -55,7 +57,17 @@ def _walk(root):
                 st = os.stat(p)
             except OSError:
                 continue
+            if os.path.islink(p):
+                real = os.path.realpath(p)
+                inside = real == root_real or real.startswith(root_real + os.sep)
+                if not inside:
+                    if on_skip:
+                        on_skip({"file": os.path.relpath(p, root),
+                                 "reason": "越界 symlink 拒绝（指向登记根外）", "target": real})
+                    continue
             if st.st_size > BIG:
+                if on_skip:
+                    on_skip({"file": os.path.relpath(p, root), "reason": "超过大小上限"})
                 continue
             yield p, os.path.relpath(p, root)
 
@@ -78,7 +90,7 @@ def scan_repo(root, repo_label=None):
          "raw_calls": [], "calls": [],
          "coverage": {"files_scanned": 0, "skipped": []}}
     routes_by_class = {}
-    for path, rel in _walk(root):
+    for path, rel in _walk(root, on_skip=R["coverage"]["skipped"].append):
         ext = os.path.splitext(rel)[1].lower()
         if ext not in CODE_EXT and ext not in DOC_EXT and ext not in {".docx", ".pdf"}:
             continue
@@ -103,7 +115,7 @@ def scan_repo(root, repo_label=None):
         elif ext == ".sql":
             _scan_sql(R, path, rel, text)
         elif ext in DOC_EXT:
-            R["docs"].append({"path": rel, "text": text[:200000]})
+            R["docs"].append({"path": rel, "text": text[:200000], "service": svc})
         elif ext == ".docx":
             t = _docx_text(path)
             if t is None:
@@ -130,7 +142,8 @@ def link_calls(R):
     recv2cls = {_lower_first(c["name"]): c["name"] for c in R["classes"]}
     for rc in R.pop("raw_calls", []):
         if rc["recv"] in recv2cls:
-            R["calls"].append({"from": rc["from"], "to_method": rc["to"], "recv": rc["recv"],
+            R["calls"].append({"from": rc["from"], "from_cls": rc["from_cls"],
+                               "to_method": rc["to"], "to_cls": recv2cls[rc["recv"]], "recv": rc["recv"],
                                "service": rc["service"], "file": rc["file"],
                                "prov": "synth:java-call", "conf": "INFERRED"})
 
@@ -150,13 +163,26 @@ def _scan_java(R, path, rel, svc, text, routes_by_class):
         break  # MVP：每文件取首个主类
     # 方法 + 路由 + MQ 发送 + Dubbo 引用（逐行匹配声明；接口方法无修饰符也可命中）
     is_ctrl = "@RestController" in text or "@Controller" in text
+    class_ranges = [(m.start(), m.group(1) or m.group(2)) for m in _RE_CLASS.finditer(text)]
+
+    def cls_at(offset):
+        cur = ""
+        for start, name in class_ranges:
+            if start <= offset:
+                cur = name
+            else:
+                break
+        return cur
+
     for ln, line in enumerate(text.split("\n"), 1):
         mm = _RE_METHOD_LINE.match(line)
         if not mm or mm.group(1) in {"if", "for", "while", "switch", "catch", "return", "new", "throw"}:
             continue
         meth = mm.group(1)
-        R["methods"].append({"name": meth, "service": svc, "file": rel, "line": ln,
-                             "prov": "java:method"})
+        off = text.find(line)
+        cur_cls = cls_at(off)
+        R["methods"].append({"name": meth, "cls": cur_cls, "service": svc, "file": rel,
+                             "line": ln, "prov": "java:method"})
         if is_ctrl:
             seg = text[max(0, text.find(line) - 400):text.find(line)]
             anns = list(_RE_MAPPING_ANY.finditer(seg))
@@ -170,16 +196,16 @@ def _scan_java(R, path, rel, svc, text, routes_by_class):
                 http = dict(_SPRING_MAP).get((am.group(1) or "") + "Mapping", "ANY")
                 pathv = am.group(2) or am.group(3) or ""
                 R["routes"].append({"method": http, "path": (prefix or "") + pathv,
-                                    "java_method": meth, "service": svc, "file": rel,
-                                    "prov": "synth:spring-route", "conf": "INFERRED"})
+                                    "java_method": meth, "cls": cur_cls, "service": svc,
+                                    "file": rel, "prov": "synth:spring-route", "conf": "INFERRED"})
         body = text[text.find(line):text.find(line) + 3000]
         for sm in _RE_MQ_SEND.finditer(body):
-            R["topics"].append({"topic": sm.group(1), "dir": "PUBLISHES", "by": meth,
+            R["topics"].append({"topic": sm.group(1), "dir": "PUBLISHES", "by": meth, "cls": cur_cls,
                                 "service": svc, "file": rel, "prov": "synth:rocketmq-send", "conf": "INFERRED"})
         for cm in _RE_CALL.finditer(body):
             recv, callee = cm.group(1), cm.group(2)
             if recv not in SKIP_RECV:
-                R["raw_calls"].append({"from": meth, "recv": recv, "to": callee,
+                R["raw_calls"].append({"from": meth, "from_cls": cur_cls, "recv": recv, "to": callee,
                                        "service": svc, "file": rel})
     # MQ 监听（类级）
     for lm in _RE_MQ_LISTEN.finditer(text):
