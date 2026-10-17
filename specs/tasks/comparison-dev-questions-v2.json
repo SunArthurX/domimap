@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "comparison-dev-questions-v2",
+  "state": "implementing",
+  "spec": "specs/tasks/comparison-dev-questions-v2.md",
+  "requirements": [
+    "R14"
+  ],
+  "acceptance_cases": [
+    "AC-R14-01"
+  ],
+  "files": [
+    "benchmarks/corpus/generate_questions_v2.py",
+    "benchmarks/runners/dev_pilot.py",
+    "tests/test_dev_questions_v2.py"
+  ],
+  "test_files": [
+    "tests/test_dev_questions_v2.py"
+  ]
+}
