@@ -73,6 +73,16 @@ class TestIsolationContracts(unittest.TestCase):
         self.assertEqual(report["edge_counts"]["content_identity"], 0)
         self.assertEqual(report["strict_cluster_count"], 2)
 
+    def test_standard_license_files_do_not_create_edges(self):
+        """回归：MIT/Apache 许可证文本全网同字节，曾把开源族连成假簇。"""
+        mit = ("MIT License\n\nPermission is hereby granted, free of charge, to any person "
+               "obtaining a copy\n" + "filler\n" * 60).encode()
+        f1 = make_family(self.tmp, "f1", {"a.txt": BIG_A, "LICENSE": mit})
+        f2 = make_family(self.tmp, "f2", {"a.txt": BIG_B, "LICENSE.md": mit})
+        _, report = isolation.build([f1, f2])
+        self.assertEqual(report["edge_counts"]["content_identity"], 0)
+        self.assertEqual(report["strict_cluster_count"], 2)
+
     def test_legacy_combo_edge_merges(self):
         f1 = make_family(self.tmp, "f1", {"a.txt": BIG_A})
         f2 = make_family(self.tmp, "f2", {"a.txt": BIG_B})
@@ -121,6 +131,31 @@ class TestIsolationContracts(unittest.TestCase):
         for key in ("strict_cluster_count", "conservative_cluster_count",
                     "independence_claim_basis", "edge_counts"):
             self.assertIn(key, report)
+
+    def test_explicit_association_merges(self):
+        """人工声明的业务关联（如 mall 三变体）必须并簇——自动内容边漏检时不低估关联。"""
+        f1 = make_family(self.tmp, "macrozheng-mall", {"a.txt": BIG_A})
+        f2 = make_family(self.tmp, "macrozheng-mall-swarm", {"a.txt": BIG_B})
+        f3 = make_family(self.tmp, "macrozheng-mall-tiny", {"a.txt": b"C" * 300})
+        _, report = isolation.build([f1, f2, f3])
+        self.assertEqual(report["edge_counts"]["explicit_association"], 3)
+        self.assertEqual(report["strict_cluster_count"], 1)
+
+    def test_confirm_candidate_cluster_accounting(self):
+        """确认候选簇只计 confirm-candidate 族；已暴露 dev 族不得混入分母。"""
+        f1 = make_family(self.tmp, "dev-corp-giant", {"a.txt": BIG_A})
+        f2 = make_family(self.tmp, "dev-corp-mate", {"s.txt": BIG_A})  # 与 dev-corp-giant 同簇
+        f3 = make_family(self.tmp, "pub-one", {"a.txt": BIG_B})
+        f4 = make_family(self.tmp, "pub-two", {"a.txt": b"C" * 300})
+        for f in (f3, f4):
+            f["split"] = "confirm-candidate"
+        _, report = isolation.build([f1, f2, f3, f4])
+        cand = report["confirm_candidate"]
+        self.assertEqual(cand["families"], ["pub-one", "pub-two"])
+        self.assertEqual(cand["conservative_cluster_count"], 2)
+        self.assertEqual(cand["strict_cluster_count"], 2)
+        self.assertFalse(cand["meets_protocol_minimum"])
+        self.assertEqual(report["conservative_cluster_count"], 3)  # dev-corp 巨簇 + 2 公共
 
     def test_preregistration_missing_hash_raises(self):
         with self.assertRaises(ValueError):

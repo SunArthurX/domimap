@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "comparison-corpus-expansion",
+  "state": "implementing",
+  "spec": "specs/tasks/comparison-corpus-expansion.md",
+  "requirements": [
+    "R14"
+  ],
+  "acceptance_cases": [
+    "AC-R14-01"
+  ],
+  "files": [
+    "benchmarks/corpus/isolation.py",
+    "tests/test_corpus_isolation.py"
+  ],
+  "test_files": [
+    "tests/test_corpus_isolation.py"
+  ]
+}

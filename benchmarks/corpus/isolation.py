@@ -26,16 +26,38 @@ EXTRA_CONFIRM = [os.path.expanduser(p) for p in (
     "EXTERNAL_FAMILY_PATH",
     "EXTERNAL_FAMILY_PATH")]
 LEGACY_QUESTIONS = os.path.expanduser("~/work/dm-benchmark/questions.json")
-DEV_FAMILIES = 20
 SKIP_DIRS = {".git", "node_modules", "target", "build", "__pycache__", ".idea"}
 GENERIC_MIN_BYTES = 256  # 小于此视为样板文件，不作内容同一性边
-# OS/工具元数据（如 .DS_Store 全机同字节）会造成系统性假关联，不作边
-EDGE_EXCLUDE_BASENAMES = {".ds_store", "thumbs.db", "desktop.ini", "__pycache__"}
+# OS/工具元数据（如 .DS_Store 全机同字节）、标准许可证文本（MIT/Apache 全网同字节）、
+# 构建工具包装脚本（mvnw/gradlew 各项目逐字节相同）都会造成系统性假关联，不作边
+EDGE_EXCLUDE_BASENAMES = {".ds_store", "thumbs.db", "desktop.ini", "__pycache__",
+                          "license", "license.txt", "license.md", "copying", "notice",
+                          "copying.txt", "copying.md",
+                          "mvnw", "mvnw.cmd", "gradlew", "gradlew.bat"}
+# 二进制资源（jar/图标/字体）不是评测的代码/文档内容；vendored 第三方目录同理
+BINARY_EXT = {".jar", ".ico", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp",
+              ".woff", ".woff2", ".ttf", ".eot", ".otf", ".svg", ".bin", ".class"}
+VENDOR_SEGMENTS = {"bower_components", "vendor", "third_party", "thirdparty", "external"}
+GLOBAL_COMMON_FAMILIES = 3  # 同哈希出现于 ≥3 族 → 生态通用样板，不作边
+# 显式业务关联（人工证据，GitHub 同作者/同业务线；自动化规则漏检时使用，逐条给理由）
+EXPLICIT_ASSOCIATIONS = [
+    {"families": ["macrozheng-mall", "macrozheng-mall-swarm", "macrozheng-mall-tiny"],
+     "reason": "同一作者(macrozheng)的 mall 业务系统三变体：单体/微服务/精简版，"
+               "GitHub 互引、文档共用；自动内容边只检出了 mall↔mall-swarm(408 文件)，"
+               "mall-tiny 代码改写后无逐字节相同文件，需人工关联"},
+]
 
 
 def _edge_eligible(item):
-    name = os.path.basename(item["path"]).lower()
-    if name in EDGE_EXCLUDE_BASENAMES or name.startswith("."):
+    parts = item["path"].split("/")
+    if any(part.startswith(".") for part in parts):  # 含 .mvn/.github 等隐藏目录
+        return False
+    if VENDOR_SEGMENTS & set(parts):
+        return False
+    name = parts[-1].lower()
+    if name in EDGE_EXCLUDE_BASENAMES:
+        return False
+    if os.path.splitext(name)[1] in BINARY_EXT:
         return False
     return item["size"] >= GENERIC_MIN_BYTES
 
@@ -81,17 +103,27 @@ def _first_token(name):
 
 def association_edges(families, legacy_questions_path=None):
     """来源关联边（dedup、有序对）。三种信号，全部可审计。"""
-    edges = {"content_identity": [], "legacy_question_combo": [], "prefix_heuristic": []}
+    edges = {"content_identity": [], "legacy_question_combo": [],
+             "prefix_heuristic": [], "explicit_association": []}
+    known = {fam["family"] for fam in families}
+    for group in EXPLICIT_ASSOCIATIONS:
+        members = sorted(set(group["families"]) & known)
+        for i in range(len(members)):
+            for j in range(i + 1, len(members)):
+                edges["explicit_association"].append((members[i], members[j]))
     by_hash = {}
     for fam in families:
         for item in fam["inventory"]:
             if _edge_eligible(item):
                 by_hash.setdefault(item["sha256"], []).append(fam["family"])
     for sha, owners in by_hash.items():
-        if len(owners) > 1:
-            for i in range(len(owners)):
-                for j in range(i + 1, len(owners)):
-                    edge = tuple(sorted((owners[i], owners[j])))
+        unique = sorted(set(owners))
+        if len(unique) >= GLOBAL_COMMON_FAMILIES:
+            continue  # 生态通用样板（多族共有），非来源关联
+        if len(unique) > 1:  # 同仓内重复内容不产生自环边
+            for i in range(len(unique)):
+                for j in range(i + 1, len(unique)):
+                    edge = (unique[i], unique[j])
                     if edge not in edges["content_identity"]:
                         edges["content_identity"].append(edge)
     if legacy_questions_path and os.path.isfile(legacy_questions_path):
@@ -105,6 +137,8 @@ def association_edges(families, legacy_questions_path=None):
                         edges["legacy_question_combo"].append(edge)
     groups = {}
     for fam in families:
+        if not fam.get("prefix_eligible"):
+            continue  # 公共仓首段是组织名（alibaba_/apache_），不是业务关联
         token = _first_token(fam["family"])
         if token:
             groups.setdefault(token, []).append(fam["family"])
@@ -140,22 +174,35 @@ def connected_components(names, edge_lists):
     return sorted(sorted(members) for members in clusters.values())
 
 
-def build(families_spec, legacy_questions_path=None):
+def build(families_spec, legacy_questions_path=None, confirm_split="confirm-candidate"):
     families = []
     for spec in families_spec:
         items, errors = inventory(spec["root"])
         families.append({"family": spec["family"], "split": spec["split"],
                          "root": spec.get("root", ""),
+                         "commit": spec.get("commit"),
+                         "exposed": bool(spec.get("exposed", False)),
+                         "prefix_eligible": bool(spec.get("prefix_eligible", True)),
                          "files": len(items), "inventory": items,
                          "inventory_errors": errors,
                          "content_sha256": family_signature(items)})
     edges = association_edges(families, legacy_questions_path)
     names = [f["family"] for f in families]
     strict = connected_components(names, [edges["content_identity"],
-                                          edges["legacy_question_combo"]])
+                                          edges["legacy_question_combo"],
+                                          edges["explicit_association"]])
     conservative = connected_components(names, [edges["content_identity"],
                                                  edges["legacy_question_combo"],
+                                                 edges["explicit_association"],
                                                  edges["prefix_heuristic"]])
+    candidate_names = [f["family"] for f in families if f["split"] == confirm_split]
+    cand_strict = connected_components(candidate_names,
+                                       [edges["content_identity"],
+                                        edges["legacy_question_combo"],
+                                        edges["explicit_association"]])
+    cand_conservative = connected_components(
+        candidate_names, [edges["content_identity"], edges["legacy_question_combo"],
+                          edges["explicit_association"], edges["prefix_heuristic"]])
     manifest = {"schema": "domimap.corpus.v2", "workspace": WORKSPACE,
                 "generated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "families": [
@@ -167,11 +214,20 @@ def build(families_spec, legacy_questions_path=None):
               "content_identity_edges": edges["content_identity"][:2000],
               "legacy_question_combo_edges": edges["legacy_question_combo"],
               "prefix_heuristic_edges": edges["prefix_heuristic"],
+              "explicit_association_edges": edges["explicit_association"],
               "strict_clusters": strict, "strict_cluster_count": len(strict),
               "conservative_clusters": conservative,
               "conservative_cluster_count": len(conservative),
               "independence_claim_basis": "conservative（较少簇；前缀启发式并入）",
-              "note": "组合/同内容/同业务前缀的来源归同簇；独立性声明取保守口径"}
+              "confirm_candidate": {
+                  "split": confirm_split,
+                  "families": candidate_names,
+                  "strict_cluster_count": len(cand_strict),
+                  "conservative_cluster_count": len(cand_conservative),
+                  "protocol_minimum_clusters": 20,
+                  "meets_protocol_minimum": len(cand_conservative) >= 20},
+              "note": "组合/同内容/同业务前缀的来源归同簇；独立性声明取保守口径；"
+                      "已暴露族（旧 599 题覆盖）不得计入确认候选簇数"}
     return manifest, report
 
 
@@ -205,14 +261,33 @@ def preregistration_draft(manifest, report, extra_hashes=None):
             "note": "草案：独立保管人封存前无效；确认题目/gold 在独立评测环境，不在此生成"}
 
 
+def _git_head(root):
+    import subprocess
+    try:
+        return subprocess.check_output(["git", "-C", root, "rev-parse", "HEAD"],
+                                       text=True).strip()
+    except (subprocess.CalledProcessError, OSError):
+        return None
+
+
 def main():
+    # 旧 599 题已覆盖 dev-corp 全部 28 confirm 族 + 4 外部族 → 全部已暴露，只能作 dev/回归资产
     fams = sorted(d for d in os.listdir(WORKSPACE)
                   if os.path.isdir(os.path.join(WORKSPACE, d)) and not d.startswith("."))
-    families_spec = [{"family": name, "split": "dev" if i < DEV_FAMILIES else "confirm",
-                      "root": os.path.join(WORKSPACE, name)}
-                     for i, name in enumerate(fams)]
+    families_spec = [{"family": name, "split": "dev", "exposed": True,
+                      "root": os.path.join(WORKSPACE, name)} for name in fams]
     families_spec += [{"family": os.path.basename(os.path.normpath(p)),
-                       "split": "confirm", "root": p} for p in EXTRA_CONFIRM]
+                       "split": "dev", "exposed": True, "root": p} for p in EXTRA_CONFIRM]
+    # 公共开源语料：未暴露确认候选（题目/gold 属独立评测环境）
+    public_root = os.path.expanduser("~/work/dm-corpus-public")
+    if os.path.isdir(public_root):
+        for name in sorted(d for d in os.listdir(public_root)
+                           if os.path.isdir(os.path.join(public_root, d))
+                           and not d.startswith(".")):
+            families_spec.append({"family": name, "split": "confirm-candidate",
+                                  "root": os.path.join(public_root, name),
+                                  "commit": _git_head(os.path.join(public_root, name)),
+                                  "prefix_eligible": False})
     manifest, report = build(families_spec, LEGACY_QUESTIONS)
     os.makedirs(OUTDIR, exist_ok=True)
     mpath = os.path.join(OUTDIR, "corpus-manifest-v2.json")
@@ -224,9 +299,13 @@ def main():
     draft = preregistration_draft(manifest, report)
     json.dump(draft, open(os.path.join(OUTDIR, "preregistration-draft.json"), "w",
                           encoding="utf-8"), ensure_ascii=False, indent=1)
-    print("families=%d strict_clusters=%d conservative_clusters=%d edges=%s" % (
-        len(manifest["families"]), report["strict_cluster_count"],
-        report["conservative_cluster_count"], report["edge_counts"]))
+    cand = report["confirm_candidate"]
+    print("families=%d strict=%d conservative=%d | confirm-candidate: families=%d "
+          "clusters=%d meets>=%d: %s | edges=%s" % (
+              len(manifest["families"]), report["strict_cluster_count"],
+              report["conservative_cluster_count"], len(cand["families"]),
+              cand["conservative_cluster_count"], cand["protocol_minimum_clusters"],
+              cand["meets_protocol_minimum"], report["edge_counts"]))
     print("→ %s" % OUTDIR)
 
 
