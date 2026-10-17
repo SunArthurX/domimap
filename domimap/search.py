@@ -18,6 +18,8 @@ GENERIC_UNITS = {"规则", "配置", "定义", "说明", "位置", "处理", "�
 # 名称精确匹配加权：查询标识符与节点 name 完全相等（定义性同一）×3——干净集实测
 # tbl 节点仅凭 op_operator 得 0.53 分被通用词堆叠的 DTO（1.29）压出 top50
 IDENTIFIER_NAME_BOOST = 3.0
+BM25_K = 1.2
+BM25_B = 0.75
 
 class Searcher:
     def __init__(self, g, cache_path=None, coverage=None):
@@ -26,6 +28,8 @@ class Searcher:
         self.docs = {}
         self.df = Counter()
         self.N = 0
+        self._dl_sum = 0
+        self.avgdl = 1.0
         self.extra = {}  # 人工知识等非机器图节点（R05：重建不丢，查询时挂载）
         if cache_path and self._load_cache(cache_path):
             pass
@@ -58,10 +62,10 @@ class Searcher:
         self.docs[nid] = Counter(tks)
         for t in set(tks):
             self.index[t].add(nid)
-        self.df[t] = len(self.index[t]) if False else self.df  # df 惰性重算见下
-        for t in set(tks):
             self.df[t] = len(self.index[t])
         self.N += 1
+        self._dl_sum += sum(self.docs[nid].values())
+        self.avgdl = max(1.0, self._dl_sum / self.N)
 
     def _sig_ok(self, d):
         sig = getattr(self.g, "sig", None)
@@ -82,6 +86,8 @@ class Searcher:
         self.index = defaultdict(set, {t: set(ids) for t, ids in d["index"].items()})
         self.df = Counter({t: len(v) for t, v in self.index.items()})
         self.N = d["N"]
+        self._dl_sum = sum(sum(c.values()) for c in self.docs.values())
+        self.avgdl = max(1.0, self._dl_sum / max(1, self.N))
         return True
 
     def _save_cache(self, path):
@@ -108,26 +114,34 @@ class Searcher:
 
     def _build(self):
         self.index = defaultdict(set)
+        self._dl_sum = 0
         for nid, n in self.g.nodes.items():
             tks = tokenize(self._node_text(n))
             self.docs[nid] = Counter(tks)
             for t in set(tks):
                 self.index[t].add(nid)
             self.N += 1
+            self._dl_sum += sum(self.docs[nid].values())
+        self.avgdl = max(1.0, self._dl_sum / max(1, self.N))
         self.df = Counter({t: len(s) for t, s in self.index.items()})
 
     def _score(self, qtokens, nid):
         d = self.docs.get(nid, Counter())
         if not d:
             return 0.0
-        total = sum(d.values()) or 1
+        dl = sum(d.values()) or 1
+        # BM25 饱和长度归一（k=1.2/b=0.75）：线性 tf/total 曾使短注释节点（dl≈20）
+        # 对任意共享词碾压 50KB 文档（1/20000）——doc/fresh 查询全被挤出的根因
+        norm = 1.0 - BM25_B + BM25_B * (dl / self.avgdl)
         s = 0.0
         for qt in qtokens:
             if len(qt) == 1 and ord(qt) > 0x2E7F:
                 continue  # 单字 CJK 是子词级噪声：曾让通用尾词凭计数压过精确标识符命中
-            if qt in d:
-                idf = math.log(1 + self.N / (1 + self.df.get(qt, 0)))
-                s += idf * (d[qt] / total)
+            tf = d.get(qt)
+            if tf:
+                idf = math.log(1 + (self.N - self.df.get(qt, 0) + 0.5)
+                               / (self.df.get(qt, 0) + 0.5))
+                s += idf * tf * (BM25_K + 1) / (tf + BM25_K * norm)
         return s * (IDENTIFIER_NAME_BOOST if self._name_exact_hit(qtokens, nid) else 1.0)
 
     def _name_exact_hit(self, qtokens, nid):
