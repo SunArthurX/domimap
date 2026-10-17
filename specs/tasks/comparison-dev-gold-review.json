@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "comparison-dev-gold-review",
+  "state": "implementing",
+  "spec": "specs/tasks/comparison-dev-gold-review.md",
+  "requirements": [
+    "R14"
+  ],
+  "acceptance_cases": [
+    "AC-R14-01"
+  ],
+  "files": [
+    "benchmarks/runners/gold_review.py",
+    "tests/test_gold_review.py"
+  ],
+  "test_files": [
+    "tests/test_gold_review.py"
+  ]
+}
