@@ -73,6 +73,19 @@ class TestAgeDecayIntent(unittest.TestCase):
         self.assertFalse(r.get("refused"))
         self.assertEqual(len(r["seeds"]), 2, "等强匹配非时效查询应两者都在（无年龄压制）")
 
+    def test_fresh_query_dated_doc_not_handicapped_vs_undated(self):
+        """第 5 轮终版回归：如实声明日期的文档不得被无时间节点以 20 倍优势压制
+        （旧衰减：未知时间 or now_ref → ×1.0，声明 2017 者 ×0.05）。"""
+        nine_years = time.time() - 9 * 365 * 86400
+        s2 = build({"doc/dated_rule.md": OLD_DOC,
+                    "src/UndatedUtil.java": NEW_CODE.replace("FreightNewUtil", "UndatedUtil")},
+                   {"doc/dated_rule.md": nine_years})
+        r = s2.query("运费模板 计费规则 最新", top_k=5)
+        self.assertFalse(r.get("refused"))
+        self.assertEqual(r["seeds"][0]["file"], "doc/dated_rule.md",
+                         "高分声明日期文档应在无时间节点之前: %s"
+                         % [n["file"] for n in r["seeds"]])
+
     def test_time_note_preserved(self):
         r = self.s.query("运费 最新", top_k=5)
         for n in r["seeds"]:

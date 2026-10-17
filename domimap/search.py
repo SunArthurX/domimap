@@ -292,14 +292,10 @@ class Searcher:
             decay = 0.5 ** (age_days / 365.0)
             return "age=%.0fd decay=%.3f" % (age_days, decay)
 
-        # 衰减仅作用于时效意图查询（第 5 轮）：无条件半衰期 1 年曾把 2015-2017 文档
-        # 压到 ~0.2% 系数（gold BM25 74 分仍出不了 top50）；非时效查询的年龄不是信号
-        # （计划 §10：旧源码精确符号不因年龄凭空失效）。时效意图内近因偏好保留。
-        if fresh_query:
-            # 地板 0.05：0.5^(9年)=0.2% 属"从 top50 抹除"而非排序影响（与 F4 语义冲突）；
-            # 地板不改变老旧件之间的相对顺序（单调保持）
-            scored = [(s * max(DECAY_FLOOR, 0.5 ** (max(0.0, (now_ref - (self._node(nid)["meta"].get("first_seen") or now_ref)) / 86400.0) / 365.0)), nid)
-                      for s, nid in scored]
+        # 时效查询的时间乘子=有界近因重加权（第 5 轮终版）：独立指数衰减分支已移除——
+        # 它对"如实声明日期"的节点系统性惩罚（未知时间 or now_ref → ×1.0 不衰减，
+        # 声明 2017 者 ×0.05 地板，20 倍 handicap，与 time_note"日期未知按最早资格处理"矛盾）。
+        # 重加权 0.5+0.5×norm：未知=最早（×0.5）、最新 ×1.0，单调、有界、仅作用排序（F4）。
         scored.sort(reverse=True)
         # R04-01：①来源家族去重（同文件 ≤2 席，防 seeds/README 型噪声霸榜）②分路融合（Doc 保底）
         fam, capped = {}, []
