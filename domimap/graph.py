@@ -64,7 +64,9 @@ class Graph:
         # 类/方法
         for c in R["classes"]:
             cid = self.add_node("cls:%s:%s" % (c["service"], c["fqn"]), "Class", c["name"], c["file"],
-                                {"rest": c["rest_controller"], "dubbo": c["dubbo_service"]}, conf="EXTRACTED", prov=c["prov"])
+                                {"rest": c["rest_controller"], "dubbo": c["dubbo_service"],
+                                 "comment": c.get("comment", "")},
+                                conf="EXTRACTED", prov=c["prov"])
             self.add_edge("svc:" + c["service"], cid, "CONTAINS", "EXTRACTED", "java")
         for m in R["methods"]:
             mid = self.add_node("mth:%s:%s.%s#%s" % (m["service"], m.get("cls") or "-",

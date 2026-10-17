@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "product-comment-recall",
+  "state": "implementing",
+  "spec": "specs/tasks/product-comment-recall.md",
+  "requirements": [
+    "R04"
+  ],
+  "acceptance_cases": [
+    "AC-R04-01"
+  ],
+  "files": [
+    "domimap/lite_scan.py",
+    "domimap/graph.py",
+    "domimap/search.py",
+    "tests/test_comment_recall.py"
+  ],
+  "test_files": [
+    "tests/test_comment_recall.py"
+  ]
+}

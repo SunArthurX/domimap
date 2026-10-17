@@ -93,6 +93,9 @@ class Searcher:
             parts.append(n["meta"].get("text", "")[:50000])
         if n["kind"] == "SqlStmt":
             parts.append(n["meta"].get("sql", ""))
+        if n["kind"] == "Class":
+            # 类注释关键词：业务中文查询与代码节点之间的词面桥（第 5 步诊断驱动）
+            parts.append(n["meta"].get("comment", ""))
         return " \n ".join(parts)
 
     def _build(self):

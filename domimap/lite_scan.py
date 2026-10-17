@@ -245,6 +245,15 @@ def link_calls(R):
             rec["prov"] = "synth:java-call+overload-unknown"
         R["calls"].append(rec)
 
+def _class_comment(text, upto):
+    """类声明前注释块（≤6 行、截 300 字符）：中文注释关键词是业务查询与代码的
+    词面桥梁（第 5 步诊断：Dao 类 recall miss 的根因）。"""
+    head = text[:upto].split("\n")[-7:-1]
+    keep = [ln.strip().lstrip("/*").rstrip("*/").strip()
+            for ln in head if ln.strip().startswith(("//", "*", "/*"))]
+    return " ".join(keep)[:300]
+
+
 def _scan_java(R, path, rel, svc, text, routes_by_class):
     pkg = (_RE_PKG.search(text) or [None, ""])[1]
     for m in _RE_CLASS.finditer(text):
@@ -253,6 +262,7 @@ def _scan_java(R, path, rel, svc, text, routes_by_class):
         R["classes"].append({"name": name, "fqn": (pkg + "." + name) if pkg else name,
                              "service": svc, "file": rel, "rest_controller": is_ctrl,
                              "dubbo_service": bool(_RE_DUBBO_SVC.search(text)),
+                             "comment": _class_comment(text, m.start()),
                              "prov": "java:class"})
         R["services"][svc]["classes"] += 1
         # 类级路由前缀
