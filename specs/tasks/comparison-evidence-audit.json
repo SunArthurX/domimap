@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "comparison-evidence-audit",
+  "state": "verified",
+  "spec": "specs/tasks/comparison-evidence-audit.md",
+  "requirements": [
+    "R13",
+    "R14"
+  ],
+  "acceptance_cases": [
+    "AC-R14-01",
+    "AC-R13-02"
+  ],
+  "files": [
+    "specs/progress.json",
+    "tests/test_release_gate.py",
+    "scripts/refresh_evidence.py",
+    "docs/benchmark-evidence-audit.md"
+  ],
+  "test_files": [
+    "tests/test_release_gate.py"
+  ]
+}

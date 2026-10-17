@@ -24,12 +24,13 @@ class TestReleaseGate(unittest.TestCase):
         r = run_checker("--release")
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
 
-    def test_stage_gate_rejects_unknown_and_accepts_complete(self):
-        """未知阶段报错；全部案例 verified 后 M5 stage 检查应通过（此前拒绝行为已在 m5-release-final.log 留证）。"""
+    def test_stage_gate_rejects_unknown_and_incomplete(self):
+        """未知阶段报错；AC-R14-01 未达绝对底线（证据治理审计更正）时 M5 必须拒绝并指名该案例。"""
         r = run_checker("--stage", "M9")
         self.assertNotEqual(r.returncode, 0)
         r2 = run_checker("--stage", "M5")
-        self.assertEqual(r2.returncode, 0, r2.stdout + r2.stderr)
+        self.assertNotEqual(r2.returncode, 0, r2.stdout + r2.stderr)
+        self.assertIn("AC-R14-01", r2.stderr, "不完整阶段应指名未完成案例")
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@
     "M2": "verified",
     "M3": "verified",
     "M4": "verified",
-    "M5": "verified"
+    "M5": "implementing"
   },
   "cases": {
     "AC-R01-01": {
@@ -262,7 +262,7 @@
       ]
     },
     "AC-R14-01": {
-      "state": "verified",
+      "state": "implementing",
       "evidence": [
         "out/verification/AC-R14-01.json"
       ]

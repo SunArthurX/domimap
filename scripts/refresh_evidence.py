@@ -62,6 +62,16 @@ def main():
     task = sys.argv[1] if len(sys.argv) > 1 else "m0-interface-survey"
     base = sys.argv[2] if len(sys.argv) > 2 else "HEAD"
     fp = check_specs.source_fingerprint()
+
+    def sha(x):
+        return hashlib.sha256((ROOT / x).read_bytes()).hexdigest()
+
+    def backfill(case, artifacts):
+        p = ROOT / ("out/verification/%s.json" % case)
+        e = json.loads(p.read_text(encoding="utf-8"))
+        e["artifacts"] = [{"path": a, "sha256": sha(a)} for a in artifacts]
+        p.write_text(json.dumps(e, ensure_ascii=False, indent=1), encoding="utf-8")
+
     for case in EVIDENCE:
         p = ROOT / ("out/verification/%s.json" % case)
         e = json.loads(p.read_text(encoding="utf-8"))
@@ -71,28 +81,24 @@ def main():
     codes = {}
     codes["task"] = run(EVIDENCE["AC-R13-01"][0].format(LATEST_TASK=task, PREV_COMMIT=base),
                         "out/verification/m0-task-latest.log")
-    codes["r14"] = run(EVIDENCE["AC-R14-02"][0], "out/verification/m0-r14-negative-tests.log")
-    codes["release"] = run(EVIDENCE["AC-R14-02"][1], "out/verification/m0-release-check-now.log")
-    ok = codes["task"] == 0 and codes["r14"] == 0 and codes["release"] != 0
-    print("codes:", codes, "task/r14 应为 0，release 应非 0 ->", "OK" if ok else "BAD")
-
-    def sha(x):
-        return hashlib.sha256((ROOT / x).read_bytes()).hexdigest()
-
-    e13 = json.loads((ROOT / "out/verification/AC-R13-01.json").read_text(encoding="utf-8"))
-    e13["artifacts"] = [{"path": a, "sha256": sha(a)} for a in [
+    # 每覆写一个工件日志后立即回填哈希：后续 subprocess 内的 validate() 否则会看到
+    # "盘上已是新内容、证据里还是旧哈希"的不一致窗口（曾使 --stage M5 报哈希错而非指名未完成案例）
+    backfill("AC-R13-01", [
         "out/verification/m0-task-latest.log",
         "out/verification/m0-final-neg-outofscope.log",
         "out/verification/m0-final-neg-fakeverified.log",
         "out/verification/m0-final-neg-dropreq.log",
-        "out/verification/m0-install-check.log"]]
-    e14 = json.loads((ROOT / "out/verification/AC-R14-02.json").read_text(encoding="utf-8"))
-    e14["artifacts"] = [{"path": a, "sha256": sha(a)} for a in [
+        "out/verification/m0-install-check.log"])
+    codes["r14"] = run(EVIDENCE["AC-R14-02"][0], "out/verification/m0-r14-negative-tests.log")
+    backfill("AC-R14-02", [
         "out/verification/m0-r14-negative-tests.log",
-        "out/verification/m0-release-check-now.log"]]
-    for name, e in (("AC-R13-01", e13), ("AC-R14-02", e14)):
-        (ROOT / ("out/verification/%s.json" % name)).write_text(
-            json.dumps(e, ensure_ascii=False, indent=1), encoding="utf-8")
+        "out/verification/m0-release-check-now.log"])
+    codes["release"] = run(EVIDENCE["AC-R14-02"][1], "out/verification/m0-release-check-now.log")
+    backfill("AC-R14-02", [
+        "out/verification/m0-r14-negative-tests.log",
+        "out/verification/m0-release-check-now.log"])
+    ok = codes["task"] == 0 and codes["r14"] == 0 and codes["release"] != 0
+    print("codes:", codes, "task/r14 应为 0，release 应非 0 ->", "OK" if ok else "BAD")
     print("fingerprint=%s 证据已定稿" % fp[:16])
     sys.exit(0 if ok else 1)
 
