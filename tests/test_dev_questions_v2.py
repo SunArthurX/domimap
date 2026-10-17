@@ -177,6 +177,33 @@ class TestDevQuestionsV2(unittest.TestCase):
         questions2, _gold2, _c = self._generate()
         self.assertEqual(questions2, self.questions)
 
+    def test_mock_pages_excluded_from_gold(self):
+        """第 5 步诊断回归：mock 页占位文本（谁谁谁/啥啥啥）不得成题或污染查询词。"""
+        mockA = os.path.join(self.tmp, "famMock")
+        os.makedirs(os.path.join(mockA, "doc"), exist_ok=True)
+        open(os.path.join(mockA, "doc", "demo.html"), "w", encoding="utf-8").write(
+            "<html><body><p>经销商详情 谁谁谁 谁谁谁 啥啥啥医药有限公司 aaaabbbb "
+            "药品批发企业 药品批发企业 药品批发企业 固定电话 注册日期 2015-11-11 "
+            "注意：注册信息必须审核。</p></body></html>" + "<p>药品批发企业 固定电话</p>" * 20)
+        roots = dict(self.roots)
+        roots["famMock"] = mockA
+        original = dict(gen.QUOTA)
+        gen.QUOTA.clear()
+        gen.QUOTA.update({"code_location": 0, "cross_repo_trace": 0,
+                          "document_reasoning": 2, "knowledge_freshness": 2,
+                          "locator_diagnostic": 2, "negative": 0})
+        try:
+            questions2, gold2, _c = gen.build(sorted(roots), root_of=roots.__getitem__)
+        finally:
+            gen.QUOTA.clear()
+            gen.QUOTA.update(original)
+        for g in gold2:
+            self.assertNotIn("famMock", g["families"],
+                             "mock 族不得进入 gold: %s" % g["families"])
+        for q in questions2:
+            self.assertNotIn("谁谁谁", q["query"])
+            self.assertNotIn("啥啥啥", q["query"])
+
 
 if __name__ == "__main__":
     unittest.main()

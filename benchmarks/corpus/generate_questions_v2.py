@@ -37,6 +37,20 @@ VERSION = re.compile(r"[vV]?(?<![\w.])(\d+\.\d+(?:\.\d+)?)(?![\w.])")
 FRESH_KW = ("生效", "失效", "替代", "废弃", "更新于", "版本", "发布", "上线")
 RESTRICT_KW = ("限制", "注意", "例外", "必须", "不支持", "前提", "回滚", "禁止",
                "风险", "条件", "默认不")
+# mock/占位文本启发式（第 5 步诊断实证：sy_html 等 demo 页的"谁谁谁/啥啥啥"曾被当主题词）
+PLACEHOLDER_TOKENS = {"谁谁谁", "啥啥啥", "某某某", "xxx", "xxxx", "xxxxx", "test",
+                      "demo", "示例", "样例", "mock", "aaaa", "abc", "abcd"}
+_PLACEHOLDER_RE = re.compile(r"^(.)\1{2,}$")
+MOCK_MAX = 0.02  # 占位 token 占比超过此值的文档不参与成题（gold 质量下限）
+
+
+def mock_ratio(doc):
+    toks = doc["tokens"]
+    if not toks:
+        return 1.0
+    ph = sum(1 for t in toks
+             if t.lower() in PLACEHOLDER_TOKENS or _PLACEHOLDER_RE.match(t))
+    return ph / len(toks)
 
 
 def fam_root(name):
@@ -143,10 +157,12 @@ def scan_family(root):
                 dates = [(int(m.group(1)), int(m.group(2)), int(m.group(3) or 1))
                          for m in DATE.finditer(text)]
                 body_tokens = CN.findall(text)
-                docs.append({"rel": rel, "title": title, "sentences": sentences,
+                doc_entry = {"rel": rel, "title": title, "sentences": sentences,
                              "dates": dates, "tokens": body_tokens,
-                             "stem": os.path.splitext(fn)[0]})
-                if title:
+                             "stem": os.path.splitext(fn)[0]}
+                doc_entry["mock_ratio"] = round(mock_ratio(doc_entry), 4)
+                docs.append(doc_entry)
+                if title and doc_entry["mock_ratio"] <= MOCK_MAX:
                     locators.append((title, rel))
             if low.startswith("readme") and low.endswith((".md", ".txt")):
                 locators.append((os.path.splitext(fn)[0], rel))
@@ -158,11 +174,14 @@ def scan_family(root):
 
 
 def topic_words(doc):
-    """正文中高频中文词，排除出现于标题/文件名的词——保证查询不退化成标题检索。"""
+    """正文中高频中文词，排除出现于标题/文件名的词与占位 token——保证查询
+    不退化成标题检索，也不被 mock 页占位文本污染。"""
     banned = doc["title"] + doc["stem"]
     counts = {}
     for token in doc["tokens"]:
         if len(token) < 2 or token in banned:
+            continue
+        if token.lower() in PLACEHOLDER_TOKENS or _PLACEHOLDER_RE.match(token):
             continue
         counts[token] = counts.get(token, 0) + 1
     return [w for w, _ in sorted(counts.items(), key=lambda x: (-x[1], x[0]))]
@@ -228,6 +247,8 @@ def build(families, root_of=None):
     dr = 0
     for f in sorted(facts):
         for doc in facts[f]["docs"]:
+            if doc.get("mock_ratio", 0) > MOCK_MAX:
+                continue  # mock/占位页不入 gold（第 5 步诊断：曾致假 recall miss）
             if dr >= QUOTA["document_reasoning"]:
                 break
             restrict = [s for s in doc["sentences"]
@@ -248,7 +269,8 @@ def build(families, root_of=None):
     # 4) knowledge_freshness：文档内最新日期/版本（无 mtime）；每族最多 3 个不同文档
     kf = 0
     for f in sorted(facts):
-        dated = sorted((d for d in facts[f]["docs"] if d["dates"]),
+        dated = sorted((d for d in facts[f]["docs"]
+                        if d["dates"] and d.get("mock_ratio", 0) <= MOCK_MAX),
                        key=lambda d: max(d["dates"]), reverse=True)
         used = 0
         for newest in dated:

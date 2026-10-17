@@ -54,3 +54,9 @@ code_location 30、cross_repo_trace 30、document_reasoning 30、knowledge_fresh
 - domimap 跨仓查询返回多仓证据（seller.shop+seller.man 路径同列 top5）——无 gold 路由下的跨仓访问实测有效。
 - 过程处置（如实）：claude-obsidian contextual 分块走本地 ollama，无页上限时每族 8-15 分钟（首次试跑 23 分钟仍在 prepare）→ 试点预算页上限 300+prepare 420s，截断逐仓记账；首个超时批次作废重跑（diag-cb480a14aa01 弃用，未计入报告）。
 - 5×5 批：五重复独立记录验证通过（确定性系统输出相同、run_id/工件独立）。
+
+## 第 2 轮增补：gold 质量过滤（2026-10-17，第 5 步诊断驱动）
+
+- 诊断实证：sy_html 等 mock 页占位文本（"谁谁谁/啥啥啥"）被 topic_words 当主题词，产出不可检索的假 recall miss（短查询实测亦无法命中——文档正文无实质主题词）。
+- 修复：`mock_ratio`（占位 token 占比，含单字符重复≥3 的 aaaa/1111 型）> 0.02 的文档不参与 doc/freshness/locator 成题；topic_words 同步排除占位 token。回归测试 test_mock_pages_excluded_from_gold。
+- 重生成后总数不变（163）：mock 题被同族其他合格文档替换。
