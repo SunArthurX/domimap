@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "comparison-glm-host",
+  "state": "implementing",
+  "spec": "specs/tasks/comparison-glm-host.md",
+  "requirements": [
+    "R14"
+  ],
+  "acceptance_cases": [
+    "AC-F1-C3-01"
+  ],
+  "files": [
+    "benchmarks/runners/glm_host.py",
+    "tests/test_glm_host.py"
+  ],
+  "test_files": [
+    "tests/test_glm_host.py"
+  ]
+}
