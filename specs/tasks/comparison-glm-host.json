@@ -4,7 +4,7 @@
   "state": "implementing",
   "spec": "specs/tasks/comparison-glm-host.md",
   "requirements": [
-    "R14"
+    "F1-C3"
   ],
   "acceptance_cases": [
     "AC-F1-C3-01"

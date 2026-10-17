@@ -4,6 +4,8 @@
 
 ## 凭据纪律（安全边界，不可违反）
 
+- requirement：F1-C3；acceptance：AC-F1-C3-01（ZCode 侧主轨链路证据）。
+
 - key 位于 `~/.zcode/v2/credentials.json`，`enc:v1:` AES-256-GCM 加密（nonce.tag? 分段序
   nonce.tag 密文，urlsafe b64；密钥=sha256(env ZCODE_CREDENTIAL_SECRET 或回退串
   `REDACTED-KDF-PREFIX:{platform}:{homedir}:{username})`——KDF 取自 app 代码实证）。
