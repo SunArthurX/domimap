@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "product-identifier-ranking",
+  "state": "implementing",
+  "spec": "specs/tasks/product-identifier-ranking.md",
+  "requirements": [
+    "R04"
+  ],
+  "acceptance_cases": [
+    "AC-R04-01"
+  ],
+  "files": [
+    "domimap/search.py",
+    "tests/test_identifier_ranking.py"
+  ],
+  "test_files": [
+    "tests/test_identifier_ranking.py"
+  ]
+}

@@ -15,6 +15,9 @@ IDX_SCHEMA = "domimap.idx.v1"
 # 防误拒面扩大——集合只放检索后缀/问法词，永不放订单/商品这类域词）
 GENERIC_UNITS = {"规则", "配置", "定义", "说明", "位置", "处理", "服务", "管理",
                  "查询", "入口", "系统", "信息", "文档", "地址", "内容", "支持"}
+# 名称精确匹配加权：查询标识符与节点 name 完全相等（定义性同一）×3——干净集实测
+# tbl 节点仅凭 op_operator 得 0.53 分被通用词堆叠的 DTO（1.29）压出 top50
+IDENTIFIER_NAME_BOOST = 3.0
 
 class Searcher:
     def __init__(self, g, cache_path=None, coverage=None):
@@ -120,10 +123,23 @@ class Searcher:
         total = sum(d.values()) or 1
         s = 0.0
         for qt in qtokens:
+            if len(qt) == 1 and ord(qt) > 0x2E7F:
+                continue  # 单字 CJK 是子词级噪声：曾让通用尾词凭计数压过精确标识符命中
             if qt in d:
                 idf = math.log(1 + self.N / (1 + self.df.get(qt, 0)))
                 s += idf * (d[qt] / total)
-        return s
+        return s * (IDENTIFIER_NAME_BOOST if self._name_exact_hit(qtokens, nid) else 1.0)
+
+    def _name_exact_hit(self, qtokens, nid):
+        """查询拉丁标识符与节点 name 完全相等（定义性同一）：仅精确相等，不猜相近名。"""
+        n = self._node(nid)
+        name = n["name"].lower()
+        if len(name) < 4:
+            return False
+        for qt in qtokens:
+            if len(qt) >= 4 and qt == name:
+                return True
+        return False
 
     @staticmethod
     def _units(text):
