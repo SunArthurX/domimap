@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "product-gbk-read",
+  "state": "implementing",
+  "spec": "specs/tasks/product-gbk-read.md",
+  "requirements": [
+    "R04"
+  ],
+  "acceptance_cases": [
+    "AC-R04-01"
+  ],
+  "files": [
+    "domimap/lite_scan.py",
+    "tests/test_gbk_read.py"
+  ],
+  "test_files": [
+    "tests/test_gbk_read.py"
+  ]
+}
