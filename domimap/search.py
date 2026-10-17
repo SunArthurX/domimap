@@ -20,6 +20,7 @@ GENERIC_UNITS = {"规则", "配置", "定义", "说明", "位置", "处理", "�
 IDENTIFIER_NAME_BOOST = 3.0
 BM25_K = 1.2
 BM25_B = 0.75
+DECAY_FLOOR = 0.05
 
 class Searcher:
     def __init__(self, g, cache_path=None, coverage=None):
@@ -295,7 +296,9 @@ class Searcher:
         # 压到 ~0.2% 系数（gold BM25 74 分仍出不了 top50）；非时效查询的年龄不是信号
         # （计划 §10：旧源码精确符号不因年龄凭空失效）。时效意图内近因偏好保留。
         if fresh_query:
-            scored = [(s * (0.5 ** (max(0.0, (now_ref - (self._node(nid)["meta"].get("first_seen") or now_ref)) / 86400.0) / 365.0)), nid)
+            # 地板 0.05：0.5^(9年)=0.2% 属"从 top50 抹除"而非排序影响（与 F4 语义冲突）；
+            # 地板不改变老旧件之间的相对顺序（单调保持）
+            scored = [(s * max(DECAY_FLOOR, 0.5 ** (max(0.0, (now_ref - (self._node(nid)["meta"].get("first_seen") or now_ref)) / 86400.0) / 365.0)), nid)
                       for s, nid in scored]
         scored.sort(reverse=True)
         # R04-01：①来源家族去重（同文件 ≤2 席，防 seeds/README 型噪声霸榜）②分路融合（Doc 保底）
