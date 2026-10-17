@@ -27,7 +27,7 @@ class CbmAdapter(Adapter):
         self.rid = 0
         self.project = {}
 
-    def _call(self, method, params=None, notify=False):
+    def _call(self, method, params=None, notify=False, timeout=60.0):
         self.rid += 1
         msg = {"jsonrpc": "2.0", "method": method}
         if params:
@@ -38,7 +38,19 @@ class CbmAdapter(Adapter):
         self.proc.stdin.flush()
         if notify:
             return None
+        # 有界阻塞读（select 超时）：实测某查询会使 search_graph 长期无响应，
+        # 无超时的 readline 会挂起整批运行（第 2 轮五系统重跑实测）
+        import select
+        deadline = time.time() + float(timeout)
         while True:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                raise TimeoutError("cbm jsonrpc no response in %.0fs: %s"
+                                   % (timeout, method))
+            ready, __, _ = select.select([self.proc.stdout], [], [], remaining)
+            if not ready:
+                raise TimeoutError("cbm jsonrpc no response in %.0fs: %s"
+                                   % (timeout, method))
             line = self.proc.stdout.readline()
             if not line:
                 raise RuntimeError("cbm process closed")
@@ -57,7 +69,8 @@ class CbmAdapter(Adapter):
                                       "clientInfo": {"name": "dm-adapters", "version": "1"}})
             self._call("notifications/initialized", notify=True)
         result = self._call("tools/call", {"name": "index_repository",
-                                           "arguments": {"repo_path": os.path.abspath(repo.root)}})
+                                           "arguments": {"repo_path": os.path.abspath(repo.root)}},
+                            timeout=float(budget.get("prepare_timeout", 900)))
         payload = json.loads(result["content"][0]["text"])
         self.project[repo.name] = payload.get("project")
         return {"mode": "full(默认)", "project": payload.get("project"),
@@ -69,9 +82,8 @@ class CbmAdapter(Adapter):
             raise TimeoutError("cbm query budget exhausted before dispatch")
         result = self._call("tools/call", {"name": "search_graph",
                                            "arguments": {"query": text,
-                                                         "project": self.project[repo.name]}})
-        if time.time() > deadline:
-            raise TimeoutError("cbm query exceeded budget")
+                                                         "project": self.project[repo.name]}},
+                            timeout=float(budget.get("query_timeout", 60)))
         out = ""
         if isinstance(result, dict):
             out = "".join(c.get("text", "") for c in result.get("content", []))
