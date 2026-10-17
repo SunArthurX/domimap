@@ -326,7 +326,23 @@ class Searcher:
         doc_dense = len(doc_hits) >= 3 and sum(1 for _, nid in head
                                                if self._node(nid)["kind"] in ("Doc", "Knowledge")) >= 4
         want_docs = min(3 if doc_dense else 2, len(doc_hits)) if doc_hits else 0
-        merged = (code_hits[:top_k - want_docs] + doc_hits[:want_docs]) if want_docs else capped[:top_k]
+        # 保底约束下的按分交错（4b）：旧泳道拼接（code 先占席、docs 殿后）使高分文档
+        # 被低分代码节点压出 top5——BM25 后两路分数已可比；席位保底、排序按分
+        merged = sorted(code_hits + doc_hits, reverse=True)[:top_k]
+        if want_docs:
+            have = sum(1 for _, nid in merged
+                       if self._node(nid)["kind"] in ("Doc", "Knowledge"))
+            for item in doc_hits:
+                if have >= want_docs:
+                    break
+                if item in merged:
+                    continue
+                for j in range(len(merged) - 1, -1, -1):
+                    if self._node(merged[j][1])["kind"] not in ("Doc", "Knowledge"):
+                        merged[j] = item
+                        merged.sort(reverse=True)
+                        have += 1
+                        break
         # 候选精剪（precision）：与上一名得分断崖 >55% 时截断（丢弃低置信尾部，减 FP）
         if len(merged) >= 2:
             keep = [merged[0]]
