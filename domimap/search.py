@@ -291,8 +291,12 @@ class Searcher:
             decay = 0.5 ** (age_days / 365.0)
             return "age=%.0fd decay=%.3f" % (age_days, decay)
 
-        scored = [(s * (0.5 ** (max(0.0, (now_ref - (self._node(nid)["meta"].get("first_seen") or now_ref)) / 86400.0) / 365.0)), nid)
-                  for s, nid in scored]
+        # 衰减仅作用于时效意图查询（第 5 轮）：无条件半衰期 1 年曾把 2015-2017 文档
+        # 压到 ~0.2% 系数（gold BM25 74 分仍出不了 top50）；非时效查询的年龄不是信号
+        # （计划 §10：旧源码精确符号不因年龄凭空失效）。时效意图内近因偏好保留。
+        if fresh_query:
+            scored = [(s * (0.5 ** (max(0.0, (now_ref - (self._node(nid)["meta"].get("first_seen") or now_ref)) / 86400.0) / 365.0)), nid)
+                      for s, nid in scored]
         scored.sort(reverse=True)
         # R04-01：①来源家族去重（同文件 ≤2 席，防 seeds/README 型噪声霸榜）②分路融合（Doc 保底）
         fam, capped = {}, []
