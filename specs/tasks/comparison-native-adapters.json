@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "comparison-native-adapters",
+  "state": "implementing",
+  "spec": "specs/tasks/comparison-native-adapters.md",
+  "requirements": [
+    "R14"
+  ],
+  "acceptance_cases": [
+    "AC-R14-01"
+  ],
+  "files": [
+    "benchmarks/adapters/__init__.py",
+    "benchmarks/adapters/base.py",
+    "benchmarks/adapters/envs.py",
+    "benchmarks/adapters/devfixture.py",
+    "benchmarks/adapters/domimap_adapter.py",
+    "benchmarks/adapters/cbm_adapter.py",
+    "benchmarks/adapters/graphify_adapter.py",
+    "benchmarks/adapters/codegraph_adapter.py",
+    "benchmarks/adapters/claude_obsidian_adapter.py",
+    "tests/test_adapters_contract.py"
+  ],
+  "test_files": [
+    "tests/test_adapters_contract.py"
+  ]
+}
