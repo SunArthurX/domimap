@@ -135,8 +135,9 @@ def scan_repo(root, repo_label=None):
                 mt = os.stat(path).st_mtime
             except OSError:
                 mt = 0.0
+            era = _content_era(text)
             R["docs"].append({"path": rel, "text": text[:200000], "service": svc,
-                              "mtime": mt, **meta})
+                              "mtime": mt, "content_era": era, **meta})
         elif ext in (".docx", ".pdf"):
             ex = extract_document(path)
             if ex["status"] == "ok":
@@ -165,7 +166,7 @@ def scan_repo(root, repo_label=None):
                 except OSError:
                     mt = 0.0
                 R["docs"].append({"path": rel, "text": text[:200000], "service": svc,
-                                  "mtime": mt})
+                                  "mtime": mt, "content_era": _content_era(text)})
             else:
                 R["coverage"]["skipped"].append(
                     {"file": rel, "reason": "HTML 无文本层（仅标签/脚本/样式）"})
@@ -176,6 +177,30 @@ _HTML_NOISE = re.compile(r"(?is)<(script|style|head|noscript)\b.*?</\1>")
 _HTML_TAG = re.compile(r"(?s)<!--.*?-->|<[^>]+>")
 _HTML_NAMED = {"&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&nbsp;": " "}
 _HTML_NUMERIC = re.compile(r"&#(x[0-9a-fA-F]+|[0-9]+);")
+
+
+_DOC_DATE = re.compile(r"(20\d{2})\s*[年./-]\s*(\d{1,2})\s*[月./-]?\s*(\d{1,2})?\s*[日]?")
+
+
+def _content_era(text):
+    """文档正文自述纪元：最新日期 → epoch 秒（无日期返回 None）。
+
+    确认侧语料为 depth-1 克隆，git clone 会把全部文件 mtime 置为克隆时刻——
+    文件时间不可用，正文日期（修订历史/发布日期/版权年）是唯一可靠纪元。
+    """
+    import calendar
+    latest = None
+    for m in _DOC_DATE.finditer(text):
+        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3) or 1)
+        if not (1990 <= y <= 2100 and 1 <= mo <= 12 and 1 <= d <= 31):
+            continue
+        try:
+            ts = calendar.timegm((y, mo, d, 0, 0, 0))
+        except (ValueError, OverflowError):
+            continue
+        if latest is None or ts > latest:
+            latest = ts
+    return latest
 
 
 def _html_to_text(text):

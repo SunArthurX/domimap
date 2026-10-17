@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "product-content-era",
+  "state": "implementing",
+  "spec": "specs/tasks/product-content-era.md",
+  "requirements": [
+    "F4"
+  ],
+  "acceptance_cases": [
+    "AC-F4-01"
+  ],
+  "files": [
+    "domimap/lite_scan.py",
+    "domimap/graph.py",
+    "tests/test_content_era.py"
+  ],
+  "test_files": [
+    "tests/test_content_era.py"
+  ]
+}

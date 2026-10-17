@@ -175,7 +175,9 @@ class Graph:
         for d in R["docs"]:
             did = self.add_node("doc:%s:%s" % (d.get("service", "(root)"), d["path"]), "Doc",
                                 os.path.basename(d["path"]), d["path"],
-                                {"text": d["text"], "first_seen": d.get("mtime") or 0.0,
+                                {"text": d["text"],
+                                 "first_seen": d.get("content_era") or d.get("mtime") or 0.0,
+                                 "era_source": "content" if d.get("content_era") else "mtime",
                                  **{k: d[k] for k in ("valid_until", "superseded_by") if d.get(k)}},
                                 conf="EXTRACTED", prov="doc:ingest")
             hits = Counter()
