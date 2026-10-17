@@ -11,6 +11,11 @@ from .tokenize import tokenize
 
 IDX_SCHEMA = "domimap.idx.v1"
 
+# 通用词集合：仅命中这些词不足以定位任何实质概念（负例拒答守门；不含真实业务域词，
+# 防误拒面扩大——集合只放检索后缀/问法词，永不放订单/商品这类域词）
+GENERIC_UNITS = {"规则", "配置", "定义", "说明", "位置", "处理", "服务", "管理",
+                 "查询", "入口", "系统", "信息", "文档", "地址", "内容", "支持"}
+
 class Searcher:
     def __init__(self, g, cache_path=None, coverage=None):
         self.g = g
@@ -185,6 +190,25 @@ class Searcher:
                 ({u for u in units if is_cjk(u)} if graph_has_cjk else set())
         matched = {t for t in denom if t in self.df}
         cov = (len(matched) / len(denom)) if denom else 0.0
+        # 负例守门①：命中的单元全部是通用问法词 → 查询的全部实质概念在图中不存在，
+        # 拒答（诊断实证："对账差异自动核销 规则 配置"曾因 规则/配置 命中返回假阳性）
+        if matched and matched <= GENERIC_UNITS:
+            return {"seeds": [], "expanded": [],
+                    "text": "（诚实拒答：查询的实质词在图中均不存在，仅命中通用词。）",
+                    "refused": True}
+        # 负例守门②：含 ≥4 字符拉丁标识符且全部缺席 → 拒答（原守门仅覆盖纯标识符查询，
+        # "近名标识符+中文词"曾绕过并产生幻觉命中）
+        import re as _reI
+        _idents = _reI.findall(r"[A-Za-z][A-Za-z0-9_]{3,}", _o)
+        _all_absent = all(
+            not any(i.lower() in n["name"].lower()
+                    for n in list(self.g.nodes.values())[:200000] + list(self.extra.values()))
+            and not any(i.lower() in t for t in self.df)
+            for i in _idents)
+        if _idents and _all_absent:
+            return {"seeds": [], "expanded": [],
+                    "text": "（诚实拒答：标识符 %s 在图中不存在。）" % ", ".join(_idents[:3]),
+                    "refused": True}
         cand = set()
         for t in matched:
             cand |= self.index.get(t, set())

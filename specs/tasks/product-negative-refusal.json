@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "product-negative-refusal",
+  "state": "implementing",
+  "spec": "specs/tasks/product-negative-refusal.md",
+  "requirements": [
+    "R04"
+  ],
+  "acceptance_cases": [
+    "AC-R04-01"
+  ],
+  "files": [
+    "domimap/search.py",
+    "tests/test_negative_refusal.py"
+  ],
+  "test_files": [
+    "tests/test_negative_refusal.py"
+  ]
+}
