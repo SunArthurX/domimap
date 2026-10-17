@@ -95,7 +95,8 @@ def scan_repo(root, repo_label=None):
     routes_by_class = {}
     for path, rel in _walk(root, on_skip=R["coverage"]["skipped"].append):
         ext = os.path.splitext(rel)[1].lower()
-        if ext not in CODE_EXT and ext not in DOC_EXT and ext not in {".docx", ".pdf", ".doc"}:
+        if ext not in CODE_EXT and ext not in DOC_EXT and ext not in {".docx", ".pdf", ".doc",
+                                                                      ".html", ".htm"}:
             continue
         try:
             with open(path, encoding="utf-8", errors="replace") as f:
@@ -150,8 +151,47 @@ def scan_repo(root, repo_label=None):
                 R["coverage"]["skipped"].append({"file": rel, "reason": "文档无文本层（可能为扫描件）"})
         elif ext == ".doc":
             R["coverage"]["skipped"].append({"file": rel, "reason": ".doc 旧格式：请先 `soffice --headless --convert-to docx`"})
+        elif ext in (".html", ".htm"):
+            # 开发集诊断实证：wiki/javadoc/门户页证据全在 .html（DOC_EXT 不含则永不可检索）
+            text = _html_to_text(text)
+            if text.strip():
+                try:
+                    mt = os.stat(path).st_mtime
+                except OSError:
+                    mt = 0.0
+                R["docs"].append({"path": rel, "text": text[:200000], "service": svc,
+                                  "mtime": mt})
+            else:
+                R["coverage"]["skipped"].append(
+                    {"file": rel, "reason": "HTML 无文本层（仅标签/脚本/样式）"})
     link_calls(R)
     return R
+
+_HTML_NOISE = re.compile(r"(?is)<(script|style|head|noscript)\b.*?</\1>")
+_HTML_TAG = re.compile(r"(?s)<!--.*?-->|<[^>]+>")
+_HTML_NAMED = {"&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&nbsp;": " "}
+_HTML_NUMERIC = re.compile(r"&#(x[0-9a-fA-F]+|[0-9]+);")
+
+
+def _html_to_text(text):
+    """stdlib 去标签抽取：script/style/head/noscript 与注释剔除，数值/常见命名实体
+    解码（javadoc 等常用 &#20013; 形式编码中文），空白规整。不引依赖、不猜结构。"""
+    text = _HTML_NOISE.sub(" ", text)
+    text = _HTML_TAG.sub(" ", text)
+    for k, v in _HTML_NAMED.items():
+        text = text.replace(k, v)
+
+    def _decode(match):
+        body = match.group(1)
+        try:
+            cp = int(body[1:], 16) if body[:1] in "xX" else int(body)
+        except ValueError:
+            return " "
+        return chr(cp) if 0 < cp < 0x110000 else " "
+
+    text = _HTML_NUMERIC.sub(_decode, text)
+    return re.sub(r"[ \t\r\f\v]+", " ", text)
+
 
 def _lower_first(s):
     return s[0].lower() + s[1:] if s else s

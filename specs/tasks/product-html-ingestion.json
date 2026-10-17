@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "product-html-ingestion",
+  "state": "implementing",
+  "spec": "specs/tasks/product-html-ingestion.md",
+  "requirements": [
+    "R09"
+  ],
+  "acceptance_cases": [
+    "AC-R09-01"
+  ],
+  "files": [
+    "domimap/lite_scan.py",
+    "tests/test_html_ingestion.py"
+  ],
+  "test_files": [
+    "tests/test_html_ingestion.py"
+  ]
+}
