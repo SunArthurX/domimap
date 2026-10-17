@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "comparison-maintrack-runner",
+  "state": "implementing",
+  "spec": "specs/tasks/comparison-maintrack-runner.md",
+  "requirements": [
+    "R14"
+  ],
+  "acceptance_cases": [
+    "AC-R14-01"
+  ],
+  "files": [
+    "benchmarks/runners/main_track.py",
+    "tests/test_main_track.py"
+  ],
+  "test_files": [
+    "tests/test_main_track.py"
+  ]
+}
