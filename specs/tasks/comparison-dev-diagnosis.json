@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "comparison-dev-diagnosis",
+  "state": "implementing",
+  "spec": "specs/tasks/comparison-dev-diagnosis.md",
+  "requirements": [
+    "R14"
+  ],
+  "acceptance_cases": [
+    "AC-R14-01"
+  ],
+  "files": [
+    "benchmarks/runners/dev_score.py",
+    "tests/test_dev_score.py"
+  ],
+  "test_files": [
+    "tests/test_dev_score.py"
+  ]
+}
