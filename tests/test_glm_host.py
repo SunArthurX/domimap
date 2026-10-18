@@ -107,6 +107,22 @@ class TestGlmHost(unittest.TestCase):
         host.close_session(session)
         self.assertEqual(turn["tool_calls"], 3, "max_turns 必须限制工具轮数")
 
+    def test_forced_final_answer_on_turn_exhaustion(self):
+        """兜底终答契约：轮次耗尽无文本时，去 tools 强制作答一次（实测 12/33 题曾空答案）。"""
+        script = [TOOL_USE_REPLY] * 3 + [FINAL_REPLY]
+        transport = FakeTransport(script)
+        FakeBridge.calls = []
+        host = gh.GlmApiHost("g", transport=transport, bridge_factory=lambda: FakeBridge(),
+                             max_turns=3)
+        session = host.open_session({})
+        turn = host.ask(session, "q")
+        host.close_session(session)
+        self.assertIn("OrderMapper", turn["answer_text"], "耗尽后必须给出终答")
+        self.assertEqual(turn["tool_calls"], 3)
+        last_payload = transport.payloads[-1]
+        self.assertNotIn("tools", last_payload, "兜底调用不得带 tools")
+        self.assertIn("直接作答", last_payload["messages"][-1]["content"])
+
 
 if __name__ == "__main__":
     unittest.main()

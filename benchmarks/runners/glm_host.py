@@ -64,13 +64,22 @@ def load_api_key():
                                None).decode()
 
 
-def _post(key, payload, timeout=120):
-    req = urllib.request.Request(
-        ENDPOINT, data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json", "x-api-key": key,
-                 "anthropic-version": "2023-06-01"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read())
+def _post(key, payload, timeout=180, retries=3):
+    """瞬时网络故障有界重试（计划 §5.6：统一重试政策；实测单次 SSL 读超时曾中断整批）。"""
+    last = None
+    for attempt in range(retries):
+        req = urllib.request.Request(
+            ENDPOINT, data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json", "x-api-key": key,
+                     "anthropic-version": "2023-06-01"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read())
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            last = error
+            if attempt + 1 < retries:
+                time.sleep(5 * (attempt + 1))
+    raise last
 
 
 class McpBridge:
@@ -180,6 +189,21 @@ class GlmApiHost:
                                 "tool_use_id": tu["id"],
                                 "content": out[:6000]})
             messages.append({"role": "user", "content": results})
+        if not answer:
+            # 兜底终答：轮次耗尽仍无文本（实测 12/33 题六轮全耗在工具循环）——
+            # 去掉 tools 强制作答一次，保证题有答案（预算内、不静默）
+            t0 = time.time()
+            data = self._transport({
+                "model": MODEL, "system": SYSTEM_PROMPT, "max_tokens": self.max_tokens,
+                "messages": messages + [{"role": "user",
+                                         "content": "检索阶段结束。请基于以上检索结果直接作答；"
+                                                    "每个结论标注来源文件路径；证据不足处如实说明。"}]})
+            usage = data.get("usage", {})
+            ledger["tokens_in"] += usage.get("input_tokens", 0)
+            ledger["tokens_out"] += usage.get("output_tokens", 0)
+            ledger["secs"] += time.time() - t0
+            blocks = data.get("content") or (data.get("message") or {}).get("content") or []
+            answer = "\n".join(b.get("text", "") for b in blocks if b.get("type") == "text")
         return {"answer_text": answer, "tool_calls": ledger["tool_calls"],
                 "tokens_in": ledger["tokens_in"], "tokens_out": ledger["tokens_out"],
                 "secs": round(ledger["secs"], 3), "ledger": ledger}
