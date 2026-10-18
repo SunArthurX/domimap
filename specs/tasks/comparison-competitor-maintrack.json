@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "comparison-competitor-maintrack",
+  "state": "implementing",
+  "spec": "specs/tasks/comparison-competitor-maintrack.md",
+  "requirements": [
+    "R14"
+  ],
+  "acceptance_cases": [
+    "AC-R14-01"
+  ],
+  "files": [
+    "benchmarks/runners/competitor_host.py",
+    "tests/test_competitor_host.py"
+  ],
+  "test_files": [
+    "tests/test_competitor_host.py"
+  ]
+}
