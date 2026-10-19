@@ -21,6 +21,11 @@ IDENTIFIER_NAME_BOOST = 3.0
 BM25_K = 1.2
 BM25_B = 0.75
 DECAY_FLOOR = 0.05
+# 文档类型先验：文件名含这些关键词的文档在文档路加 ×1.5（公共语料评测实证：
+# 中文查询"接入 教程"匹配不上英文 README 标题词——类型先验补偿词汇鸿沟的非桥部分）
+DOC_TYPE_PRIOR = 1.5
+_DOC_TYPE_HINTS = ("readme", "tutorial", "getting started", "quickstart",
+                   "changelog", "spec", "guide", "manual", "migration")
 
 class Searcher:
     def __init__(self, g, cache_path=None, coverage=None):
@@ -143,7 +148,16 @@ class Searcher:
                 idf = math.log(1 + (self.N - self.df.get(qt, 0) + 0.5)
                                / (self.df.get(qt, 0) + 0.5))
                 s += idf * tf * (BM25_K + 1) / (tf + BM25_K * norm)
-        return s * (IDENTIFIER_NAME_BOOST if self._name_exact_hit(qtokens, nid) else 1.0)
+        return s * (IDENTIFIER_NAME_BOOST if self._name_exact_hit(qtokens, nid) else 1.0) \
+            * (DOC_TYPE_PRIOR if self._doc_type_hint(nid) else 1.0)
+
+    def _doc_type_hint(self, nid):
+        """文件名含 README/Tutorial/Guide/CHANGELOG/SPEC 等提示词的文档路加先验。"""
+        n = self._node(nid)
+        if n["kind"] not in ("Doc", "Knowledge"):
+            return False
+        fname = n["file"].lower()
+        return any(h in fname for h in _DOC_TYPE_HINTS)
 
     def _name_exact_hit(self, qtokens, nid):
         """查询拉丁标识符与节点 name 完全相等（定义性同一）：仅精确相等，不猜相近名。"""
@@ -173,7 +187,17 @@ class Searcher:
             if len(seg) == 1:
                 out.add(seg)
             else:
-                out.update(seg[i:i+2] for i in range(len(seg) - 1))
+                for i in range(len(seg) - 1):
+                    bg = seg[i:i+2]
+                    out.add(bg)
+                    # 中英桥：CJK 二元组的英文对应词也计入查询单元（覆盖门适配）
+                    from .tokenize import EN_BRIDGE
+                    ens = EN_BRIDGE.get(bg)
+                    if ens:
+                        if isinstance(ens, str):
+                            out.add(ens)
+                        else:
+                            out.update(ens)
         return out
 
     def query(self, text, top_k=6, expand=True, budget=3800, domain=None, min_cov=0.3, seeds=None,

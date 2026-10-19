@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "product-en-bridge",
+  "state": "implementing",
+  "spec": "specs/tasks/product-en-bridge.md",
+  "requirements": ["R04"],
+  "acceptance_cases": ["AC-R04-01"],
+  "files": [
+    "domimap/tokenize.py",
+    "domimap/search.py",
+    "domimap/seeds.json",
+    "tests/test_en_bridge.py"
+  ],
+  "test_files": ["tests/test_en_bridge.py"]
+}
