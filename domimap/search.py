@@ -24,6 +24,7 @@ DECAY_FLOOR = 0.05
 # 文档类型先验：文件名含这些关键词的文档在文档路加 ×1.5（公共语料评测实证：
 # 中文查询"接入 教程"匹配不上英文 README 标题词——类型先验补偿词汇鸿沟的非桥部分）
 DOC_TYPE_PRIOR = 1.0  # 禁用：公共语料实测 README 宽泛内容被推过特定 gold 致 doc/fresh 回退
+DDL_SEMANTIC_BOOST = 2.0  # DDL 语义匹配：查询含"表/定义/写入"时 CREATE TABLE 的 SqlStmt ×2
 _DOC_TYPE_HINTS = ("readme", "tutorial", "getting started", "quickstart",
                    "changelog", "spec", "guide", "manual", "migration")
 
@@ -149,7 +150,23 @@ class Searcher:
                                / (self.df.get(qt, 0) + 0.5))
                 s += idf * tf * (BM25_K + 1) / (tf + BM25_K * norm)
         return s * (IDENTIFIER_NAME_BOOST if self._name_exact_hit(qtokens, nid) else 1.0) \
-            * (DOC_TYPE_PRIOR if self._doc_type_hint(nid) else 1.0)
+            * (DOC_TYPE_PRIOR if self._doc_type_hint(nid) else 1.0) \
+            * (DDL_SEMANTIC_BOOST if self._ddl_semantic_hit(qtokens, nid) else 1.0)
+
+    def _ddl_semantic_hit(self, qtokens, nid):
+        """DDL 语义匹配：DDL 来源的 Table/SqlStmt 节点 + 查询含表/定义/写入词。
+        公共语料实测：DDL 文件的 BM25 分数被含长注释的 Java 引用压出 top5（2 题）。"""
+        n = self._node(nid)
+        if n["kind"] == "Table":
+            if n.get("prov") != "sql:ddl":
+                return False
+        elif n["kind"] == "SqlStmt":
+            if "CREATE TABLE" not in n["meta"].get("sql", "").upper():
+                return False
+        else:
+            return False
+        qset = set(qtokens)
+        return bool(qset & {"表", "定义", "写入", "位置", "ddl", "建表", "create"})
 
     def _doc_type_hint(self, nid):
         """文件名含 README/Tutorial/Guide/CHANGELOG/SPEC 等提示词的文档路加先验。"""
@@ -396,10 +413,10 @@ class Searcher:
         seed_ids = [nid for _, nid in seeds]
         seen = set(seed_ids)
         lines = ["## 种子命中（词法 IDF）"]
-        for s, nid in seeds:
+        for idx, (s, nid) in enumerate(seeds):
             node = self._node(nid)
             node["time_note"] = time_note(nid)
-            lines.append(self._render(node, s))
+            lines.append(self._render(node, s, rank=idx + 1))
         exp_lines = []
         if expand:
             lines.append("\n## 一跳扩展（图结构）")
@@ -423,10 +440,36 @@ class Searcher:
                 "coverage": {"files_scanned": self.coverage.get("files_scanned"),
                              "skipped": len(self.coverage.get("skipped") or []), "reasons": reasons}}
 
-    def _render(self, n, score):
+    def _render(self, n, score, rank=None):
         head = "- [%s] %s  (score=%.3f, conf=%s, prov=%s)" % (n["kind"], n["name"], score, n["conf"], n["prov"])
+        if rank is not None:
+            head += " [rank:#%d]" % rank
         if n["kind"] == "SqlStmt":
-            head += "\n    SQL: " + n["meta"].get("sql", "")[:160]
+            sql = n["meta"].get("sql", "")
+            head += " [DDL]" if "CREATE TABLE" in sql.upper() else ""
+            head += "\n    SQL: " + sql[:160]
+        if n["kind"] == "Table" and n.get("prov") == "sql:ddl":
+            head += " [DDL]"
+        if n["kind"] in ("Doc", "Knowledge"):
+            head += " [type:%s]" % self._infer_doc_type(n["file"])
         if n["meta"].get("domain"):
             head += "  [域:%s%s]" % (n["meta"]["domain"], "/vote" if n["meta"].get("domain_by") else "")
         return head + "\n    @" + n["file"]
+
+    @staticmethod
+    def _infer_doc_type(fname):
+        """文件名推断文档类型（仅信息标注，不影响排序——第 1 轮先验加成教训）。"""
+        low = fname.lower()
+        if "readme" in low:
+            return "README"
+        if "changelog" in low or "change_log" in low or "changes" in low:
+            return "CHANGELOG"
+        if "spec" in low:
+            return "SPEC"
+        if any(w in low for w in ("tutorial", "getting", "quickstart", "demo")):
+            return "TUTORIAL"
+        if "guide" in low or "manual" in low:
+            return "GUIDE"
+        if "migrat" in low or "upgrade" in low:
+            return "MIGRATION"
+        return "DOC"

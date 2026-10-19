@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "product-ddl-rank-era",
+  "state": "implementing",
+  "spec": "specs/tasks/product-ddl-rank-era.md",
+  "requirements": ["R04", "F4"],
+  "acceptance_cases": ["AC-R04-01", "AC-F4-01"],
+  "files": [
+    "domimap/search.py",
+    "domimap/lite_scan.py",
+    "tests/test_ddl_rank_era.py"
+  ],
+  "test_files": ["tests/test_ddl_rank_era.py"]
+}

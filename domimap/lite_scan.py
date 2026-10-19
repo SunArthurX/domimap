@@ -180,13 +180,17 @@ _HTML_NUMERIC = re.compile(r"&#(x[0-9a-fA-F]+|[0-9]+);")
 
 
 _DOC_DATE = re.compile(r"(20\d{2})\s*[年./-]\s*(\d{1,2})\s*[月./-]?\s*(\d{1,2})?\s*[日]?")
+# 版本号纪元：v2.0 / Release 2.4 / 2024.1 形态（公共语料实测 CHANGELOG 只有版本号无日期）
+_DOC_VERSION = re.compile(r"(?:[vV]|\b[Rr]elease\s+|\b[Vv]ersion\s+)(\d+)\.(\d+)(?:\.(\d+))?", re.I)
+_DOC_YEAR_DOT = re.compile(r"\b(20\d{2})\.(\d{1,2})\b")
 
 
 def _content_era(text):
     """文档正文自述纪元：最新日期 → epoch 秒（无日期返回 None）。
 
+    优先级：正文日期 > 版本号日期（v2.0/Release 2.4 换算为该年 1 月 1 日近似值）。
     确认侧语料为 depth-1 克隆，git clone 会把全部文件 mtime 置为克隆时刻——
-    文件时间不可用，正文日期（修订历史/发布日期/版权年）是唯一可靠纪元。
+    文件时间不可用，正文日期/版本号是唯一可靠纪元。
     """
     import calendar
     latest = None
@@ -200,6 +204,23 @@ def _content_era(text):
             continue
         if latest is None or ts > latest:
             latest = ts
+    if latest is not None:
+        return latest  # 正文日期优先
+    # 版本号回退：v2.0 → 假设 2020+（v2≈2020, v3≈2021, ...）；Release 2.4.3 → 同理
+    for m in _DOC_VERSION.finditer(text):
+        major = int(m.group(1))
+        if 1 <= major <= 30:  # v1~v30 → 2019~2048
+            approx_year = 2018 + major
+            if 2020 <= approx_year <= 2050:
+                ts = calendar.timegm((approx_year, 1, 1, 0, 0, 0))
+                if latest is None or ts > latest:
+                    latest = ts
+    for m in _DOC_YEAR_DOT.finditer(text):
+        y, mo = int(m.group(1)), int(m.group(2))
+        if 2020 <= y <= 2100 and 1 <= mo <= 12:
+            ts = calendar.timegm((y, mo, 1, 0, 0, 0))
+            if latest is None or ts > latest:
+                latest = ts
     return latest
 
 
