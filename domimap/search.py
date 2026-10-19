@@ -23,7 +23,7 @@ BM25_B = 0.75
 DECAY_FLOOR = 0.05
 # 文档类型先验：文件名含这些关键词的文档在文档路加 ×1.5（公共语料评测实证：
 # 中文查询"接入 教程"匹配不上英文 README 标题词——类型先验补偿词汇鸿沟的非桥部分）
-DOC_TYPE_PRIOR = 1.5
+DOC_TYPE_PRIOR = 1.0  # 禁用：公共语料实测 README 宽泛内容被推过特定 gold 致 doc/fresh 回退
 _DOC_TYPE_HINTS = ("readme", "tutorial", "getting started", "quickstart",
                    "changelog", "spec", "guide", "manual", "migration")
 
