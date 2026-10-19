@@ -1,6 +1,7 @@
-"""中英技术域词汇桥契约（product-en-bridge）。
+"""中英技术域词汇桥契约（product-en-bridge，v2：查询回退桥）。
 
-公共语料评测实证：中文查询"接入 教程"无法命中英文 README——最大缺口（8 题）。
+架构修正：桥接不进主计分路径（tokenize 层桥曾稀释 BM25 IDF 致 11 题回退），
+只在覆盖率不足时作为查询回退扩展。
 """
 import os
 import sys
@@ -10,32 +11,48 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from domimap.tokenize import tokenize, EN_BRIDGE  # noqa: E402
+from domimap.tokenize import EN_BRIDGE  # noqa: E402
 
 
-class TestEnBridgeTokenize(unittest.TestCase):
-    def test_chinese_bigram_gets_english_synonyms(self):
-        toks = tokenize("接入 教程")
-        self.assertIn("接入", toks)
-        self.assertIn("integrate", toks, "接入应桥到 integrate")
-        self.assertIn("tutorial", toks, "教程应桥到 tutorial")
+def _build(files):
+    base = tempfile.mkdtemp(prefix="dm-enbridge-")
+    for rel, content in files.items():
+        path = os.path.join(base, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        open(path, "w", encoding="utf-8").write(content)
+    from domimap import lite_scan
+    R = lite_scan.scan_repo(base)
+    from domimap.graph import Graph, load_seeds
+    from domimap.search import Searcher
+    g = Graph()
+    g.build_from_records(R, load_seeds(os.path.join(ROOT, "domimap", "seeds.json")))
+    return Searcher(g)
 
-    def test_config_bridge(self):
-        toks = tokenize("配置中心")
-        self.assertIn("config", toks, "配置应桥到 config")
 
-    def test_english_query_gets_chinese_context(self):
-        # 英文 token 不变，但索引侧中文文档的"接入"gram 会附加 integrate → 双向可搜
-        toks = tokenize("integrate tutorial")
-        self.assertIn("integrate", toks)
-        self.assertIn("tutorial", toks)
+class TestEnBridgeFallback(unittest.TestCase):
+    def test_cn_query_finds_en_readme_via_bridge(self):
+        """中文查询"接入 教程"通过回退桥找到英文 README。"""
+        s = _build({"README.md":
+                    "# Getting Started Tutorial\nIntegration guide for API.\n" + "Detail content here.\n" * 30})
+        r = s.query("接入 教程", top_k=5)
+        # 不应拒答（桥接回退生效）
+        self.assertFalse(r.get("refused"),
+                         "中文查询应通过回退桥命中英文 README: %s" % r.get("text", "")[:80])
+        files = [n["file"] for n in r.get("seeds", [])]
+        self.assertTrue(any("README" in f for f in files),
+                        "README 应在结果中: %s" % files)
 
-    def test_no_bridge_for_non_tech_words(self):
-        toks = tokenize("红烧肉很好吃")
-        self.assertNotIn("integrate", toks)
+    def test_cn_query_with_cn_content_not_affected(self):
+        """中文索引内容存在时，主路径不受桥接干扰（精确匹配优先）。"""
+        s = _build({"doc/说明.md": "# 订单改价\n改价必须审核。\n" + "细节。\n" * 30,
+                    "README.md": "# Getting Started\nIntegration guide.\n" + "Detail.\n" * 30})
+        r = s.query("订单改价 审核", top_k=5)
+        self.assertFalse(r.get("refused"))
+        self.assertEqual(r["seeds"][0]["file"], "doc/说明.md",
+                         "中文内容主路径匹配应不受桥影响")
 
-    def test_bridge_words_are_generic(self):
-        """负例：桥词表不得含 benchmark 特定词（如具体仓库名/gold 路径片段）。"""
+    def test_bridge_words_generic(self):
+        """负例：桥词表不得含 benchmark 特定词。"""
         banned = ["apijson", "nacos", "shardingsphere", "dubbo", "rocketmq",
                   "mall", "litemall", "eladmin", "vhr", "jeecg"]
         for cn, ens in EN_BRIDGE.items():
@@ -43,46 +60,24 @@ class TestEnBridgeTokenize(unittest.TestCase):
                 ens = [ens]
             for en in ens:
                 for b in banned:
-                    self.assertNotIn(b, en.lower(),
-                                     "桥词含 benchmark 特定词 %s" % b)
+                    self.assertNotIn(b, en.lower())
 
-
-class TestDocTypePrior(unittest.TestCase):
-    def _build(self, files):
-        base = tempfile.mkdtemp(prefix="dm-enbridge-")
-        for rel, content in files.items():
-            path = os.path.join(base, rel)
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            open(path, "w", encoding="utf-8").write(content)
-        from domimap import lite_scan
-        R = lite_scan.scan_repo(base)
-        from domimap.graph import Graph, load_seeds
-        from domimap.search import Searcher
-        g = Graph()
-        g.build_from_records(R, load_seeds(os.path.join(ROOT, "domimap", "seeds.json")))
-        return Searcher(g)
-
-    def test_readme_boosted_over_plain_doc(self):
-        s = self._build({
-            "README.md": "# Tutorial\nGetting started with integration guide.\n" + "detail\n" * 30,
-            "doc/notes.txt": "Getting started with integration guide.\n" + "detail\n" * 30,
-        })
-        r = s.query("教程 入门", top_k=5)
+    def test_doc_type_prior_readme_boosted(self):
+        s = _build({"README.md": "# Tutorial\nGetting started guide.\n" + "detail\n" * 30,
+                    "doc/notes.txt": "Getting started guide.\n" + "detail\n" * 30})
+        r = s.query("getting started tutorial guide", top_k=5)
         self.assertFalse(r.get("refused"))
         files = [n["file"] for n in r["seeds"]]
         self.assertEqual(files[0], "README.md",
-                         "README/Tutorial 类文件应获先验加成排前: %s" % files)
+                         "README/Tutorial 类文件应获先验排前: %s" % files)
 
     def test_code_node_not_affected_by_doc_prior(self):
-        s = self._build({
-            "README.md": "# readme\n" + "内容\n" * 30,
-            "src/OrderService.java":
-                "/**\n * 订单 改价 处理服务\n */\npublic class OrderService {\n}\n",
-        })
+        s = _build({"README.md": "# readme\n" + "内容\n" * 30,
+                    "src/OrderService.java":
+                        "/**\n * 订单 改价 处理服务\n */\npublic class OrderService {\n}\n"})
         r = s.query("OrderService", top_k=5)
         self.assertFalse(r.get("refused"))
-        self.assertEqual(r["seeds"][0]["kind"], "Class",
-                         "代码节点不受文档类型先验影响")
+        self.assertEqual(r["seeds"][0]["kind"], "Class")
 
 
 if __name__ == "__main__":

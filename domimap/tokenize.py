@@ -111,15 +111,7 @@ def tokenize(text):
             for k in range(L):
                 out.append(seg[k])
                 if k + 1 < L:
-                    bigram = seg[k:k+2]
-                    out.append(bigram)
-                    # 中英桥：2-gram 查同义词表，附加英文对应词
-                    ens = EN_BRIDGE.get(bigram)
-                    if ens:
-                        if isinstance(ens, str):
-                            out.append(ens)
-                        else:
-                            out.extend(ens)
+                    out.append(seg[k:k+2])
                 if k + 2 < L:
                     out.append(seg[k:k+3])
             i = j

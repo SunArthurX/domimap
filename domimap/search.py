@@ -187,17 +187,7 @@ class Searcher:
             if len(seg) == 1:
                 out.add(seg)
             else:
-                for i in range(len(seg) - 1):
-                    bg = seg[i:i+2]
-                    out.add(bg)
-                    # 中英桥：CJK 二元组的英文对应词也计入查询单元（覆盖门适配）
-                    from .tokenize import EN_BRIDGE
-                    ens = EN_BRIDGE.get(bg)
-                    if ens:
-                        if isinstance(ens, str):
-                            out.add(ens)
-                        else:
-                            out.update(ens)
+                out.update(seg[i:i+2] for i in range(len(seg) - 1))
         return out
 
     def query(self, text, top_k=6, expand=True, budget=3800, domain=None, min_cov=0.3, seeds=None,
@@ -292,9 +282,34 @@ class Searcher:
         scored.sort(reverse=True)
         strong = any(len(t) >= 2 and t in self.df for t in denom)
         if cov < min_cov or not scored or not strong:
-            return {"seeds": [], "expanded": [],
-                    "text": "（诚实拒答：查询词覆盖率 %.0f%%，不足 %d%% 阈值。已查 %d 节点；建议换关键词/先 build。）" % (cov * 100, min_cov * 100, self.N),
-                    "refused": True}
+            # 中英桥回退：原始查询覆盖率不足时，附加 CJK 二元组的英文对应词重试
+            # （主路径不加桥——公共语料实测桥接加入主计分路径稀释 BM25 IDF 使 11 题回退）
+            from .tokenize import EN_BRIDGE
+            ext_tokens = set()
+            for u in units:
+                ens = EN_BRIDGE.get(u)
+                if ens:
+                    if isinstance(ens, str):
+                        ext_tokens.add(ens)
+                    else:
+                        ext_tokens.update(ens)
+            if ext_tokens:
+                ext_matched = {t for t in ext_tokens if t in self.df}
+                if ext_matched:
+                    for t in ext_matched:
+                        cand |= self.index.get(t, set())
+                    cov = len(ext_matched) / len(ext_tokens | denom) if (ext_tokens | denom) else 0
+                    scored = []
+                    for nid in cand:
+                        s2_ = self._score(list(qset | ext_matched), nid) * cov * cov
+                        if s2_ > 0:
+                            scored.append((s2_, nid))
+                    scored.sort(reverse=True)
+                    strong = True
+            if cov < min_cov or not scored or not strong:
+                return {"seeds": [], "expanded": [],
+                        "text": "（诚实拒答：查询词覆盖率 %.0f%%，不足 %d%% 阈值。已查 %d 节点；建议换关键词/先 build。）" % (cov * 100, min_cov * 100, self.N),
+                        "refused": True}
         # 时新意图：查询含时间词时按 first_seen 近因加权（文件 mtime 为资格事实）
         import re as _re0
         fresh_query = bool(_re0.search(r"最新|最近|更新|变更|changelog|change", text, _re0.I))
