@@ -17,9 +17,13 @@
 
 ```bash
 python3 -B -m unittest discover -s tests   # 全部测试（自建临时输入/输出，不依赖顺序）
-make verify                                # 结构检查 + 测试
+make ci                                    # CI 执行的内容：规格结构校验 + 全部测试（不确认 verified 状态）
+make verify                                # 本地门禁：另校验 out/verification 证据指纹与工件哈希
 python3 -B scripts/check_specs.py --task specs/tasks/<task>.json --base <ref>
+pip install pypdf python-docx              # 可选：PDF/DOCX 摄入契约测试需要，缺失时自动跳过
 ```
+
+`verified` 状态只由本地 `make verify` 确认：证据工件在 `out/verification/`（不入库），源文件变更后用 `scripts/refresh_evidence.py <task> <base>` 刷新指纹，再跑 `make verify`。
 
 核心零第三方依赖（Python ≥3.9 声明，目标矩阵见 roadmap）；可选增强依赖不得进入核心路径。
 

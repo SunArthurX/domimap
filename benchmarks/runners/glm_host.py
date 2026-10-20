@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""真实主轨宿主：GLM-5.3（ZCode coding-plan key，用户授权）× domimap MCP 工具。
+"""真实主轨宿主：GLM-5.3（用户授权的 coding-plan key）× domimap MCP 工具。
 
-凭据纪律：key 位于 ~/.zcode/v2/credentials.json 的 enc:v1:AES-256-GCM 条目
-（分段序 nonce/密文/tag，urlsafe-b64；密钥=sha256(env ZCODE_CREDENTIAL_SECRET 或
-REDACTED-KDF-PREFIX:{platform}:{homedir}:{username})——KDF 取自 ZCode app
-代码实证）。只在进程内存解密使用，绝不写入文件/日志/工件。
+凭据纪律：仓库内不出现密钥、账号标识或任何凭据库的解密细节。key 按序获取——
+环境变量 GLM_API_KEY / ANTHROPIC_API_KEY；否则加载 DOMIMAP_KEY_HELPER 指向的本机
+未入库 helper 模块（默认 ~/work/dm-benchmark/zcode_key_helper.py，需提供 load_api_key()）。
+只在进程内存使用，绝不写入文件/日志/工件。
 """
-import base64
-import getpass
-import hashlib
+import importlib.util
 import json
 import os
 import subprocess
@@ -20,8 +18,8 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ENDPOINT = "https://open.bigmodel.cn/api/anthropic/v1/messages"
 MODEL = "glm-5.3"
-KEY_ENTRY = ("account-provider:coding-plan:account:"
-             "REDACTED-KEY-ENTRY")
+KEY_ENV_VARS = ("GLM_API_KEY", "ANTHROPIC_API_KEY")
+KEY_HELPER_DEFAULT = "~/work/dm-benchmark/zcode_key_helper.py"
 
 SYSTEM_PROMPT = (
     "你是知识库检索助手。使用提供的知识图工具回答用户问题。要求："
@@ -46,22 +44,20 @@ TOOLS_SPEC = [
 
 
 def load_api_key():
-    """内存解密 coding-plan api-key。永不落盘/打印。"""
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    path = os.path.expanduser("~/.zcode/v2/credentials.json")
-    enc = json.load(open(path, encoding="utf-8"))[KEY_ENTRY]
-    parts = enc[len("enc:v1:"):].split(".")
-
-    def b64u(s):
-        return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
-
-    secret = os.environ.get("ZCODE_CREDENTIAL_SECRET") or (
-        "REDACTED-KDF-PREFIX:%s:%s:%s" % (sys.platform,
-                                                os.path.expanduser("~"),
-                                                getpass.getuser()))
-    key = hashlib.sha256(secret.encode()).digest()
-    return AESGCM(key).decrypt(b64u(parts[0]), b64u(parts[2]) + b64u(parts[1]),
-                               None).decode()
+    """取 coding-plan api-key：环境变量优先，否则本机未入库 helper。永不落盘/打印。"""
+    for name in KEY_ENV_VARS:
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value
+    helper = os.path.expanduser(os.environ.get("DOMIMAP_KEY_HELPER") or KEY_HELPER_DEFAULT)
+    if not os.path.isfile(helper):
+        raise RuntimeError(
+            "未找到 API key：请设置 GLM_API_KEY，或提供实现 load_api_key() 的本机 helper 模块"
+            "（环境变量 DOMIMAP_KEY_HELPER，默认 %s）" % KEY_HELPER_DEFAULT)
+    spec = importlib.util.spec_from_file_location("domimap_key_helper", helper)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.load_api_key()
 
 
 def _post(key, payload, timeout=180, retries=3):

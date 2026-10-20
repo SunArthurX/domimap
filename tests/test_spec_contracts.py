@@ -78,6 +78,36 @@ class TestSpecContracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Stale"):
             specs.validate(self.root)
 
+    def test_structural_mode_skips_evidence_files_but_keeps_structure_rules(self):
+        progress = specs.load(self.root / "specs/progress.json")
+        cid = next(iter(progress["cases"]))
+        progress["cases"][cid] = {"state": "verified", "evidence": ["out/verification/missing.json"]}
+        self.write("specs/progress.json", progress)
+        # 默认模式：证据文件缺失必须失败（新克隆/CI 不得冒充 verified）
+        with self.assertRaises(OSError):
+            specs.validate(self.root)
+        # 结构模式：不读证据文件，但其余结构规则照常
+        specs.validate(self.root, require_evidence=False)
+        progress["cases"][cid] = {"state": "verified", "evidence": []}
+        self.write("specs/progress.json", progress)
+        with self.assertRaisesRegex(ValueError, "without evidence"):
+            specs.validate(self.root, require_evidence=False)
+        progress["cases"][cid] = {"state": "verified", "evidence": ["../escape.json"]}
+        self.write("specs/progress.json", progress)
+        with self.assertRaisesRegex(ValueError, "project-relative"):
+            specs.validate(self.root, require_evidence=False)
+        progress["cases"][cid] = {"state": "done", "evidence": []}
+        self.write("specs/progress.json", progress)
+        with self.assertRaisesRegex(ValueError, "Invalid progress"):
+            specs.validate(self.root, require_evidence=False)
+
+    def test_structural_flag_cannot_gate_stage_or_release(self):
+        for extra in (["--release"], ["--stage", "M0"]):
+            result = subprocess.run([sys.executable, "-B", str(ROOT / "scripts/check_specs.py"), "--structural", *extra],
+                                    capture_output=True, text=True, cwd=ROOT)
+            self.assertEqual(result.returncode, 1, extra)
+            self.assertIn("--structural cannot gate", result.stderr)
+
     def test_planned_stage_cannot_pass(self):
         _, cases, progress = specs.validate(self.root)
         with self.assertRaisesRegex(ValueError, "Incomplete M0"):

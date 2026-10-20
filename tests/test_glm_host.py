@@ -1,7 +1,10 @@
 """GlmApiHost 契约（hermetic：注入假传输/假桥，无网络无费用）。"""
 import os
+import re
 import sys
+import tempfile
 import unittest
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "benchmarks"))
@@ -87,6 +90,29 @@ class TestGlmHost(unittest.TestCase):
         self.assertNotIn("api-key\": \"", source.replace("api-key': \"", ""))
         creds = {"placeholder": True}
         self.assertEqual(len(gh.ENDPOINT), len("https://open.bigmodel.cn/api/anthropic/v1/messages"))
+
+    def test_no_credential_store_details_or_account_ids_in_module(self):
+        """公开仓库守卫：凭据库位置/解密方案/账号标识都不得回到模块内。"""
+        with open(os.path.join(ROOT, "benchmarks", "runners", "glm_host.py"),
+                  encoding="utf-8") as stream:
+            source = stream.read()
+        for banned in ("credentials.json", "zcode-credential", "AESGCM", "ZCODE_CREDENTIAL_SECRET"):
+            self.assertNotIn(banned, source, banned)
+        self.assertIsNone(re.search(r"\d{12,}", source), "模块内不得出现长数字账号标识")
+
+    def test_key_loader_prefers_env_then_helper_then_fails_clearly(self):
+        with mock.patch.dict(os.environ, {"GLM_API_KEY": " k-env ",
+                                          "DOMIMAP_KEY_HELPER": "/nonexistent/helper.py"}, clear=True):
+            self.assertEqual(gh.load_api_key(), "k-env")
+        with tempfile.TemporaryDirectory(prefix="dm-key-") as tmp:
+            helper = os.path.join(tmp, "helper.py")
+            with open(helper, "w", encoding="utf-8") as f:
+                f.write("def load_api_key():\n    return 'k-helper'\n")
+            with mock.patch.dict(os.environ, {"DOMIMAP_KEY_HELPER": helper}, clear=True):
+                self.assertEqual(gh.load_api_key(), "k-helper")
+        with mock.patch.dict(os.environ, {"DOMIMAP_KEY_HELPER": "/nonexistent/helper.py"}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "GLM_API_KEY"):
+                gh.load_api_key()
 
     def test_system_prompt_and_tools_in_payload(self):
         host = self._host()

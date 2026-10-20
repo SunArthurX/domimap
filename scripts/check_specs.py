@@ -1,4 +1,10 @@
-"""Check traceability; --stage/--release additionally require current verification evidence."""
+"""Check traceability and current verification evidence.
+
+Default (make verify) also requires every verified case's evidence under out/verification to carry
+the current source fingerprint and intact artifact hashes. --structural skips only that evidence
+check for environments without local artifacts (CI, fresh clones) and never confirms verified
+states; --stage/--release additionally gate stages/release and cannot be combined with it.
+"""
 
 import argparse
 import hashlib
@@ -108,7 +114,7 @@ def validate_protocol(protocol):
         raise ValueError("Benchmark provenance requirements were removed")
 
 
-def validate(root=ROOT):
+def validate(root=ROOT, require_evidence=True):
     req = indexed(load(root / "specs/requirements.json")["requirements"], "requirement")
     cases = indexed(load(root / "specs/acceptance.json")["cases"], "case")
     progress = load(root / "specs/progress.json")
@@ -138,6 +144,10 @@ def validate(root=ROOT):
         if state["state"] == "verified":
             if not state["evidence"]:
                 raise ValueError("Verified without evidence: " + cid)
+            if not require_evidence:
+                for name in state["evidence"]:
+                    local_path(root, name)
+                continue
             for name in state["evidence"]:
                 evidence = load(local_path(root, name))
                 if evidence.get("case_id") != cid or evidence.get("outcome") != "pass" or type(evidence.get("exit_code")) is not int or evidence["exit_code"] != 0:
@@ -202,9 +212,13 @@ def main():
     parser.add_argument("--task")
     parser.add_argument("--base")
     parser.add_argument("--fingerprint", action="store_true")
+    parser.add_argument("--structural", action="store_true",
+                        help="skip local evidence verification (CI/fresh clones); never confirms verified states")
     args = parser.parse_args()
     try:
-        req, cases, progress = validate()
+        if args.structural and (args.stage or args.release):
+            raise ValueError("--structural cannot gate --stage/--release: those require local evidence")
+        req, cases, progress = validate(require_evidence=not args.structural)
         links = check_links()
         if args.base and not args.task:
             raise ValueError("--base requires --task")
@@ -220,10 +234,13 @@ def main():
             result = subprocess.run([sys.executable, "-B", str(ROOT / "benchmarks/evaluate.py"), "--bundle", str(local_path(ROOT, args.bundle)), "--release"], check=False)
             if result.returncode:
                 raise ValueError("Real competitor comparison gate did not pass")
-        summary = {"scope": "release_evidence" if args.release else ("stage_evidence" if args.stage else "spec_structure"), "requirements": len(req), "acceptance_cases": len(cases), "verified_cases": sum(s["state"] == "verified" for s in progress["cases"].values())}
+        scope = "release_evidence" if args.release else ("stage_evidence" if args.stage else ("spec_structure_only" if args.structural else "spec_structure"))
+        summary = {"scope": scope, "requirements": len(req), "acceptance_cases": len(cases), "verified_cases": sum(s["state"] == "verified" for s in progress["cases"].values()), "evidence_verified": not args.structural}
         summary["local_links_checked"] = links
         if args.fingerprint:
             summary["source_fingerprint"] = source_fingerprint()
+        if args.structural:
+            print("structural mode: verified states were NOT confirmed (out/verification evidence skipped)", file=sys.stderr)
         print(json.dumps(summary))
         return 0
     except (ValueError, KeyError, TypeError, OSError, subprocess.CalledProcessError) as error:

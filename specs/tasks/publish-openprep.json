@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "publish-openprep",
+  "state": "verified",
+  "spec": "specs/tasks/publish-openprep.md",
+  "requirements": [
+    "R13",
+    "F1-C3"
+  ],
+  "acceptance_cases": [
+    "AC-R13-01",
+    "AC-F1-C3-01"
+  ],
+  "files": [
+    ".github/workflows/ci.yml",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "Makefile",
+    "README.md",
+    "benchmarks/runners/glm_host.py",
+    "docs/benchmark-evidence-audit.md",
+    "scripts/check_specs.py",
+    "specs/tasks/comparison-glm-host.md",
+    "specs/tasks/m0-benchmark-gates.md",
+    "specs/tasks/m0-ci-install.md",
+    "specs/tasks/m1-evidence-generations.md",
+    "specs/tasks/m1-identity-sources.md",
+    "specs/tasks/m1-parse-precision.md",
+    "specs/tasks/m1-recovery-coverage.md",
+    "specs/tasks/m4-clients-c1.md",
+    "tests/test_glm_host.py",
+    "tests/test_m4_formats.py",
+    "tests/test_release_gate.py",
+    "tests/test_spec_contracts.py"
+  ],
+  "test_files": [
+    "tests/test_glm_host.py",
+    "tests/test_m4_formats.py",
+    "tests/test_release_gate.py",
+    "tests/test_spec_contracts.py"
+  ]
+}

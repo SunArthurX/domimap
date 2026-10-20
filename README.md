@@ -2,7 +2,7 @@
 
 **Domain + Map**：把多个 Java 仓库、项目文档和人工知识变成一张可查询的领域地图。
 
-[![Tests](https://img.shields.io/badge/tests-350%2F350-brightgreen)]() [![Python](https://img.shields.io/badge/python-3.9%2B-blue)]() [![Dependencies](https://img.shields.io/badge/deps-zero%20core-success)]() [![License](https://img.shields.io/badge/license-MIT-lightgrey)]()
+[![CI](https://github.com/SunArthurX/domimap/actions/workflows/ci.yml/badge.svg)](https://github.com/SunArthurX/domimap/actions/workflows/ci.yml) [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://github.com/SunArthurX/domimap/blob/main/pyproject.toml) [![Dependencies](https://img.shields.io/badge/deps-zero%20core-success)](https://github.com/SunArthurX/domimap/blob/main/pyproject.toml) [![License](https://img.shields.io/badge/license-MIT-lightgrey)](https://github.com/SunArthurX/domimap/blob/main/LICENSE)
 
 ---
 
@@ -30,10 +30,13 @@
 
 ```bash
 # Clone / 克隆
-git clone <repo-url> && cd domimap
+git clone https://github.com/SunArthurX/domimap.git && cd domimap
 
 # No install needed — pure stdlib / 无需安装——纯标准库
-python3 domimap build ~/my-java-projects -o out/my-idx
+python3 -m domimap build ~/my-java-projects -o out/my-idx
+
+# Or install as a CLI / 或安装为命令行工具
+pip install .            # provides the `domimap` command
 
 # With optional PDF/DOCX support / 可选 PDF/DOCX 支持
 pip install pypdf python-docx
@@ -122,31 +125,48 @@ python3 -m domimap serve -g out/idx/graph.json
 
 ## Benchmark Results / 基准测试结果
 
-### Five-System Comparison / 五系统对比
+Five systems — domimap and four open-source competitors ([Codebase-Memory-MCP](https://github.com/DeusData/codebase-memory-mcp), [claude-obsidian](https://github.com/AgriciDaniel/claude-obsidian), [Graphify](https://github.com/Graphify-Labs/graphify), [CodeGraph](https://github.com/colbymchenry/codegraph)) — were driven by the **same host model (GLM-5.3), the same system prompt, the same turn/tool budget, and a per-system copy of the same workspace**. Scoring is mechanical answer-layer citation matching (bidirectional path match). All numbers below are **same-session developer evaluations, not the frozen independent confirmation run** required by [specs/benchmark.md](specs/benchmark.md); the release gate (`make release-check`) therefore stays closed.
 
-Tested against 4 open-source competitors with same host (GLM-5.3), same prompt, same budget:
+五系统（domimap + 四个开源竞品）使用**同一宿主模型 GLM-5.3、同一系统提示、同一轮次/工具预算、同一语料的独立工作区副本**；评分为机械的答案层引用匹配（双向路径匹配）。以下数字均为**同会话开发者评测，不是 [specs/benchmark.md](specs/benchmark.md) 要求的冻结独立确认**，因此发布门禁 `make release-check` 仍处于关闭状态。
 
-| System | Positives¹ | code | cross-repo | doc | fresh | Negatives² |
-|---|---|---|---|---|---|---|
-| **domimap** | **89%** | **8/8** | **8/8** | 4/5 | 4/6 | **100%** |
-| Codebase-Memory-MCP | 33% | 0/8 | 8/8 | 0/5 | 1/6 | 100% |
-| claude-obsidian | 41% | 5/8 | 3/8 | 4/8 | 1/8 | 100% |
-| Graphify | 34% | 3/8 | 0/8 | 5/8 | 3/8 | 100% |
-| CodeGraph | 16% | 2/8 | 3/8 | 0/8 | 0/8 | 100% |
+### Dev set — enterprise Java corpus / 开发集（企业 Java 多仓语料）
 
-¹ Answer-layer citation hit on 27-question clean dev set (dev-corp enterprise Java corpus)
-² Negative questions correctly abstained (4-question subset)
+33 questions: 27 scored positives (code 8 · cross-repo 8 · doc 5 · fresh 6) + 4 negatives + 2 locator-diagnostic.
+33 题：27 道计分正例（代码定位 8 · 跨仓追踪 8 · 文档推理 5 · 知识时效 6）+ 4 道负例 + 2 道定位诊断。
 
-### Paired Differences / 配对差值
+| System | code | cross-repo | doc | fresh | **Positives** | Negatives (abstain) | Locator |
+|---|---|---|---|---|---|---|---|
+| **domimap** | **8/8** | **8/8** | **4/5** | **4/6** | **24/27 (89%)** | 4/4 | 2/2 |
+| Codebase-Memory-MCP | 0/8 | 8/8 | 0/5 | 1/6 | 9/27 (33%) | 4/4 | 0/2 |
+| CodeGraph | 3/8 | 0/8 | 0/5 | 0/6 | 3/27 (11%) | 4/4 | 0/2 |
+| Graphify | 2/8 | 0/8 | 0/5 | 0/6 | 2/27 (7%) | 4/4 | 1/2 |
+| claude-obsidian | 0/8 | 0/8 | 0/5 | 1/6 | 1/27 (4%) | 4/4 | 1/2 |
+
+### Public corpus — 27 unseen open-source families / 公开语料（27 个未暴露的开源项目族）
+
+40 questions: 32 scored positives (8 per category) + 4 negatives + 4 locator-diagnostic.
+40 题：32 道计分正例（每类 8 道）+ 4 道负例 + 4 道定位诊断。
+
+| System | code | cross-repo | doc | fresh | **Positives** | Negatives (abstain) | Locator |
+|---|---|---|---|---|---|---|---|
+| **domimap** | **6/8** | **8/8** | 4/8 | **4/8** | **22/32 (69%)** | 4/4 | 1/4 |
+| Codebase-Memory-MCP | 5/8 | 8/8 | 3/8 | 1/8 | 17/32 (53%) | 4/4 | 2/4 |
+| claude-obsidian | 5/8 | 3/8 | 4/8 | 1/8 | 13/32 (41%) | 4/4 | 3/4 |
+| Graphify | 3/8 | 0/8 | **5/8** | 3/8 | 11/32 (34%) | 4/4 | 3/4 |
+| CodeGraph | 2/8 | 3/8 | 0/8 | 0/8 | 5/32 (16%) | 4/4 | 0/4 |
+
+Paired differences on the public corpus (n = 36 = 32 positives + 4 negatives) / 公开语料配对差值：
 
 | Comparison | domimap | Competitor | Difference |
 |---|---|---|---|
-| vs Codebase-Memory-MCP | 26/36 | 21/36 | **+13.9pp** |
-| vs claude-obsidian | 26/36 | 17/36 | **+25.0pp** |
-| vs Graphify | 26/36 | 15/36 | **+30.6pp** |
-| vs CodeGraph | 26/36 | 9/36 | **+47.2pp** |
+| vs Codebase-Memory-MCP | 26/36 | 21/36 | +13.9 pp |
+| vs claude-obsidian | 26/36 | 17/36 | +25.0 pp |
+| vs Graphify | 26/36 | 15/36 | +30.6 pp |
+| vs CodeGraph | 26/36 | 9/36 | +47.2 pp |
 
-All four paired differences > 0. domimap leads every category except document reasoning on English corpora.
+All four paired differences are positive on both corpora, but the gaps narrow sharply on the English-heavy public corpus: Graphify leads on document reasoning there, and three competitors beat domimap on the locator-diagnostic subset. These results are scoped to these two corpora and this host and are not a claim of general superiority. Raw result artifacts, runners and the frozen protocol live under [`benchmarks/`](benchmarks/README.md).
+
+四组配对差值在两套语料上均为正，但在以英文为主的公开语料上差距明显收窄：Graphify 在文档推理类领先，定位诊断子集上有三个竞品高于 domimap。结论仅限于这两套语料与该宿主，不构成普适优越性声明。原始结果工件、运行器与冻结协议见 [`benchmarks/`](benchmarks/README.md)。
 
 ### Performance / 性能
 
@@ -175,15 +195,23 @@ All four paired differences > 0. domimap leads every category except document re
 ## Development / 开发
 
 ```bash
-# Run all tests (350 tests) / 运行全部测试
+# What CI runs: structural spec check + full test suite / CI 执行的内容：规格结构校验 + 全部测试
+make ci
+
+# Local gate: additionally verifies evidence fingerprints and artifact hashes under out/verification
+# 本地门禁：额外校验 out/verification 下的证据指纹与工件哈希（verified 状态只由此确认）
 make verify
 
-# Release check / 发布检查
+# Release gate — must keep failing until the frozen confirmation run exists
+# 发布门禁——冻结确认跑完成前必须保持失败
 make release-check
 
 # Build a mini test graph / 构建迷你测试图
 make mini
 ```
+
+Optional parsers for the PDF/DOCX ingestion contracts: `pip install pypdf python-docx` (those tests skip when the parsers are absent).
+PDF/DOCX 摄入契约测试需要可选解析器：`pip install pypdf python-docx`（缺失时自动跳过）。
 
 ### Project Structure / 项目结构
 
@@ -203,8 +231,8 @@ domimap/
 │   ├── adapters/      # Five-system comparison adapters
 │   ├── runners/       # Diagnostic + main-track runners
 │   └── corpus/        # Question generators
-├── tests/             # 350 contract tests
-├── specs/             # Requirements & acceptance cases
+├── tests/             # Contract tests (every feature has negative cases)
+├── specs/             # Requirements, acceptance cases, task manifests
 └── docs/              # Documentation
 ```
 
@@ -222,7 +250,8 @@ domimap/
 
 ## Known Limitations / 已知限制
 
-- **Cross-lingual retrieval**: BM25 cannot semantically match Chinese queries to English document content (69% on English corpus vs 89% on Chinese corpus)
+- **Cross-lingual retrieval**: BM25 cannot semantically match Chinese queries to English document content (22/32 on the English-heavy public corpus vs 24/27 on the Chinese enterprise dev set)
+- **Evaluation status**: all benchmark numbers are same-session developer evaluations; the frozen independent confirmation run (`specs/benchmark.md`) has not been executed and `make release-check` fails by design until it is
 - **Same-name methods**: Methods with identical names in different classes share a node (service-level naming)
 - **Source updates**: Incremental updates require re-running `build` (no file watcher)
 - **Platform**: Fully tested on macOS; Linux/Windows expected to work but less tested
@@ -235,11 +264,11 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## 附录：测试体系 / Appendix: Test Infrastructure
 
-| Layer | Count | Description |
+| Layer | Scope | Description |
 |---|---|---|
-| Unit/contract tests | 350 | Every feature has contract tests with negative cases |
-| Diagnostic track | 200+ | Five-system path-level retrieval comparison |
-| Main track | 200+ | Five-system answer-layer comparison with GLM-5.3 |
-| Governance | Built-in | Task specs, manifests, source fingerprints, evidence chains |
+| Unit/contract tests | `tests/` | Every feature has contract tests with negative cases; `make ci` runs them all |
+| Diagnostic track | `benchmarks/runners/diagnostic_runner.py` | Five-system path-level retrieval comparison (dev + public corpora) |
+| Main track | `benchmarks/runners/main_track.py` | Five-system answer-layer comparison on the shared GLM-5.3 host (33 dev + 40 public questions) |
+| Governance | `specs/`, `scripts/check_specs.py` | Task manifests, source fingerprints, hashed evidence chains, release gate |
 
 **Test coverage philosophy**: Every bounded change follows spec → contract tests → negative cases → implementation → regression → evidence → convergence. No checkbox without evidence.

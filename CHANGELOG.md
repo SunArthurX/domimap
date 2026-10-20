@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 已落地（原型推进；均为同会话开发者评测，不构成发布验收，`make release-check` 仍关闭）
+
+- 五系统比较基础设施：四竞品适配器与原生工作流宿主（Codebase-Memory-MCP 走动态发现的 MCP 工具；CodeGraph / Graphify / claude-obsidian 走各自原生 CLI），GLM-5.3 真实主轨宿主（hermetic 契约测试，无网络无费用），独立托管人用确认套件 `benchmarks/confirm_kit.py`。
+- 同会话评测结果：开发集 33 题 domimap 正例 24/27，公开语料（27 个未暴露开源族）40 题 22/32；对四竞品的配对差值均为正，但公开语料上差距明显收窄。分表与分母见 README。
+- 检索优化：DDL 语义加权（Table 节点）、版本号纪元提取、查询期中英桥接回退；索引期桥接、README 文档先验与双语提示引导三项在公开语料上被证实有害后撤销。
+- 工程卫生（2026-10-20）：`scripts/check_specs.py --structural` 与 `make ci` 供无本地证据工件的环境（CI / 新克隆）使用，`make verify` 的证据校验语义不变并有正负契约测试锁定；主轨宿主的凭据加载改为环境变量 / 本机未入库 helper，仓库内不再含凭据库解密细节与账号标识；CI 显式安装 PDF/DOCX 可选解析器，相关契约测试在缺依赖时跳过而非报错。
+
 ### 计划中（按 docs/roadmap.md M0–M5 交付，未完成不得在此列为已完成）
 
 - M0 工程基线：Git、CI、安装闭环、四竞品比较协议 spike。

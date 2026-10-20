@@ -10,6 +10,13 @@ sys.path.insert(0, ROOT)
 
 from domimap.lite_scan import extract_document  # noqa: E402
 
+try:
+    import docx  # noqa: F401
+    import pypdf  # noqa: F401
+    HAVE_DOC_DEPS = True
+except ImportError:
+    HAVE_DOC_DEPS = False
+
 
 def make_pdf(path, encrypted=False, blank=False, text=False):
     if text:
@@ -51,6 +58,7 @@ def make_docx(path, empty=False):
     d.save(path)
 
 
+@unittest.skipUnless(HAVE_DOC_DEPS, "可选依赖 pypdf/python-docx 未安装（pip install pypdf python-docx）；五态契约需真实解析器")
 class TestDocStates(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="dm-fmt-")

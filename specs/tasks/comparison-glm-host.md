@@ -6,15 +6,16 @@
 
 - requirement：F1-C3；acceptance：AC-F1-C3-01（ZCode 侧主轨链路证据）。
 
-- key 位于 `~/.zcode/v2/credentials.json`，`enc:v1:` AES-256-GCM 加密（nonce.tag? 分段序
-  nonce.tag 密文，urlsafe b64；密钥=sha256(env ZCODE_CREDENTIAL_SECRET 或回退串
-  `REDACTED-KDF-PREFIX:{platform}:{homedir}:{username})`——KDF 取自 app 代码实证）。
-- **只在进程内存解密使用；绝不写入任何文件/日志/工件/提交**；代码与产物中只出现脱敏引用。
+- key 来自用户本机的 ZCode 凭据库；**凭据库位置、加密方案与账号标识一律不进入仓库**。
+  `load_api_key()` 只按序取：环境变量 `GLM_API_KEY`/`ANTHROPIC_API_KEY` → `DOMIMAP_KEY_HELPER`
+  指向的本机未入库 helper 模块（默认 `~/work/dm-benchmark/zcode_key_helper.py`，实现
+  `load_api_key()`）。helper 的解密细节在仓库外维护（2026-10-20 发布整理时迁出）。
+- **只在进程内存使用；绝不写入任何文件/日志/工件/提交**；代码与产物中只出现脱敏引用。
 - 端点：`https://open.bigmodel.cn/api/anthropic/v1/messages`，模型 `glm-5.3`（实测 200+usage）。
 
 ## 变更（精确 allowlist）
 
-- `benchmarks/runners/glm_host.py`：load_api_key()（内存解密）；McpBridge（spawn
+- `benchmarks/runners/glm_host.py`：load_api_key()（环境变量 / 本机 helper，内存使用）；McpBridge（spawn
   `python3 -m domimap serve -g`，initialize/tools/call）；GlmApiHost（HostAdapter 形态：
   open_session 每题新 MCP 会话；ask() 内部完整工具调用循环——kg_explore/kg_read 等
   anthropic tools 规范 → tool_use 执行 → tool_result 回填 → 终答；ledger 从 API usage
