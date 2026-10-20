@@ -21,5 +21,5 @@
 
 ## 验证与回退
 
-- `make verify` 全绿；`check_specs.py --task specs/tasks/m0-benchmark-gates.json --base 0eb198a` 通过。
+- `make verify` 全绿；`check_specs.py --task specs/tasks/m0-benchmark-gates.json --base 99c0c26` 通过。
 - 回退：删除测试文件即可；无产品行为变化。

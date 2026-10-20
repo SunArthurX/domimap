@@ -10,5 +10,5 @@
   4. 磁盘满（os.replace→OSError ENOSPC）注入发布：active 保持上一完整代，恢复后可发布；
   5. coverage 夹具（坏 mapper XML/legacy.doc/超限大文件）：三类跳过各带 file+reason 枚举。
 - 范围补充：domimap/lite_scan.py —— .doc 扩展名此前在分发守卫处被 continue（旧格式提示分支是死代码），本次修复使其进入显式登记路径。
-- 验证：unittest tests.test_recovery_coverage -v；make verify；task diff --base 42fb48f；refresh_evidence（AC-R03-02 证据扩展至新契约）。
+- 验证：unittest tests.test_recovery_coverage -v；make verify；task diff --base 803e7be；refresh_evidence（AC-R03-02 证据扩展至新契约）。
 - 回退：revert 任务文件；fixtures 为合成夹具。

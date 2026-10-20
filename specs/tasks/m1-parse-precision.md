@@ -18,5 +18,5 @@
 
 ## 验证与回退
 
-- `python3 -B -m unittest tests.test_precision tests.test_golden -v`；`make verify` 全绿；task diff `--base f9bd4a1`；`refresh_evidence.py m1-parse-precision f9bd4a1`；AC-R01-01 证据 command 增加 tests.test_precision。
+- `python3 -B -m unittest tests.test_precision tests.test_golden -v`；`make verify` 全绿；task diff `--base a87488f`；`refresh_evidence.py m1-parse-precision a87488f`；AC-R01-01 证据 command 增加 tests.test_precision。
 - 回退：revert 任务文件；mth id 增加 #argc 后旧图产物由版本门控重建。

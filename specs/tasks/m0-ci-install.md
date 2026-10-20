@@ -19,5 +19,5 @@
 
 ## 验证与回退
 
-- `make verify`；`bash scripts/install_check.sh`；`check_specs.py --task specs/tasks/m0-ci-install.json --base 2ec99c2`；`--stage M0` 通过。
+- `make verify`；`bash scripts/install_check.sh`；`check_specs.py --task specs/tasks/m0-ci-install.json --base fb3dac6`；`--stage M0` 通过。
 - 回退：删除两个新文件 + revert test_replay.py；无数据迁移。

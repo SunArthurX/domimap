@@ -23,5 +23,5 @@
 
 ## 验证与回退
 
-- `python3 -B -m unittest tests.test_identity tests.test_golden -v`；`make verify` 全绿；task diff 检查 `--base 2ec0de6`；`scripts/refresh_evidence.py m1-identity-sources 2ec0de6` 定稿 + 新增 AC-R01-01/AC-R08-01 证据；progress：两案例 verified、M1=implementing。
+- `python3 -B -m unittest tests.test_identity tests.test_golden -v`；`make verify` 全绿；task diff 检查 `--base 0fee291`；`scripts/refresh_evidence.py m1-identity-sources 0fee291` 定稿 + 新增 AC-R01-01/AC-R08-01 证据；progress：两案例 verified、M1=implementing。
 - 回退：revert 本任务文件即可；新 ID 方案仅影响图内部键，graph.json 旧产物由版本门控自动重建。
