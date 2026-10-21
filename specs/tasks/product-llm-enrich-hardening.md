@@ -25,6 +25,10 @@
 
 ## 验证与回退
 
-- `python3 -B -m unittest tests.test_llm_enrich -v`；refresh_evidence（本任务）后 `make verify` 全绿。
-- 真实 e2e 复验：mini 双文档 enrich → 查询命中（延续 out/llm-enrich-e2e 基线）；A/B 全套工件与结论。
+- `python3 -B -m unittest tests.test_llm_enrich -v`（31 个 hermetic 契约）；refresh_evidence 后 `make verify` 全绿（385/385）。
+- **H6 真实 A/B（2026-10-21，GLM-5.3 真实调用；工件 out/llm-enrich-ab/）**：pilot 40 题 × 7 族真实建图；基线路径级 Hit@5 = **19/40 (47.5%)**；真实 enrich 40 篇成功（in 106,056 / out 46,130 tokens，预算 150k 触顶后 10 篇按设计 skipped——H1 预算护栏首次真实生效）；复测 = **19/40，零变化**（无新增/丢失命中）。
+  - 根因（如实）：**检索侧交互缺陷，非增强层缺陷**。文档类查询多为泛词组合 → 词法覆盖率 <30% 触发中英桥回退（search.py:309-333），回退候选集仅由桥接英文 token 构成，中文 LLM 笔记不在候选集；即便主路径可达，45% 断崖精剪（search.py:413-419）在巨型泛词文档霸榜时也会剪掉笔记（证据：cliff-analysis.json + 排名探查——LLM 笔记原始 BM25 16-62 分为全场最高级别，说明增强质量本身达标）。
+  - 盲选覆盖事实：按长度前 50 恰好覆盖 4/8 document_reasoning gold、1/8 freshness gold。
+  - 后续 backlog（独立产品任务，需独立 A/B）：回退路径候选集并集化；Knowledge 笔记源路径归因（note→source 供路径级度量）。本轮未调任何检索参数。
+- 适配器健壮性附带修复：prepare 遇 build_many no-op（manifests 未变）时从磁盘加载既有图（A/B 复测场景实证必需）。
 - 回退：整体 revert 本任务提交即回到 product-llm-enrich 状态；JSONL 与旧 v1 json 并存期间互不破坏（旧文件只读）。

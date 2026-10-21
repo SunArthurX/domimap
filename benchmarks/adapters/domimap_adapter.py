@@ -37,6 +37,13 @@ class DomimapAdapter(Adapter):
             from domimap.search import Searcher
             roots = [r.root for r in self.ready_repos]
             g, coverage, results = batch.build_many(roots, self.graph_dir)
+            if g is None:
+                # 全部仓 manifest 未变 → build_many no-op：复用磁盘上的既有图
+                # （A/B 复测等场景：第二次 prepare 不应重建也不应拿不到图）
+                from domimap.graph import Graph
+                g = Graph.load(os.path.join(self.graph_dir, "graph.json"))
+                coverage = coverage or {"files_scanned": 0, "skipped": []}
+                results = results or []
             self.searcher = Searcher(g)
             from domimap.knowledge import attach_if_present
             attach_if_present(self.searcher, os.path.join(self.graph_dir, "graph.json"))
