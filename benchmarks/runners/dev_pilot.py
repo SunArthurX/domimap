@@ -22,12 +22,17 @@ from runners import diagnostic_runner as dr  # noqa: E402
 
 QV2 = os.path.join(ROOT, "out", "benchmark", "dev-questions-v2.json")
 GV2 = os.path.join(ROOT, "out", "benchmark", "dev-gold-v2.json")
-WS = os.path.expanduser("~/work/dev-corpus")
+# 语料根：自备（env；企业私有或开源语料均可，见 benchmarks/DATA_LAYOUT.md）
+WS = os.path.expanduser(os.environ.get("DOMIMAP_DEV_CORPUS") or "")
+# 文档优先族（逗号分隔；缺省为空——选择器仍可从 gold 族集合里自动挑文档族种子）
+DOC_FAMS = set(filter(None, os.environ.get("DOMIMAP_DOC_FAMILIES", "").split(",")))
 RUNS = os.path.join(ROOT, "out", "diagnostic-runs")
 MAIN4 = ("code_location", "cross_repo_trace", "document_reasoning", "knowledge_freshness")
 
 
 def family_file_counts():
+    if not WS:
+        raise SystemExit("DOMIMAP_DEV_CORPUS 未设置：请指向自备语料根目录（见 benchmarks/DATA_LAYOUT.md）")
     counts = {}
     for name in sorted(os.listdir(WS)):
         root = os.path.join(WS, name)
@@ -62,7 +67,7 @@ def choose_workspace(gold, quotas=None, max_families=8):
         return total
 
     def greedy(seed):
-        chosen = set(seed) | ({"文档族", "pop-market-doc"} & fams)
+        chosen = set(seed) | (DOC_FAMS & fams)
         while len(chosen) < max_families:
             candidates = fams - chosen
             if not candidates:

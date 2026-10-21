@@ -140,7 +140,9 @@ def main():
     matrix, misses = score(records, questions, gold)
 
     workspace = pilot["workspace"]
-    ws = os.path.expanduser("~/work/dev-corpus")
+    ws = os.path.expanduser(os.environ.get("DOMIMAP_DEV_CORPUS") or "")
+    if not ws:
+        raise SystemExit("DOMIMAP_DEV_CORPUS 未设置：请指向自备语料根目录（见 benchmarks/DATA_LAYOUT.md）")
     roots = {name: os.path.join(ws, name) for name in workspace}
     graph_path = os.path.join(batch_dir, "artifacts", "domimap", "domimap-idx",
                               "graph.json")

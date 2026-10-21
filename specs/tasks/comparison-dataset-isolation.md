@@ -41,10 +41,10 @@
 - 独立评测环境（独立用户/机器/保管人）是外部条件，本任务只产出 schema、工具与可移交工件；最终确认未完成不宣称。
 - 新题集（dev 160/选型 80/确认 480）与双标 gold 属后续任务。
 
-## 实测结果（2026-10-17 真跑，48 族 = 45 个 ~/work/dev-corpus 仓 + 4 个外部文档族）
+## 实测结果（2026-10-17 真跑，48 族 = 企业语料 45 仓 + 4 个外部文档族）
 
-- **独立簇远低于协议下限**：strict=14、conservative=12（协议要求 ≥20；计划建议 24）。dev-corp 业务核心为 32 族巨型连通分量（164 条内容同一性边 + 48 条旧题组合边 + 前缀边）；bingo 系 5 族同簇；deepseek-harness 与 saber-harness 共享 harness 样板归同簇；westpath/zhiyu 独立。
+- **独立簇远低于协议下限**：strict=14、conservative=12（协议要求 ≥20；计划建议 24）。企业语料业务核心为 32 族巨型连通分量（164 条内容同一性边 + 48 条旧题组合边 + 前缀边）；bingo 系 5 族同簇；deepseek-harness 与 saber-harness 共享 harness 样板归同簇；westpath/zhiyu 独立。
 - **规则迭代一例（有测试回归）**：首版把 .DS_Store（macOS 元数据，全机同字节 6148B）当内容同一性边，把无关族连成假簇（strict 曾=9）；排除系统元数据/点文件后修正。教训入契约测试 test_os_metadata_files_do_not_create_edges。
-- 含义：①旧 bundle 的 70 cluster（41 个多族组合）按真实关联只有 12-14 个独立抽样单位，旧 20000 次 bootstrap 的置信区间显著高估自由度；②dev(20)/confirm(28) 的族级分片在内容上隔离，但 dev-corp 侧共享同一巨型来源关联簇；③**当前语料不可能满足冻结协议的 ≥20 独立族**——必须补 ≥8 个真正无关的新来源族（公共开源语料或用户授权来源），此事属语料扩充后续任务，不得缩协议迁就现状。
+- 含义：①旧 bundle 的 70 cluster（41 个多族组合）按真实关联只有 12-14 个独立抽样单位，旧 20000 次 bootstrap 的置信区间显著高估自由度；②dev(20)/confirm(28) 的族级分片在内容上隔离，但企业语料侧共享同一巨型来源关联簇；③**当前语料不可能满足冻结协议的 ≥20 独立族**——必须补 ≥8 个真正无关的新来源族（公共开源语料或用户授权来源），此事属语料扩充后续任务，不得缩协议迁就现状。
 - 产物：out/benchmark/corpus-manifest-v2.json（逐文件 path/size/sha256，共 48 族）、cluster-report.json（两口径簇 + 全部边 + 排除规则）、preregistration-draft.json（batch-xxx 草案，sealed_by 空）。
 - 契约测试 12 项绿（P1 同大小改内容检出、小样板/.DS_Store 不造边、组合/前缀边分离口径、确定性、schema、预登记缺哈希报错）。

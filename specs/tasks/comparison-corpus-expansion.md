@@ -10,7 +10,7 @@
 
 - 新增公共语料根 `~/work/dm-corpus-public/`：约 20 个 depth-1 克隆的公共开源仓（中文 Java 业务系统/中间件/文档丰富库：mall 系列、JeecgBoot、RuoYi-Vue、yudao、eladmin、litemall、vhr、spring-boot-demo、hutool、Sa-Token、mybatis-plus、Guns、easyexcel、canal、shardingsphere、rocketmq、nacos、spring-petclinic 等）。
 - 公共来源仅本地评测用（不 redistribution、不上传模型）；克隆记录 commit SHA（--depth 1 后取 ls-remote/HEAD）。
-- split 语义升级：现有全部族（dev-corp 45 + 外部 4）→ **dev/exposed**（已参与旧 599 题调参，只能作开发/回归）；新公共族 → **confirm-candidate**（未暴露，独立评测环境管理其题目/gold）。
+- split 语义升级：现有全部族（企业语料 45 + 外部 4）→ **dev/exposed**（已参与旧 599 题调参，只能作开发/回归）；新公共族 → **confirm-candidate**（未暴露，独立评测环境管理其题目/gold）。
 - isolation.py main() 纳入公共根 + 新 split 值；cluster-report 增列 confirm-candidate 簇数（协议 ≥20 的核对口径，conservative）。
 
 ## 契约
@@ -22,7 +22,7 @@
 
 ## 负例
 
-1. 把已暴露 dev-corp 巨簇计入确认簇数 → 检查器按 confirm-candidate 值过滤，拒绝。
+1. 把已暴露的企业语料巨簇计入确认簇数 → 检查器按 confirm-candidate 值过滤，拒绝。
 2. 用 LICENSE 相同把无关开源仓连簇 → 排除规则 + 测试。
 
 ## 实测结果（2026-10-17 真跑，27 个公共仓 depth-1 克隆于 ~/work/dm-corpus-public）

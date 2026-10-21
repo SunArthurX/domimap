@@ -9,7 +9,10 @@ import json
 import os
 import re
 
-WS = os.path.expanduser("~/work/dev-corpus")
+# 语料根：自备（企业私有语料或开源语料均可，见 benchmarks/DATA_LAYOUT.md）
+WS = os.path.expanduser(os.environ.get("DOMIMAP_DEV_CORPUS") or "")
+if not WS:
+    raise SystemExit("DOMIMAP_DEV_CORPUS 未设置：请指向自备语料根目录")
 EXT = os.path.expanduser("~/work/dm-benchmark")
 MAN = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))), "out", "benchmark", "corpus-manifest.json")

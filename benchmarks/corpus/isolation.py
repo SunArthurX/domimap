@@ -19,12 +19,10 @@ import uuid
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUTDIR = os.path.join(ROOT, "out", "benchmark")
-WORKSPACE = os.path.expanduser("~/work/dev-corpus")
-EXTRA_CONFIRM = [os.path.expanduser(p) for p in (
-    "EXTERNAL_FAMILY_PATH",
-    "EXTERNAL_FAMILY_PATH",
-    "EXTERNAL_FAMILY_PATH",
-    "EXTERNAL_FAMILY_PATH")]
+# 语料根/外部文档族：自备（env；企业私有或开源语料均可，见 benchmarks/DATA_LAYOUT.md）
+WORKSPACE = os.path.expanduser(os.environ.get("DOMIMAP_DEV_CORPUS") or "")
+EXTRA_CONFIRM = [os.path.expanduser(p) for p in
+                 os.environ.get("DOMIMAP_EXTRA_FAMILIES", "").split(",") if p]
 LEGACY_QUESTIONS = os.path.expanduser("~/work/dm-benchmark/questions.json")
 SKIP_DIRS = {".git", "node_modules", "target", "build", "__pycache__", ".idea"}
 GENERIC_MIN_BYTES = 256  # 小于此视为样板文件，不作内容同一性边
@@ -271,7 +269,9 @@ def _git_head(root):
 
 
 def main():
-    # 旧 599 题已覆盖 dev-corp 全部 28 confirm 族 + 4 外部族 → 全部已暴露，只能作 dev/回归资产
+    if not WORKSPACE:
+        raise SystemExit("DOMIMAP_DEV_CORPUS 未设置：请指向自备语料根目录（见 benchmarks/DATA_LAYOUT.md）")
+    # 旧 599 题已覆盖企业语料全部 28 confirm 族 + 4 外部族 → 全部已暴露，只能作 dev/回归资产
     fams = sorted(d for d in os.listdir(WORKSPACE)
                   if os.path.isdir(os.path.join(WORKSPACE, d)) and not d.startswith("."))
     families_spec = [{"family": name, "split": "dev", "exposed": True,

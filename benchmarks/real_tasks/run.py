@@ -11,7 +11,8 @@ import sys
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-G = os.path.join(ROOT, "out", "dev-corp-dev", "graph.json")
+# 预建图路径：env 覆盖，缺省 out/dev-idx（企业私有语料或开源语料均可）
+G = os.environ.get("DOMIMAP_DEV_GRAPH") or os.path.join(ROOT, "out", "dev-idx", "graph.json")
 
 def main():
     spec = json.load(open(os.path.join(os.path.dirname(__file__), "tasks.json"), encoding="utf-8"))

@@ -91,6 +91,10 @@ python3 -m domimap serve -g out/idx/graph.json
 | `kg_domain_map` | Domain map: domain → services/tables/topics/docs |
 | `kg_impact` | Impact analysis: reverse dependencies of a symbol |
 | `kg_doc_search` | Full-text document search |
+| `kg_troubleshoot` | Symptom → graph+docs dual recall → ranked suspects |
+
+Full node/edge schema and query data flow: [docs/knowledge-graph.md](docs/knowledge-graph.md) — written for both humans and AI agents.
+完整节点/边类型与检索数据流见 [docs/knowledge-graph.md](docs/knowledge-graph.md)——面向人类与 AI Agent 的图谱模型参考。
 
 ## Architecture / 架构
 
@@ -241,6 +245,7 @@ domimap/
 | Document | Description |
 |---|---|
 | [docs/README.md](docs/README.md) | Documentation index |
+| [docs/knowledge-graph.md](docs/knowledge-graph.md) | **Knowledge-graph model reference** — node/edge taxonomy, evidence store, time model, query flow (for humans & AI agents) |
 | [docs/roadmap.md](docs/roadmap.md) | Production roadmap |
 | [docs/architecture.md](docs/architecture.md) | Architecture details |
 | [docs/capabilities.md](docs/capabilities.md) | Capability matrix |

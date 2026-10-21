@@ -10,10 +10,10 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "benchmarks"))
 
-WS = os.path.expanduser("~/work/dev-corpus")
-EXTRA_ROOTS = [os.path.expanduser(p) for p in (
-    "EXTERNAL_FAMILY_PATH", "EXTERNAL_FAMILY_PATH",
-    "EXTERNAL_FAMILY_PATH", "EXTERNAL_FAMILY_PATH")]
+# 语料根/外部文档族：自备（env；企业私有或开源语料均可，见 benchmarks/DATA_LAYOUT.md）
+WS = os.path.expanduser(os.environ.get("DOMIMAP_DEV_CORPUS") or "")
+EXTRA_ROOTS = [os.path.expanduser(p) for p in
+               os.environ.get("DOMIMAP_EXTRA_FAMILIES", "").split(",") if p]
 
 
 def _root_of(fam):
@@ -100,6 +100,8 @@ def apply_verdicts(rows, verdicts, questions, gold):
 
 
 if __name__ == "__main__":
+    if not WS:
+        raise SystemExit("DOMIMAP_DEV_CORPUS 未设置：请指向自备语料根目录（见 benchmarks/DATA_LAYOUT.md）")
     pilot = json.load(open(os.path.join(
         ROOT, "out", "diagnostic-runs", "pilot-v2", "pilot-questions.json"),
         encoding="utf-8"))["questions"]

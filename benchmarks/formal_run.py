@@ -61,7 +61,7 @@ def run_cbm():
     import subprocess as _sp
     binary = os.path.join(COMP, "codebase-memory-mcp", "build", "c", "codebase-memory-mcp")
     m = json.load(open(os.path.join(ROOT, "out", "benchmark", "corpus-manifest.json")))
-    conf = {r["family"]: r.get("root") or os.path.join(os.path.expanduser("~/work/dev-corpus"), r["family"])
+    conf = {r["family"]: r.get("root") or os.path.join(os.path.expanduser(os.environ.get("DOMIMAP_DEV_CORPUS") or ""), r["family"])
             for r in m["families"] if r["split"] == "confirm"}
     proc = _sp.Popen([binary], stdin=_sp.PIPE, stdout=_sp.PIPE,
                      stderr=_sp.DEVNULL, text=True, bufsize=1)
@@ -125,7 +125,7 @@ CG_BIN = os.path.join(COMP, "codegraph", "dist", "bin", "codegraph.js")
 
 def _family_dirs():
     m = json.load(open(os.path.join(ROOT, "out", "benchmark", "corpus-manifest.json")))
-    return {r["family"]: r.get("root") or os.path.join(os.path.expanduser("~/work/dev-corpus"), r["family"])
+    return {r["family"]: r.get("root") or os.path.join(os.path.expanduser(os.environ.get("DOMIMAP_DEV_CORPUS") or ""), r["family"])
             for r in m["families"] if r["split"] == "confirm"}
 
 

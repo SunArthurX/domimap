@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""M5 语料冻结清单：以 ~/work/dev-corpus 各仓为独立来源族，dev/confirm 按族隔离分片。
+"""M5 语料冻结清单：以 DOMIMAP_DEV_CORPUS 指向的企业语料各仓为独立来源族，dev/confirm 按族隔离分片。
 
 输出 out/benchmark/corpus-manifest.json：族名/分片/文件数/内容摘要（无正文）。
 确认侧 gold 不在本仓库生成（独立环境）；本清单只登记族与分片。
@@ -9,13 +9,13 @@ import json
 import os
 import sys
 
-WORKSPACE = os.path.expanduser("~/work/dev-corpus")
+# 语料根/外部文档族：自备（env；企业私有或开源语料均可，见 benchmarks/DATA_LAYOUT.md）
+WORKSPACE = os.path.expanduser(os.environ.get("DOMIMAP_DEV_CORPUS") or "")
+if not WORKSPACE:
+    raise SystemExit("DOMIMAP_DEV_CORPUS 未设置：请指向自备语料根目录")
 # 文档丰富的外部来源族（补 document_reasoning 类配额；刻意排除业务目录，遵守用户边界）
-EXTRA_CONFIRM = [os.path.expanduser(p) for p in (
-    "EXTERNAL_FAMILY_PATH",
-    "EXTERNAL_FAMILY_PATH",
-    "EXTERNAL_FAMILY_PATH",
-    "EXTERNAL_FAMILY_PATH")]
+EXTRA_CONFIRM = [os.path.expanduser(p) for p in
+                 os.environ.get("DOMIMAP_EXTRA_FAMILIES", "").split(",") if p]
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))), "out", "benchmark", "corpus-manifest.json")
 DEV_FAMILIES = 20  # 其余入 confirm（≥25），族级隔离

@@ -103,8 +103,9 @@ class TestIsolationContracts(unittest.TestCase):
         self.assertIn("conservative", report["independence_claim_basis"])
 
     def test_short_token_not_merged(self):
-        f1 = make_family(self.tmp, "dev-corp-a", {"a.txt": BIG_A})
-        f2 = make_family(self.tmp, "dev-corp-b", {"a.txt": BIG_B})
+        # 共享 token "qr" < 4 字符：不得据此并簇
+        f1 = make_family(self.tmp, "qr-a", {"a.txt": BIG_A})
+        f2 = make_family(self.tmp, "qr-b", {"a.txt": BIG_B})
         _, report = isolation.build([f1, f2])
         self.assertEqual(report["conservative_cluster_count"], 2, "短 token 不并簇")
 
@@ -143,8 +144,8 @@ class TestIsolationContracts(unittest.TestCase):
 
     def test_confirm_candidate_cluster_accounting(self):
         """确认候选簇只计 confirm-candidate 族；已暴露 dev 族不得混入分母。"""
-        f1 = make_family(self.tmp, "dev-corp-giant", {"a.txt": BIG_A})
-        f2 = make_family(self.tmp, "dev-corp-mate", {"s.txt": BIG_A})  # 与 dev-corp-giant 同簇
+        f1 = make_family(self.tmp, "corp-giant", {"a.txt": BIG_A})
+        f2 = make_family(self.tmp, "corp-mate", {"s.txt": BIG_A})  # 与 corp-giant 同簇
         f3 = make_family(self.tmp, "pub-one", {"a.txt": BIG_B})
         f4 = make_family(self.tmp, "pub-two", {"a.txt": b"C" * 300})
         for f in (f3, f4):
@@ -155,7 +156,7 @@ class TestIsolationContracts(unittest.TestCase):
         self.assertEqual(cand["conservative_cluster_count"], 2)
         self.assertEqual(cand["strict_cluster_count"], 2)
         self.assertFalse(cand["meets_protocol_minimum"])
-        self.assertEqual(report["conservative_cluster_count"], 3)  # dev-corp 巨簇 + 2 公共
+        self.assertEqual(report["conservative_cluster_count"], 3)  # 巨型来源簇 + 2 公共
 
     def test_preregistration_missing_hash_raises(self):
         with self.assertRaises(ValueError):

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "id": "publish-openprep2",
+  "state": "verified",
+  "spec": "specs/tasks/publish-openprep2.md",
+  "requirements": [
+    "R13"
+  ],
+  "acceptance_cases": [
+    "AC-R13-01"
+  ],
+  "files": [
+    ".github/CODE_OF_CONDUCT.md",
+    ".github/ISSUE_TEMPLATE/bug_report.md",
+    ".github/ISSUE_TEMPLATE/feature_request.md",
+    ".github/ISSUE_TEMPLATE/usage_question.md",
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    "CHANGELOG.md",
+    "README.md",
+    "benchmarks/DATA_LAYOUT.md",
+    "benchmarks/corpus/generate_fact_gold.py",
+    "benchmarks/corpus/generate_questions.py",
+    "benchmarks/corpus/generate_questions_v2.py",
+    "benchmarks/corpus/isolation.py",
+    "benchmarks/corpus/manifest.py",
+    "benchmarks/formal_run.py",
+    "benchmarks/real_tasks/run.py",
+    "benchmarks/real_tasks/tasks.json",
+    "benchmarks/runners/dev_pilot.py",
+    "benchmarks/runners/dev_score.py",
+    "benchmarks/runners/gold_review.py",
+    "docs/README.md",
+    "docs/clients.md",
+    "docs/knowledge-graph.md",
+    "specs/tasks/comparison-corpus-expansion.md",
+    "specs/tasks/comparison-dataset-isolation.md",
+    "specs/tasks/comparison-dev-questions-v2.md",
+    "specs/tasks/m4-clients-c1.md",
+    "specs/tasks/m4-forget-corpus.md",
+    "tests/test_comment_recall.py",
+    "tests/test_corpus_isolation.py",
+    "tests/test_gbk_read.py",
+    "tests/test_identifier_ranking.py"
+  ],
+  "test_files": [
+    "tests/test_comment_recall.py",
+    "tests/test_corpus_isolation.py",
+    "tests/test_gbk_read.py",
+    "tests/test_identifier_ranking.py"
+  ]
+}

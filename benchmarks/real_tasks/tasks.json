@@ -1,6 +1,6 @@
 {
  "schema": "domimap.realtasks.v1",
- "corpus": "~/work/dev-corpus (45 repos, 真实工作区)",
+ "corpus": "private enterprise workspace, 45 repos (set DOMIMAP_DEV_CORPUS; open-source corpora work too)",
  "tasks": [
   {
    "id": "rt-bean_operate_r",

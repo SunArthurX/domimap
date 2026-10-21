@@ -37,12 +37,12 @@ code_location 30、cross_repo_trace 30、document_reasoning 30、knowledge_fresh
 
 单提交回滚；out/ 生成物可重生成。
 
-## 实测结果（2026-10-17 真跑，dev-corp 45 族）
+## 实测结果（2026-10-17 真跑，企业语料 45 族）
 
 - 生成 **163 题**：code_location 30 / cross_repo_trace 30 / document_reasoning 30 / knowledge_freshness 13 / locator_diagnostic 20 / negative 40（四因各 10）。
-- **时效类 13/30 为语料事实**：dev-corp dev 侧带文档内日期且主题词合格的素材仅 13 个（不注水：不用 mtime 补数正是本任务目标）。确认候选的公共语料（docx/文档丰富仓）将补足该类。
-- **两次实跑暴露的语料真相与修复**：①dev-corp 中文文档多为 GB18030（utf-8 replace 读成乱码使中文正则全失效）→ utf-8 严格失败回退 GB18030；②文档族 纯文本 .md/.txt 仅 2 个，知识在 .docx/.html（315+42 个）→ stdlib zipfile+去标签机械抽取（grep 级，非产品管线）；③单一大正则抽类注释在 200KB Java 上 O(n²)（22 分钟未完成）→ 两遍法秒级。
-- 外部 4 文档族（各 1.8-2.0GB）扫描代价过高且非目标负载，dev v2 收敛 dev-corp 45 族。
+- **时效类 13/30 为语料事实**：企业语料 dev 侧带文档内日期且主题词合格的素材仅 13 个（不注水：不用 mtime 补数正是本任务目标）。确认候选的公共语料（docx/文档丰富仓）将补足该类。
+- **两次实跑暴露的语料真相与修复**：①企业中文文档多为 GB18030（utf-8 replace 读成乱码使中文正则全失效）→ utf-8 严格失败回退 GB18030；②文档族纯文本 .md/.txt 仅 2 个，知识在 .docx/.html（315+42 个）→ stdlib zipfile+去标签机械抽取（grep 级，非产品管线）；③单一大正则抽类注释在 200KB Java 上 O(n²)（22 分钟未完成）→ 两遍法秒级。
+- 外部 4 文档族（各 1.8-2.0GB）扫描代价过高且非目标负载，dev v2 收敛企业语料 45 族。
 - 契约测试 9 项绿（mtime 无关性、正文成题非标题、定位单列、题/gold 分文件、四因负例带验证、标识符 ≤40%、跨仓 ≥2 族、确定性、无 gold 字段）。
 - 试点：40 题（四类各 8 + locator 4 + negative 4）⊆ 7 族工作区（16,456 文件；跨仓 gold 集合种子贪心选定——纯最小族贪心曾致 cross=0）。
 

@@ -18,12 +18,10 @@ import sys
 import time
 import zipfile
 
-WS = os.path.expanduser("~/work/dev-corpus")
-EXTRA = [os.path.expanduser(p) for p in (
-    "EXTERNAL_FAMILY_PATH",
-    "EXTERNAL_FAMILY_PATH",
-    "EXTERNAL_FAMILY_PATH",
-    "EXTERNAL_FAMILY_PATH")]
+# 语料根/外部文档族：自备（env；企业私有或开源语料均可，见 benchmarks/DATA_LAYOUT.md）
+WS = os.path.expanduser(os.environ.get("DOMIMAP_DEV_CORPUS") or "")
+EXTRA = [os.path.expanduser(p) for p in
+         os.environ.get("DOMIMAP_EXTRA_FAMILIES", "").split(",") if p]
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUTDIR = os.path.join(ROOT, "out", "benchmark")
 SKIP = {".git", "node_modules", "target", "build", "__pycache__", ".idea"}
@@ -61,7 +59,7 @@ def fam_root(name):
 
 
 def read_text(path, cap=200000):
-    """utf-8 严格读取失败（dev-corp 中文文档多为 GB18030）则回退 GB18030——乱码会让
+    """utf-8 严格读取失败（企业中文文档多为 GB18030）则回退 GB18030——乱码会让
     中文正则全部失效，此前导致文档/时效题配额几乎为零。"""
     try:
         with open(path, encoding="utf-8") as stream:
@@ -78,7 +76,7 @@ def read_text(path, cap=200000):
 
 def extract_document(path):
     """.docx/.html 机械文本抽取（stdlib zip + 去标签，grep 级、不经产品管线）。
-    dev-corp 语料的知识主要在 docx/html（纯文本 .md/.txt 仅 2 个）；返回 (text, title) 或 None。"""
+    企业语料的知识主要在 docx/html；返回 (text, title) 或 None。"""
     low = path.lower()
     try:
         if low.endswith((".html", ".htm")):
@@ -366,10 +364,12 @@ def build(families, root_of=None):
 
 
 def main():
+    if not WS:
+        raise SystemExit("DOMIMAP_DEV_CORPUS 未设置：请指向自备语料根目录（见 benchmarks/DATA_LAYOUT.md）")
     fams = sorted(d for d in os.listdir(WS)
                   if os.path.isdir(os.path.join(WS, d)) and not d.startswith("."))
-    # 注：四个外部文档族（deepseek-harness/zhiyu 等）各 1.8-2.0GB，扫描代价过高且非
-    # 目标负载（Java/Mapper+中文文档）；dev v2 收敛到 dev-corp 45 族，文档类配额由 文档族 承担。
+    # 注：外部文档族（DOMIMAP_EXTRA_FAMILIES）若扫描代价过高且非目标负载可不入集；
+    # dev v2 收敛到语料 45 族，文档类配额由文档族承担。
     questions, gold, counts = build(fams)
     os.makedirs(OUTDIR, exist_ok=True)
     stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
