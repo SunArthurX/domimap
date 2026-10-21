@@ -32,6 +32,7 @@ class Server:
     def __init__(self, graph_path):
         self.graph_path = graph_path
         self._mtime = None
+        self._kb_mtime = None
         self._reload()
 
     def _reload(self):
@@ -51,15 +52,26 @@ class Server:
         attach_if_present(self.s, self.graph_path)  # 图旁 knowledge.db（人工/LLM 笔记）
         from .graph import load_seeds
         self.seeds = load_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
+        self._stat()
+
+    def _stat(self):
+        """热重载指纹 = graph.json 与 knowledge.db 两者的 mtime。"""
         try:
             self._mtime = os.stat(self.graph_path).st_mtime_ns
         except OSError:
             self._mtime = None
+        kb = os.path.join(os.path.dirname(os.path.abspath(self.graph_path)), "knowledge.db")
+        try:
+            self._kb_mtime = os.stat(kb).st_mtime_ns
+        except OSError:
+            self._kb_mtime = None
 
     def _fresh(self):
-        """热重载：graph.json 变化即重建索引（codegraph 新鲜度思想）。"""
+        """graph 或 knowledge 任一变化即重建（新增笔记无需重启 serve）。"""
         try:
-            if os.stat(self.graph_path).st_mtime_ns != self._mtime:
+            kb = os.path.join(os.path.dirname(os.path.abspath(self.graph_path)), "knowledge.db")
+            if (os.stat(self.graph_path).st_mtime_ns != self._mtime
+                    or os.stat(kb).st_mtime_ns != self._kb_mtime):
                 self._reload()
         except OSError:
             pass

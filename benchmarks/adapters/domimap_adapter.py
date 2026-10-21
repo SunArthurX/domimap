@@ -38,6 +38,8 @@ class DomimapAdapter(Adapter):
             roots = [r.root for r in self.ready_repos]
             g, coverage, results = batch.build_many(roots, self.graph_dir)
             self.searcher = Searcher(g)
+            from domimap.knowledge import attach_if_present
+            attach_if_present(self.searcher, os.path.join(self.graph_dir, "graph.json"))
             self.seeds = load_seeds(os.path.join(ROOT, "domimap", "seeds.json"))
             self._repo_files = {r.name: set() for r in self.ready_repos}
             for r in self.ready_repos:

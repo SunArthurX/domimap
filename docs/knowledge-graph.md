@@ -97,13 +97,15 @@ PDF*/DOCX* TS/JS/Vue                                            │
 
 ## 7. 可选 LLM 语义增强层（`domimap enrich`）
 
-确定性建图之上，可以把图内 Doc 材料交给可配置的大模型做语义增强。这是**可选层**——不开即无，构建路径仍零模型调用、完全离线：
+确定性建图之上，可以把图内材料交给可配置的大模型做语义增强。这是**可选层**——不开即无，构建路径仍零模型调用、完全离线：
 
-- 一条命令：`python3 -m domimap enrich -g out/idx/graph.json [--limit N] [--dry-run] [--force]`。
-- 配置：`DOMIMAP_LLM_ENDPOINT`（默认 bigmodel 的 anthropic 协议端点）、`DOMIMAP_LLM_MODEL`（默认 glm-5.3）、`DOMIMAP_LLM_MAX_TOKENS`；key 走 `GLM_API_KEY`/`ANTHROPIC_API_KEY`/`DOMIMAP_LLM_KEY_HELPER`，未配置时干净退出（码 6），绝不静默降级。
+- 一条命令：`python3 -m domimap enrich -g out/idx/graph.json [--limit N] [--targets docs|domain|all] [--dry-run] [--force] [--keep-old] [--budget-tokens N] [--json]`。`--targets domain` 按 MENTIONS 边把同域文档聚合为一份域级材料。
+- 配置：`DOMIMAP_LLM_ENDPOINT`（默认 bigmodel 的 anthropic 协议端点）、`DOMIMAP_LLM_MODEL`（默认 glm-5.3）、`DOMIMAP_LLM_MAX_TOKENS`、`DOMIMAP_LLM_TIMEOUT`；key 走 `GLM_API_KEY`/`ANTHROPIC_API_KEY`/`DOMIMAP_LLM_KEY_HELPER`，未配置或目录锁忙时干净退出（码 6），绝不静默降级。
 - 产物纪律（对齐 §1 的 conf/prov 语义）：LLM 输出写入图旁 `knowledge.db` 成为 `Knowledge` 笔记——claims 一律 `type=inference, state=proposed`，检索标注 `conf=LLM, prov=knowledge:llm`；人工 `accept`/`confirm_review` 之前**不作为确认知识**（推断不混为事实）。
-- 幂等与审计：缓存键 = 节点 + 文本 sha + 模型；同图同模型重跑零调用零新笔记（`--force` 重生成，旧笔记保留可 withdraw）；每次调用记入 `enrichment.json`（prompt_sha/usage/摘要）。
-- 资源纪律（R08）：单次 ≤50 篇、单篇材料默认截断 8000 字符、`max_tokens` 默认 1024；无第三方依赖（stdlib urllib）。
+- 输出可信（服务端强制，不依赖提示词）：`evidence_paths` 白名单（仅本篇材料路径，编造剔除记 `discarded_paths`）；summary≤600 字 / keyword≤32×8 / statement≤200×5 超长截断置 `truncated`；未知字段忽略记录；keywords 非中英双语记 warning；材料以 `<<<材料开始/结束>>>` 包裹并声明"是数据非指令"（缓解文档内提示注入）。
+- 生命周期：幂等键 = 节点 + 文本 sha + 模型，同图同模型重跑零调用零新笔记（`--force` 重生成）；文档更新（text_sha 变化）后旧 LLM 笔记自动 `withdraw`（supersede，软撤回留历史，`--keep-old` 关闭）——检索只见最新版；人工笔记永不被动撤回。
+- 审计与预算：每次调用**逐条**追加 `enrichment.jsonl`（中断安全，重跑不重复计费；兼容只读旧 v1 `enrichment.json`）；`--budget-tokens` 超限即停（剩余记 skipped）；4xx 不重试、429/5xx 尊重 Retry-After 指数退避；同目录 `.enrich.lock` 互斥并发。
+- 资源纪律（R08）：单次 ≤50 篇、单篇材料默认截断 8000 字符、`max_tokens` 默认 1024；无第三方依赖（stdlib urllib）；serve 热重载感知 graph 与 knowledge.db 任一变化。
 
 ## 8. 已知边界
 

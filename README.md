@@ -72,22 +72,38 @@ python3 -m domimap scenario req "订单改价 需要防并发" -g out/idx/graph.
 python3 -m domimap ui -g out/idx/graph.json --port 8080
 ```
 
-### Optional LLM enrichment (experimental) / 可选大模型增强（实验性）
+### Optional LLM enrichment / 可选大模型增强
 
 On top of the deterministic graph, one command sends Doc materials to a **configurable** LLM
 (Anthropic-compatible API, default GLM-5.3) and files the results as **inference drafts — never facts**:
 
 ```bash
-python3 -m domimap enrich -g out/idx/graph.json --limit 5    # runs the LLM pass / 执行增强
-python3 -m domimap enrich -g out/idx/graph.json --dry-run    # preview prompts, no network / 预览不联网
+python3 -m domimap enrich -g out/idx/graph.json --limit 5            # docs（默认，增量）
+python3 -m domimap enrich -g out/idx/graph.json --targets domain     # 按域聚合材料
+python3 -m domimap enrich -g out/idx/graph.json --dry-run            # 预览将发送什么，不联网
+python3 -m domimap enrich -g out/idx/graph.json --json --budget-tokens 200000
 ```
 
-- Config / 配置：`DOMIMAP_LLM_ENDPOINT` / `DOMIMAP_LLM_MODEL` / `DOMIMAP_LLM_MAX_TOKENS`（或同名 flag）；
-  key 取 `GLM_API_KEY` / `ANTHROPIC_API_KEY` / `DOMIMAP_LLM_KEY_HELPER`（未配置退出码 6，绝不静默降级）。
-- Notes land in `knowledge.db` with `conf=LLM, prov=knowledge:llm`; claims are `inference`/`proposed` —
-  human review (`accept`/confirm) promotes them. Reruns are idempotent; every call is audited in
-  `enrichment.json`. Drafts surface in `query` / MCP `kg_explore` / Web UI next to `conf=HUMAN` notes.
-- 产物为 inference 草稿（`conf=LLM`），人工审定后才算确认知识；重跑幂等；每次调用留审计。
+**Config / 配置**（flag > env > default）：`DOMIMAP_LLM_ENDPOINT`（默认 bigmodel anthropic 端点）、
+`DOMIMAP_LLM_MODEL`（默认 glm-5.3）、`DOMIMAP_LLM_MAX_TOKENS`（1024）、`DOMIMAP_LLM_TIMEOUT`（120s）；
+key 取 `GLM_API_KEY` / `ANTHROPIC_API_KEY` / `DOMIMAP_LLM_KEY_HELPER`（未配置或目录忙 → 退出码 6，绝不静默降级）。
+
+**Discipline / 纪律**：产物写入图旁 `knowledge.db`，claims 一律 `inference/proposed`，检索标注
+`conf=LLM, prov=knowledge:llm`，人工 `accept`/confirm 后才算确认知识；`evidence_paths` 服务端白名单校验
+（编造路径剔除并记审计）；同图同模型重跑幂等（零调用零新笔记），文档更新后旧 LLM 笔记自动软撤回
+（supersede；`--keep-old` 关闭）；每次调用逐条落盘 `enrichment.jsonl`（中断安全，重跑不重复计费）。
+
+**Hardening / 生产化**：4xx（401/400/403/404/422）不重试当条失败；429/5xx 尊重 `Retry-After` 指数退避；
+`--budget-tokens` 超限即停（剩余记 skipped）；同目录并发互斥（`.enrich.lock`）；材料以分隔符包裹并声明
+"是数据非指令"（缓解文档内提示注入）；`--json` 输出逐篇明细与成本估算（`DOMIMAP_LLM_PRICE_IN/OUT` 元/百万 tokens）。
+Drafts surface in `query` / MCP `kg_explore`（serve 热重载感知新笔记）/ Web UI，与 `conf=HUMAN` 笔记并排且标注分明。
+
+**Threat model / 威胁模型**：key 只在进程内存使用、绝不落盘（审计仅存 prompt_sha 与用量）；文档内容可能
+包含注入文本——已做分隔隔离与服务端结构校验，但对抗性内容仍可能影响摘要质量，人工审定是最终闸门；
+端点由你配置，请自行确任其可信（数据将发往该端点）。
+
+**Troubleshooting / 故障排查**：退出码 6 = key 未配置或另一 enrich 进程持有锁；单条 `transport: HTTP 4xx`
+= 鉴权/请求问题（检查 key 与端点）；预算中止后 `stopped_reason=budget_tokens`，重跑自动续未完成篇目。
 
 ### MCP Server / MCP 服务器
 

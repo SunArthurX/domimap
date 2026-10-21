@@ -47,6 +47,36 @@ def cmd_doctor(args):
         print("  图谱: %d 节点 / %d 边 / schema=%s" % (len(d["nodes"]), len(d["edges"]), d.get("schema")))
     else:
         print("  图谱: 尚未构建（domimap build <仓库目录> -o out/<名字>）")
+    # LLM 语义增强层配置态（不打印 key 本体）
+    try:
+        from domimap import llm_enrich
+        key_ok = bool(os.environ.get("GLM_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+                      or (os.environ.get("DOMIMAP_LLM_KEY_HELPER", "")
+                          and os.path.isfile(os.path.expanduser(
+                              os.environ["DOMIMAP_LLM_KEY_HELPER"]))))
+        print("  [LLM] endpoint=%s model=%s key=%s" % (
+            os.environ.get("DOMIMAP_LLM_ENDPOINT") or llm_enrich.DEFAULT_ENDPOINT,
+            os.environ.get("DOMIMAP_LLM_MODEL") or llm_enrich.DEFAULT_MODEL,
+            "已配置" if key_ok else "未配置（enrich 退出码 6）"))
+        if g and os.path.exists(g):
+            base = os.path.dirname(os.path.abspath(g))
+            jsonl = os.path.join(base, "enrichment.jsonl")
+            if os.path.exists(jsonl):
+                entries = [json.loads(l) for l in open(jsonl, encoding="utf-8")
+                           if l.strip().startswith("{")]
+                ok = sum(1 for e in entries if e.get("status") == "ok")
+                print("  [LLM] 审计 %s：%d 条（ok=%d，error=%d）" % (
+                    "enrichment.jsonl", len(entries), ok, len(entries) - ok))
+            kdb = os.path.join(base, "knowledge.db")
+            if os.path.exists(kdb):
+                from domimap.knowledge import KnowledgeStore, LLM_NOTE_PREFIX
+                kb = KnowledgeStore(kdb)
+                llm_notes = sum(1 for n in kb.list_active()
+                                if n["body"].startswith(LLM_NOTE_PREFIX))
+                kb.close()
+                print("  [LLM] knowledge.db：LLM 草稿笔记 %d 条（active）" % llm_notes)
+    except Exception:
+        pass  # doctor 不因 LLM 段缺配置/缺文件而失败
 
 def cmd_build(args):
     from domimap.graph import build
@@ -183,19 +213,33 @@ def cmd_scenario(args):
         print(scenario.scenario_trb(g, s, args.text))
 
 def cmd_enrich(args):
-    """可选 LLM 语义增强：一条命令把图内 Doc 材料交给可配置模型生成草稿笔记（R05 草稿纪律）。"""
-    from domimap.llm_enrich import enrich, LlmConfigError
+    """可选 LLM 语义增强：一条命令把图内材料交给可配置模型生成草稿笔记（R05 草稿纪律）。"""
+    import json as _j
+    from domimap.llm_enrich import enrich, LlmBusyError, LlmConfigError
     try:
-        stats = enrich(args.graph, limit=args.limit, model=args.model, endpoint=args.endpoint,
-                       max_tokens=args.max_tokens, cap=args.cap,
-                       dry_run=args.dry_run, force=args.force)
+        stats = enrich(args.graph, limit=args.limit, targets=args.targets, model=args.model,
+                       endpoint=args.endpoint, max_tokens=args.max_tokens, cap=args.cap,
+                       dry_run=args.dry_run, force=args.force, keep_old=args.keep_old,
+                       budget_tokens=args.budget_tokens, timeout=args.timeout)
     except LlmConfigError as error:
         print(str(error))
-        sys.exit(6)  # 退出码契约：6=LLM 未配置（不静默降级）
+        sys.exit(6)  # 退出码契约：6=LLM 未配置/目录忙（不静默降级）
+    except LlmBusyError as error:
+        print(str(error))
+        sys.exit(6)
+    if getattr(args, "json", False):
+        print(_j.dumps(stats, ensure_ascii=False, indent=1))
+        return
     mode = "（dry-run，未联网未落库）" if stats["dry_run"] else ""
-    print("[enrich] model=%s 选择=%d 新调用=%d 缓存命中=%d 新笔记=%d 解析失败=%d%s" % (
-        stats["model"], stats["selected"], stats["called"], stats["cached"],
-        stats["notes"], stats["errors"], mode))
+    stopped = "，%d 篇 skipped（原因=%s）" % (stats["skipped"], stats["stopped_reason"]) \
+        if stats.get("stopped_reason") else ""
+    print("[enrich] model=%s targets=%s 选择=%d 新调用=%d 缓存命中=%d 新笔记=%d 解析失败=%d%s%s" % (
+        stats["model"], args.targets, stats["selected"], stats["called"], stats["cached"],
+        stats["notes"], stats["errors"], stopped, mode))
+    if "cost_estimate" in stats:
+        c = stats["cost_estimate"]
+        print("[enrich] 成本估算：%.6f（in %d / out %d tokens）" % (
+            c["estimate"], c["input_tokens"], c["output_tokens"]))
     print("[enrich] 笔记已入 knowledge.db（inference 草稿）；检索时标注 conf=LLM。")
 
 
@@ -228,10 +272,17 @@ def main():
     rd = sub.add_parser("read"); rd.add_argument("ev_id")
     rd.add_argument("--store", default=os.path.join("out", "store.db")); rd.set_defaults(fn=cmd_read)
     en = with_g(sub.add_parser("enrich")); en.add_argument("--limit", type=int, default=5)
+    en.add_argument("--targets", choices=["docs", "domain", "all"], default="docs")
     en.add_argument("--dry-run", action="store_true"); en.add_argument("--force", action="store_true")
+    en.add_argument("--keep-old", action="store_true",
+                    help="supersede 关闭：文档更新后旧 LLM 笔记不自动撤回")
     en.add_argument("--model"); en.add_argument("--endpoint"); en.add_argument("--max-tokens", type=int)
+    en.add_argument("--timeout", type=float, help="单次调用超时秒数（默认 DOMIMAP_LLM_TIMEOUT 或 120）")
+    en.add_argument("--budget-tokens", type=int,
+                    help="本次运行 in+out token 预算，超限即停（剩余记 skipped）")
     en.add_argument("--cap", type=int, default=8000,
                     help="单篇材料送入模型的字符上限（R08 资源纪律）")
+    en.add_argument("--json", action="store_true", help="机器可读输出（含逐篇明细）")
     en.set_defaults(fn=cmd_enrich)
     args = ap.parse_args()
     args.fn(args)
