@@ -95,7 +95,17 @@ PDF*/DOCX* TS/JS/Vue                                            │
 
 **给 AI Agent 的推荐用法**：先 `kg_domain_map` 建立领域全景 → `kg_explore` 词法+图检索 → 对命中的证据 `kg_read(ev_id)` 读固化原文 → 回答时引用**文件路径 + ev_id**；`refused=true` 时如实说明不可确定。
 
-## 7. 已知边界
+## 7. 可选 LLM 语义增强层（`domimap enrich`）
+
+确定性建图之上，可以把图内 Doc 材料交给可配置的大模型做语义增强。这是**可选层**——不开即无，构建路径仍零模型调用、完全离线：
+
+- 一条命令：`python3 -m domimap enrich -g out/idx/graph.json [--limit N] [--dry-run] [--force]`。
+- 配置：`DOMIMAP_LLM_ENDPOINT`（默认 bigmodel 的 anthropic 协议端点）、`DOMIMAP_LLM_MODEL`（默认 glm-5.3）、`DOMIMAP_LLM_MAX_TOKENS`；key 走 `GLM_API_KEY`/`ANTHROPIC_API_KEY`/`DOMIMAP_LLM_KEY_HELPER`，未配置时干净退出（码 6），绝不静默降级。
+- 产物纪律（对齐 §1 的 conf/prov 语义）：LLM 输出写入图旁 `knowledge.db` 成为 `Knowledge` 笔记——claims 一律 `type=inference, state=proposed`，检索标注 `conf=LLM, prov=knowledge:llm`；人工 `accept`/`confirm_review` 之前**不作为确认知识**（推断不混为事实）。
+- 幂等与审计：缓存键 = 节点 + 文本 sha + 模型；同图同模型重跑零调用零新笔记（`--force` 重生成，旧笔记保留可 withdraw）；每次调用记入 `enrichment.json`（prompt_sha/usage/摘要）。
+- 资源纪律（R08）：单次 ≤50 篇、单篇材料默认截断 8000 字符、`max_tokens` 默认 1024；无第三方依赖（stdlib urllib）。
+
+## 8. 已知边界
 
 - BM25 是词法匹配：中文查询 ↔ 英文正文无法语义对齐（跨语检索是当前主要短板，见 README 基准表）。
 - 同名方法在不同类下共享一个 Method 节点（服务级命名取舍）。

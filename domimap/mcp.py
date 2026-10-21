@@ -47,6 +47,8 @@ class Server:
             except Exception:
                 coverage = {}
         self.s = Searcher(self.g, cache_path=self.graph_path + ".idx.json", coverage=coverage)
+        from .knowledge import attach_if_present
+        attach_if_present(self.s, self.graph_path)  # 图旁 knowledge.db（人工/LLM 笔记）
         from .graph import load_seeds
         self.seeds = load_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
         try:

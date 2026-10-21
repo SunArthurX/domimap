@@ -13,6 +13,9 @@
   read <ev_id> --store DB    按证据 ID 读固化片段（源修改/删除后仍为旧版本）
   scenario req|trb "文本"    需求定位卡 / 问题排查卡
   review -g FILE -o DIR      AMBIGUOUS 边导出 Obsidian 待审页（人审双通道）
+  enrich -g FILE [--limit N] 可选 LLM 语义增强：Doc 材料生成 inference 草稿笔记
+                             （--dry-run/--force/--model/--endpoint；key 走 GLM_API_KEY 等
+                             环境变量，未配置退出码 6；产物标注 conf=LLM 不混入事实）
   serve -g FILE              MCP stdio 服务器（kg_explore 等 6 工具）
   ui -g FILE [--port N]      本地只读搜索/证据阅读页（默认 127.0.0.1:8765）
 """
@@ -78,8 +81,10 @@ def cmd_query(args):
     g = Graph.load(args.graph)
     from domimap.graph import load_seeds
     seeds = load_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
-    r = Searcher(g, cache_path=args.graph + ".idx.json").query(
-        args.text, top_k=args.top, domain=args.domain, seeds=seeds)
+    s = Searcher(g, cache_path=args.graph + ".idx.json")
+    from domimap.knowledge import attach_if_present
+    attach_if_present(s, args.graph)  # 图旁 knowledge.db（人工/LLM 笔记）存在才挂
+    r = s.query(args.text, top_k=args.top, domain=args.domain, seeds=seeds)
     if getattr(args, "json", False):
         import json as _j
         print(_j.dumps({"seeds": [{"id": n["id"], "kind": n["kind"], "name": n["name"],
@@ -177,6 +182,23 @@ def cmd_scenario(args):
     else:
         print(scenario.scenario_trb(g, s, args.text))
 
+def cmd_enrich(args):
+    """可选 LLM 语义增强：一条命令把图内 Doc 材料交给可配置模型生成草稿笔记（R05 草稿纪律）。"""
+    from domimap.llm_enrich import enrich, LlmConfigError
+    try:
+        stats = enrich(args.graph, limit=args.limit, model=args.model, endpoint=args.endpoint,
+                       max_tokens=args.max_tokens, cap=args.cap,
+                       dry_run=args.dry_run, force=args.force)
+    except LlmConfigError as error:
+        print(str(error))
+        sys.exit(6)  # 退出码契约：6=LLM 未配置（不静默降级）
+    mode = "（dry-run，未联网未落库）" if stats["dry_run"] else ""
+    print("[enrich] model=%s 选择=%d 新调用=%d 缓存命中=%d 新笔记=%d 解析失败=%d%s" % (
+        stats["model"], stats["selected"], stats["called"], stats["cached"],
+        stats["notes"], stats["errors"], mode))
+    print("[enrich] 笔记已入 knowledge.db（inference 草稿）；检索时标注 conf=LLM。")
+
+
 def main():
     ap = argparse.ArgumentParser(prog="domimap", description="多仓 Java 知识中台 MVP")
     ap.add_argument("-g", "--graph", default=os.path.join("out", "mini", "graph.json"))
@@ -205,6 +227,12 @@ def main():
     u.add_argument("--port", type=int, default=8765); u.set_defaults(fn=cmd_ui)
     rd = sub.add_parser("read"); rd.add_argument("ev_id")
     rd.add_argument("--store", default=os.path.join("out", "store.db")); rd.set_defaults(fn=cmd_read)
+    en = with_g(sub.add_parser("enrich")); en.add_argument("--limit", type=int, default=5)
+    en.add_argument("--dry-run", action="store_true"); en.add_argument("--force", action="store_true")
+    en.add_argument("--model"); en.add_argument("--endpoint"); en.add_argument("--max-tokens", type=int)
+    en.add_argument("--cap", type=int, default=8000,
+                    help="单篇材料送入模型的字符上限（R08 资源纪律）")
+    en.set_defaults(fn=cmd_enrich)
     args = ap.parse_args()
     args.fn(args)
 

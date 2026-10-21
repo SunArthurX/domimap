@@ -10,6 +10,7 @@
 - 同会话评测结果：开发集 33 题 domimap 正例 24/27，公开语料（27 个未暴露开源族）40 题 22/32；对四竞品的配对差值均为正，但公开语料上差距明显收窄。分表与分母见 README。
 - 检索优化：DDL 语义加权（Table 节点）、版本号纪元提取、查询期中英桥接回退；索引期桥接、README 文档先验与双语提示引导三项在公开语料上被证实有害后撤销。
 - 工程卫生（2026-10-20）：`scripts/check_specs.py --structural` 与 `make ci` 供无本地证据工件的环境（CI / 新克隆）使用，`make verify` 的证据校验语义不变并有正负契约测试锁定；主轨宿主的凭据加载改为环境变量 / 本机未入库 helper，仓库内不再含凭据库解密细节与账号标识；CI 显式安装 PDF/DOCX 可选解析器，相关契约测试在缺依赖时跳过而非报错。
+- 可选 LLM 语义增强层（product-llm-enrich，2026-10-21）：`domimap enrich` 一条命令把图内 Doc 材料交给可配置的 anthropic 协议模型（默认 glm-5.3）生成 inference 草稿笔记——`conf=LLM, prov=knowledge:llm`，claims 一律 `inference/proposed`，人工审定前不作为事实（AC-R05-02 纪律）；幂等重跑（同图同模型零调用零新笔记）、`--dry-run`/`--force`、审计文件 `enrichment.json`、无 key 干净退出（码 6）；`query`/MCP `kg_explore`/UI 统一挂接图旁 `knowledge.db`（人工笔记 conf=HUMAN 语义不变）；14 个 hermetic 契约测试，构建期零模型调用的离线路径不变。
 - 发布前二次整理（2026-10-20）：新增 `docs/knowledge-graph.md` 图谱模型参考（节点/边类型、置信度与来源语义、证据层、时间模型、检索数据流，面向人与 AI Agent）；基准脚本语料全面脱敏——语料根/外部文档族/文档优先族/预建图改为 `DOMIMAP_DEV_CORPUS`、`DOMIMAP_EXTRA_FAMILIES`、`DOMIMAP_DOC_FAMILIES`、`DOMIMAP_DEV_GRAPH` 环境变量（未设置时入口明确报错），文档与测试夹具中不再出现公司名或内部语料名；`benchmarks/DATA_LAYOUT.md` 增自备语料指引（企业私有或 ≥20 个不相关开源族均可）；社区配套（issue 模板、PR 模板、行为准则）；README 补 `kg_troubleshoot` 工具。
 
 ### 计划中（按 docs/roadmap.md M0–M5 交付，未完成不得在此列为已完成）

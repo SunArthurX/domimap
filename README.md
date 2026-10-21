@@ -72,6 +72,23 @@ python3 -m domimap scenario req "订单改价 需要防并发" -g out/idx/graph.
 python3 -m domimap ui -g out/idx/graph.json --port 8080
 ```
 
+### Optional LLM enrichment (experimental) / 可选大模型增强（实验性）
+
+On top of the deterministic graph, one command sends Doc materials to a **configurable** LLM
+(Anthropic-compatible API, default GLM-5.3) and files the results as **inference drafts — never facts**:
+
+```bash
+python3 -m domimap enrich -g out/idx/graph.json --limit 5    # runs the LLM pass / 执行增强
+python3 -m domimap enrich -g out/idx/graph.json --dry-run    # preview prompts, no network / 预览不联网
+```
+
+- Config / 配置：`DOMIMAP_LLM_ENDPOINT` / `DOMIMAP_LLM_MODEL` / `DOMIMAP_LLM_MAX_TOKENS`（或同名 flag）；
+  key 取 `GLM_API_KEY` / `ANTHROPIC_API_KEY` / `DOMIMAP_LLM_KEY_HELPER`（未配置退出码 6，绝不静默降级）。
+- Notes land in `knowledge.db` with `conf=LLM, prov=knowledge:llm`; claims are `inference`/`proposed` —
+  human review (`accept`/confirm) promotes them. Reruns are idempotent; every call is audited in
+  `enrichment.json`. Drafts surface in `query` / MCP `kg_explore` / Web UI next to `conf=HUMAN` notes.
+- 产物为 inference 草稿（`conf=LLM`），人工审定后才算确认知识；重跑幂等；每次调用留审计。
+
 ### MCP Server / MCP 服务器
 
 ```bash

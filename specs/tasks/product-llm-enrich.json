@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "product-llm-enrich",
+  "state": "verified",
+  "spec": "specs/tasks/product-llm-enrich.md",
+  "requirements": [
+    "R05",
+    "R04"
+  ],
+  "acceptance_cases": [
+    "AC-R05-02",
+    "AC-R04-01"
+  ],
+  "files": [
+    "CHANGELOG.md",
+    "README.md",
+    "docs/knowledge-graph.md",
+    "domimap/__main__.py",
+    "domimap/knowledge.py",
+    "domimap/llm_enrich.py",
+    "domimap/mcp.py",
+    "domimap/search.py",
+    "tests/test_llm_enrich.py"
+  ],
+  "test_files": [
+    "tests/test_llm_enrich.py"
+  ]
+}

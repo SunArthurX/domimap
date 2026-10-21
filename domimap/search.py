@@ -54,13 +54,16 @@ class Searcher:
         current_digests 提供时，依据已变且未绑定当前版本的 claim 标 stale（F4-02）。
         """
         flagged = kb.claims_with_flags(current_digests) if current_digests is not None else None
+        from .knowledge import LLM_NOTE_PREFIX
         for note in kb.list_active():
             nid = "kn:" + note["note_id"]
             claims = flagged[note["note_id"]] if flagged else note["claims"]
+            llm_origin = note["body"].startswith(LLM_NOTE_PREFIX)
             self.extra[nid] = {"id": nid, "kind": "Knowledge",
                                "name": note["body"][:48], "file": "knowledge:" + note["note_id"],
                                "meta": {"text": note["body"], "claims": claims},
-                               "conf": "HUMAN", "prov": "knowledge"}
+                               "conf": "LLM" if llm_origin else "HUMAN",
+                               "prov": "knowledge:llm" if llm_origin else "knowledge"}
             self._index_one(nid)
 
     def _index_one(self, nid):

@@ -43,6 +43,26 @@ CREATE TABLE IF NOT EXISTS tombstones (
 
 CLAIM_TYPES = {"requirement", "implementation", "observation", "decision", "inference"}
 
+# LLM 增强笔记（product-llm-enrich）的 body 前缀：检索层据此标注 conf=LLM/prov=knowledge:llm。
+# 产物一律 inference 型草稿（state=proposed），人工 accept/confirm 前不作为确认知识。
+LLM_NOTE_PREFIX = "【LLM 摘要｜"
+
+
+def attach_if_present(searcher, graph_path):
+    """图旁 knowledge.db 存在时把 active 笔记挂进检索（CLI query / MCP / UI 共用入口）。
+
+    不存在则静默跳过（纯离线工作区不受影响）。返回是否挂接。
+    """
+    path = os.path.join(os.path.dirname(os.path.abspath(graph_path)), "knowledge.db")
+    if not os.path.exists(path):
+        return False
+    kb = KnowledgeStore(path)
+    try:
+        searcher.attach_knowledge(kb)
+    finally:
+        kb.close()
+    return True
+
 
 class ConflictError(ValueError):
     """幂等键内容不一致 / expected_revision 过期。"""
