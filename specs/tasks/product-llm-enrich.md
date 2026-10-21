@@ -25,6 +25,7 @@
 
 ## 验证与回退
 
-- `python3 -B -m unittest tests.test_llm_enrich -v`；refresh_evidence 后 `make verify` 全绿（存量测试证明离线路径未变）。
-- 真实 e2e（用户已授权 glm-5.3）：mini 夹具 `--limit 2` 实调 GLM-5.3（key 经本机 helper 注入内存），验证 200/usage、笔记落库、`query` 命中并带 LLM 标注；工件入 out/（不入库）。
-- 回退：revert 本提交；knowledge.db 中 LLM 笔记可用现有 `withdraw`/`forget` 清理（正是复用现有治理通道的用意）。
+- `python3 -B -m unittest tests.test_llm_enrich -v`（15 个 hermetic 契约）；refresh_evidence 后 `make verify` 全绿（存量测试证明离线路径未变）。
+- **真实 e2e（2026-10-21，GLM-5.3 实调，用户授权 zcode key；工件 out/llm-enrich-e2e/）**：2 篇中文文档建图 → `enrich --limit 2 --max-tokens 3000` 两次真实调用全部成功（578 input / 1910 output tokens，0 解析失败），笔记落入 knowledge.db（inference/proposed + LLM 溯源前缀）；同命令重跑 缓存命中=2/新笔记=0（幂等契约在真实环境成立）；`query "订单改价 防并发 策略"` 第 1 名命中 `[Knowledge] conf=LLM, prov=knowledge:llm`；MCP `kg_explore "库存预警 死信 重试策略"` 同样返回 conf=LLM 笔记。
+- **e2e 发现并修复的缺陷**：`Searcher._node_text` 此前对 Knowledge 节点只索引 name（body 前 48 字符）——LLM 溯源前缀超 48 字符时中文摘要完全不可检索（人工长前缀笔记同样受害，存量缺陷）。修复：Knowledge 全文（≤20000 字符）+ claim 陈述入索引；回归测试 `test_knowledge_full_text_indexed_beyond_48char_name` 锁定。
+- 回退：revert 本任务提交；knowledge.db 中 LLM 笔记可用现有 `withdraw`/`forget` 清理（正是复用现有治理通道的用意）。

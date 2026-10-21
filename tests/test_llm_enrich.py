@@ -256,6 +256,27 @@ class TestAttachAndVisibility(unittest.TestCase):
         self.assertEqual(r.returncode, 6, r.stdout + r.stderr)
         self.assertIn("GLM_API_KEY", r.stdout + r.stderr)
 
+    def test_knowledge_full_text_indexed_beyond_48char_name(self):
+        """回归（真实 GLM e2e 发现）：LLM 溯源前缀超 48 字符时 name 截断后不含摘要中文，
+        笔记全文与 claim 陈述必须入索引，否则中文摘要完全不可检索。"""
+        graph_path = build_graph({"docs/price.md": LONG})
+        base = os.path.dirname(graph_path)
+        kb = KnowledgeStore(os.path.join(base, "knowledge.db"))
+        kb.submit(LLM_NOTE_PREFIX + "model=glm-5.3｜source=docs/price.md｜text_sha=0123456789abcdef】\n"
+                  "订单改价使用乐观锁防并发，冲突时拒绝写入并要求重试。",
+                  [{"type": "inference", "statement": "库存预警消费失败进入死信队列",
+                    "evidence": [], "scope": ""}])
+        kb.close()
+        s = Searcher(Graph.load(graph_path))
+        attach_if_present(s, graph_path)
+        kn = next(iter(s.extra))
+        self.assertNotIn("防并发", s.extra[kn]["name"])  # name 已截断，不含摘要中文
+        r = s.query("订单改价 防并发", top_k=8, seeds=SEEDS)
+        self.assertTrue(any(n["kind"] == "Knowledge" and n["conf"] == "LLM" for n in r["seeds"]),
+                        "摘要全文必须可检索")
+        r2 = s.query("死信队列 消费失败", top_k=8, seeds=SEEDS)
+        self.assertTrue(any(n["kind"] == "Knowledge" for n in r2["seeds"]), "claim 陈述也应可检索")
+
 
 if __name__ == "__main__":
     unittest.main()

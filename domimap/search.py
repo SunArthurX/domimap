@@ -120,6 +120,11 @@ class Searcher:
         if n["kind"] == "Class":
             # 类注释关键词：业务中文查询与代码节点之间的词面桥（第 5 步诊断驱动）
             parts.append(n["meta"].get("comment", ""))
+        if n["kind"] == "Knowledge":
+            # 笔记全文 + claim 陈述入索引：name 只是 body 前 48 字符（LLM 溯源前缀
+            # 更长时中文全被截断——真实 GLM e2e 发现中文摘要完全不可检索的根因）。
+            parts.append(n["meta"].get("text", "")[:20000])
+            parts.append(" ".join(str(c.get("statement", "")) for c in n["meta"].get("claims", [])))
         return " \n ".join(parts)
 
     def _build(self):
