@@ -326,6 +326,19 @@ class TestTransportHardening(unittest.TestCase):
                  if e["status"] == "error"][0]
         self.assertIn("HTTP 401", entry["error"])
 
+    def test_budget_tokens_stops_early_and_rerun_resumes(self):
+        """H1：token 预算触顶即停（剩余记 skipped，审计完整）；放宽后续跑自动接续。"""
+        graph_path = build_graph({"docs/price.md": LONG, "docs/stock.md": LONG2})
+        base = os.path.dirname(graph_path)
+        client = FakeClient(usage={"input_tokens": 100, "output_tokens": 50})
+        stats = enrich(graph_path, limit=2, client=client, budget_tokens=150)
+        self.assertEqual((stats["called"], stats["skipped"]), (1, 1))
+        self.assertEqual(stats["stopped_reason"], "budget_tokens")
+        self.assertEqual(sorted(r["status"] for r in read_jsonl(base)), ["ok", "skipped"])
+        stats2 = enrich(graph_path, limit=2, client=client, budget_tokens=100000)
+        self.assertEqual((stats2["cached"], stats2["called"], stats2["notes"]), (1, 1, 1),
+                         "续跑只处理上次 skipped 的篇目")
+
 
 class TestAuditAndLock(unittest.TestCase):
     def test_interrupt_preserves_jsonl_and_rerun_hits_cache(self):
