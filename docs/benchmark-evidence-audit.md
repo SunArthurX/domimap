@@ -1,7 +1,7 @@
 # 比较证据治理审计（comparison-evidence-audit）
 
 日期：2026-10-17。执行：测试计划 `out/test-plan/2026-10-17/完整竞品测试计划.md` 第 1 步（§11.2 任务 1）。
-审计基线：Git `1f75d87`，源指纹 `458c173868206e824821242e07d05e5e0b42f2e21995b8e08d1e2ea246f80eac`（与同目录 audit-summary.json 一致）。
+审计基线：Git `11253e3`，源指纹 `458c173868206e824821242e07d05e5e0b42f2e21995b8e08d1e2ea246f80eac`（与同目录 audit-summary.json 一致）。
 
 本任务只做证据治理：更正与验收语义不符的 verified 状态、给历史证据分级、复现本地基线。不修改产品代码、评分器、协议或任何历史运行工件。
 
@@ -55,7 +55,7 @@ AC-R14-01 验收语义（specs/acceptance.json）：**"12 项点差及修正下�
 
 ## 4. 源码绑定与依赖
 
-- bundle 源码指纹 `f0786332d946e7a2…`（创建于 2026-10-17 03:11）早于终态提交 `1f75d87` 的规格/文档定稿，与审计时源指纹 `458c1738…` 不一致；`make release-check` 在指纹门正确停止。
+- bundle 源码指纹 `f0786332d946e7a2…`（创建于 2026-10-17 03:11）早于终态提交 `11253e3` 的规格/文档定稿，与审计时源指纹 `458c1738…` 不一致；`make release-check` 在指纹门正确停止。
 - 纪律：指纹覆盖文件变更后必须重新执行验证再产证据，禁止机械替换旧哈希（本任务未触碰 bundle）。
 - 历史工件字节冻结记录（本次审计时 SHA-256 前 16 位）：bundle.json `4f4f3689d42398a5`、report.json `3ac952adbf9b1715`、TWELVE_OF_TWELVE_RESULT.json `b346caa5e5b4b38a`、AC-R14-01.json `5eb67a6f6cd08ab7`、gold-questions.json `d91d497e75565f7a`。
 

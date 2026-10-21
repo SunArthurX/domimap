@@ -9,6 +9,6 @@
 ## 收敛记录（2026-10-16）
 
 - 上一会话 `refresh_evidence.py` 在 AC-F1-C1-02 处中止：其 evidence `command` 为不可执行的占位（`["claude","mcp","add/remove/list","..."]`，见 `_rerun-AC-F1-C1-02.log` 的 `error: unknown command 'add/remove/list'`），导致其后 13 例（F2/F3/F4-01/R05–R08/R12）指纹未刷新。
-- 修复：按各例记录命令真实重跑（全部 exit 0，含 R12-01 真实任务回放企业语料预建图（本地 out/ 图）），回填指纹/工件哈希；R13-01 command 更新为 `--task specs/tasks/m4-clients-c1.json --base 79e6f8e`；R14-02 负例/发布检查工件重生成（release-check 仍按预期失败：M4/M5 未完成）。
+- 修复：按各例记录命令真实重跑（全部 exit 0，含 R12-01 真实任务回放企业语料预建图（本地 out/ 图）），回填指纹/工件哈希；R13-01 command 更新为 `--task specs/tasks/m4-clients-c1.json --base 70be6e0`；R14-02 负例/发布检查工件重生成（release-check 仍按预期失败：M4/M5 未完成）。
 - 结果：`make verify` exit 0（117/117 测试），`--task` 范围检查通过，M0–M3 stage 检查全 PASS，25/44 verified。
 - 遗留工具缺陷（下一 M4 切片处理）：AC-F1-C1-02 的 command 需替换为可重复执行的真实生命周期脚本（如 scripts/verify_m4_c1_02.sh，并补入任务 files），否则每次收尾 refresh 仍会在该处中止。

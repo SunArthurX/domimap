@@ -30,6 +30,7 @@
     "benchmarks/runners/dev_score.py",
     "benchmarks/runners/gold_review.py",
     "docs/README.md",
+    "docs/benchmark-evidence-audit.md",
     "docs/clients.md",
     "docs/knowledge-graph.md",
     "specs/tasks/comparison-corpus-expansion.md",
