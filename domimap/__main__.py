@@ -4,11 +4,17 @@
 命令：
   doctor                     环境自检（平台/可选依赖/图谱状态）
   build <repo...> -o DIR     扫描仓库 → 统一图 graph.json + coverage.json
-  query "文本" -g FILE        混合检索（词法种子+一跳图扩展）
+                             （--merge 单仓直出到 -o 目录；--discover 把参数视为工作区根，
+                             自动发现子仓合并建图，并生成证据库 store.db 与增量清单）
+  update -o DIR              工作区增量重建（manifest 未变时毫秒级 no-op）
+  query "文本" -g FILE        混合检索（词法种子+一跳图扩展；诚实拒答时退出码 3）
   domain -g FILE             领域地图（含跨域共享表）
   impact <符号> -g FILE      影响面（反向依赖）
+  read <ev_id> --store DB    按证据 ID 读固化片段（源修改/删除后仍为旧版本）
+  scenario req|trb "文本"    需求定位卡 / 问题排查卡
   review -g FILE -o DIR      AMBIGUOUS 边导出 Obsidian 待审页（人审双通道）
-  serve -g FILE              MCP stdio 服务器（kg_explore 等 5 工具）
+  serve -g FILE              MCP stdio 服务器（kg_explore 等 6 工具）
+  ui -g FILE [--port N]      本地只读搜索/证据阅读页（默认 127.0.0.1:8765）
 """
 import argparse
 import json

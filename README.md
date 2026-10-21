@@ -33,7 +33,13 @@
 git clone https://github.com/SunArthurX/domimap.git && cd domimap
 
 # No install needed — pure stdlib / 无需安装——纯标准库
-python3 -m domimap build ~/my-java-projects -o out/my-idx
+# Single repo: --merge puts the graph directly in out/idx / 单仓加 --merge，图直出 out/idx
+python3 -m domimap build ~/my-java-projects -o out/idx --merge
+
+# Multi-repo workspace (recommended): auto-discover sub-repos → merged graph
+# + evidence store + incremental manifest / 多仓工作区（推荐）：自动发现子仓，合并建图
+python3 -m domimap build ~/work/my-workspace --discover -o out/idx
+python3 -m domimap update -o out/idx   # incremental; no-op in ms if unchanged / 增量更新
 
 # Or install as a CLI / 或安装为命令行工具
 pip install .            # provides the `domimap` command
@@ -45,21 +51,25 @@ pip install pypdf python-docx
 ### CLI Usage / 命令行
 
 ```bash
-# Build index from multiple repos / 多仓建索引
-python3 -m domimap build ~/work/repo-a ~/work/repo-b -o out/idx
+# Build & update / 建图与增量
+python3 -m domimap build ~/work/my-workspace --discover -o out/idx  # 多仓合并图 + 证据库
+python3 -m domimap build ~/repo-a -o out/idx --merge                # 单仓
+python3 -m domimap update -o out/idx                                # 增量（无变更毫秒级 no-op）
 
 # Search (Chinese & English) / 检索（中英文）
 python3 -m domimap query "订单改价 changePrice" -g out/idx/graph.json
 python3 -m domimap query "ai_resource 表 定义 写入" -g out/idx/graph.json
 
-# Read evidence by ID / 按证据 ID 读固化片段
-python3 -m domimap read <evidence_id> --store out/idx
+# Read evidence by ID (immutable — survives source changes) / 按证据 ID 读固化片段
+python3 -m domimap read <evidence_id> --store out/idx/store.db
 
-# Impact analysis / 影响面分析
+# Domain map / impact / scenario cards / 领域地图、影响面、场景卡
+python3 -m domimap domain -g out/idx/graph.json
 python3 -m domimap impact "OrderService" -g out/idx/graph.json
+python3 -m domimap scenario req "订单改价 需要防并发" -g out/idx/graph.json
 
 # Web UI / 交互界面
-python3 -m domimap ui --port 8080
+python3 -m domimap ui -g out/idx/graph.json --port 8080
 ```
 
 ### MCP Server / MCP 服务器
