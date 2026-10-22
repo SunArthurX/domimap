@@ -115,7 +115,9 @@ def cmd_query(args):
     from domimap.knowledge import attach_if_present
     attach_if_present(s, args.graph)  # 图旁 knowledge.db（人工/LLM 笔记）存在才挂
     r = s.query(args.text, top_k=args.top, domain=args.domain, seeds=seeds,
-                semantic=True if getattr(args, "semantic", False) else None)
+                semantic=True if getattr(args, "semantic", False) else None,
+                rerank=True if getattr(args, "rerank", False) else None,
+                rerank_pool=getattr(args, "rerank_pool", None))
     if getattr(args, "json", False):
         import json as _j
         print(_j.dumps({"seeds": [{"id": n["id"], "kind": n["kind"], "name": n["name"],
@@ -263,6 +265,10 @@ def main():
     q = with_g(sub.add_parser("query")); q.add_argument("text"); q.add_argument("--top", type=int, default=6)
     q.add_argument("--semantic", action="store_true",
                    help="低覆盖率回退启用 LLM 语义桥（需 GLM_API_KEY 等；默认关）")
+    q.add_argument("--rerank", action="store_true",
+                   help="BM25 top-N 候选 LLM 语义重排（需 GLM_API_KEY 等；默认关）")
+    q.add_argument("--rerank-pool", type=int, default=None,
+                   help="重排池大小（默认 50，上限 100）")
     q.add_argument("--json", action="store_true")
     q.add_argument("--domain"); q.set_defaults(fn=cmd_query)
     with_g(sub.add_parser("domain")).set_defaults(fn=cmd_domain)

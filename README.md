@@ -103,6 +103,12 @@ Drafts surface in `query` / MCP `kg_explore`（serve 热重载感知新笔记）
 可配置 LLM 生成英文关键词，经索引词表**接地过滤**后并入候选并集重打分；无 key/失败/解析失败一律
 跳过，诚实拒答语义逐字不变；进程内 + 磁盘缓存去重调用（`domimap/semantic_bridge.py`）。
 
+**Optional LLM rerank at query time / 查询期可选 LLM 重排**：`DOMIMAP_LLM_RERANK=1` 或
+`query --rerank [--rerank-pool N]`（默认关）——三路融合跑完后，对全部分路候选（分数序
+top-N，默认 50/上限 100）带紧凑片段送同一可配置 LLM 按查询相关性重排取 top_k，再做路保底；
+LLM 只排列给定不透明 id（未知丢弃/缺席补尾/失败原序，注入面=0）；缓存去重
+（`domimap/llm_rerank.py`）。
+
 **Threat model / 威胁模型**：key 只在进程内存使用、绝不落盘（审计仅存 prompt_sha 与用量）；文档内容可能
 包含注入文本——已做分隔隔离与服务端结构校验，但对抗性内容仍可能影响摘要质量，人工审定是最终闸门；
 端点由你配置，请自行确任其可信（数据将发往该端点）。

@@ -50,6 +50,11 @@ class Searcher:
         if self._bridge_cache:
             from .semantic_bridge import load_disk_cache
             load_disk_cache(self._bridge_cache)
+        # LLM 重排磁盘缓存（可选层）
+        self._rerank_cache = (cache_path + ".rerank.json") if cache_path else None
+        if self._rerank_cache:
+            from .llm_rerank import load_disk_cache as _lr_load
+            _lr_load(self._rerank_cache)
 
     def _node(self, nid):
         return self.g.nodes.get(nid) or self.extra[nid]
@@ -222,7 +227,7 @@ class Searcher:
         return out
 
     def query(self, text, top_k=6, expand=True, budget=3800, domain=None, min_cov=0.3, seeds=None,
-              as_of=None, semantic=None):
+              as_of=None, semantic=None, rerank=None, rerank_pool=None):
         """as_of（epoch 秒）给定时时先做资格筛选：first_seen 晚于 as_of 的节点不进候选（F4）。
 
         标识符守门（先于词表扩展）：单一 latin 标识符且图中无任何节点名/索引词包含它时
@@ -493,6 +498,40 @@ class Searcher:
                 break
             sel_fams.add(fseg)
             merged.sort(reverse=True)
+        # LLM 语义重排（可选默认关；终段覆盖式）：融合管线按原语义跑完后，对全部分路
+        # 候选（分数序 top-N）做 LLM 重排取 top_k，再执行路保底——默认关路径逐字节不变，
+        # 失败/未配置 → merged 原样。LLM 只排列给定不透明 id，无新 id/文本/路径（注入面=0）。
+        rerank_info = None
+        from . import llm_rerank as _lr
+        if _lr.enabled(rerank):
+            flat = sorted((x for lane in lanes.values() for x in lane), reverse=True)
+            if len(flat) > top_k:
+                pool_n = min(int(rerank_pool or _lr.DEFAULT_POOL), _lr.MAX_POOL, len(flat))
+                rr_pool = flat[:pool_n]
+                ordered, rr_note = _lr.rerank(_o, rr_pool, self._node,
+                                              cache_path=self._rerank_cache)
+                if ordered:
+                    pool_map = {nid: (sc, nid) for sc, nid in rr_pool}
+                    seq = [pool_map[n] for n in ordered][:top_k]
+                    # 路保底：池中在场（lanes 键=非空路）但 top_k 缺席的路，
+                    # 用其重排首项换掉当前代表最多路的尾部项
+                    seq_lanes = {_lane_of(nid) for _, nid in seq}
+                    for lane in lanes:
+                        if lane in seq_lanes:
+                            continue
+                        first = next((pool_map[n] for n in ordered
+                                      if _lane_of(n) == lane), None)
+                        if first is None:
+                            continue
+                        from collections import Counter as _Cnt
+                        cnt = _Cnt(_lane_of(nid) for _, nid in seq)
+                        victim = max(cnt, key=cnt.get) if cnt else None
+                        for j in range(len(seq) - 1, -1, -1):
+                            if victim is None or _lane_of(seq[j][1]) == victim:
+                                seq[j] = first
+                                break
+                    merged = seq
+                    rerank_info = {"pool": len(rr_pool), "note": rr_note}
         seeds = merged[:top_k]
         seed_ids = [nid for _, nid in seeds]
         seen = set(seed_ids)
@@ -523,7 +562,7 @@ class Searcher:
                     reasons[key] = reasons.get(key, 0) + 1
         return {"seeds": [self._node(n) for n in seed_ids], "expanded_count": len(exp_lines),
                 "text": out, "refused": False,
-                "semantic_bridge": sem_info,
+                "semantic_bridge": sem_info, "llm_rerank": rerank_info,
                 "coverage": {"files_scanned": self.coverage.get("files_scanned"),
                              "skipped": len(self.coverage.get("skipped") or []), "reasons": reasons}}
 

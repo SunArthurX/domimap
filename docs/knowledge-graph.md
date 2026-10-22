@@ -75,6 +75,10 @@ PDF*/DOCX* TS/JS/Vue                                            │
 2. **词法打分**：BM25（k=1.2，b=0.75 饱和长度归一）；
    - 名称精确命中 → ×3.0（`IDENTIFIER_NAME_BOOST`）
    - 查询含"表/定义/写入"类词且节点为 CREATE TABLE 的 SqlStmt → ×2.0（`DDL_SEMANTIC_BOOST`）
+   - 可选**LLM 语义重排**（`DOMIMAP_LLM_RERANK=1` 或 `query --rerank`，默认关）：融合管线
+     按原语义跑完后，对全部分路候选（分数序 top-N，默认 50/上限 100）送 LLM 按查询相关性
+     重排取 top_k，再执行路保底——LLM 只排列给定不透明 id（未知 id 丢弃/缺席补尾/失败原序，
+     注入面=0）；默认关路径逐字节不变（product-llm-rerank）。
 3. **负例守门（诚实拒答）**，四道：
    - 仅命中通用词（无实质概念）→ 拒答；
    - 含 ≥4 字符拉丁标识符且全部缺席 → 拒答；

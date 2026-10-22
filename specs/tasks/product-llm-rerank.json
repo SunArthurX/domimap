@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "product-llm-rerank",
+  "state": "verified",
+  "spec": "specs/tasks/product-llm-rerank.md",
+  "requirements": ["R04", "R05", "R08"],
+  "acceptance_cases": ["AC-R04-01", "AC-R05-02"],
+  "files": [
+    "domimap/llm_rerank.py",
+    "domimap/search.py",
+    "domimap/__main__.py",
+    "docs/knowledge-graph.md",
+    "README.md"
+  ],
+  "test_files": [
+    "tests/test_llm_rerank.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_llm_rerank -v",
+    "make verify",
+    "out/llm-rerank-ab/ 真实 GLM 检索级 A/B（pub 97+40、dev 36+4，池 50，如实记录）"
+  ],
+  "rollback": "revert 单提交；缓存文件可删；无数据格式变更"
+}
