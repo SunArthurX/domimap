@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "question-quality-v3",
+  "state": "verified",
+  "spec": "specs/tasks/question-quality-v3.md",
+  "requirements": ["R14", "R13"],
+  "acceptance_cases": ["AC-R14-01"],
+  "files": [
+    "benchmarks/corpus/question_quality.py",
+    "benchmarks/corpus/generate_questions_v3.py"
+  ],
+  "test_files": [
+    "tests/test_question_quality.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_question_quality -v",
+    "make verify",
+    "out/question-quality-v3/ 新旧集锚词覆盖与检索级可达性对比（如实记录）"
+  ],
+  "rollback": "revert 单提交；新题集文件在 out/ 可删"
+}
