@@ -61,6 +61,16 @@
     区分证据：丢失 11 题全部含"处理类 位置"，增益 14 题全部无意图词。
   - API 后端如实：bigmodel embedding-3 返回 1113 余额不足——本地 fastembed 后端为主用
     （离线、免费、开源友好），API 后端实现保留。
-- 已知边界：cross_repo_trace 0/11 未动（gold 多为图外族 SQL/需标识符路由）；R14 绝对底线
-  （Hit≥0.80）仍需 agent-loop 口径复测与后续轮次。
+- **agent-loop 口径传导复测（2026-10-22，pub-eval 40 题 × 双臂新鲜跑，同代码同评分器，
+  工件 out/diagnostic-runs/pub-eval-embed/ + out/semantic-bridge-ab/agent-*-rows.json）**：
+  - 基线臂 16/36 正例（cross_repo 5/8）、embed 臂 **17/36**（cross_repo **8/8**，+3 机制
+    一致——语义融合助 agent 定位跨仓 SQL）；document 2/8→1/8、freshness 1/8→0/8 为单题
+    级波动（同评分器下已录旧跑 17/36、新基线 16/36、embed 17/36，均在 ±1 噪声带内）；
+    负例 4/4 两臂一致。成本：每臂 ~40 万 in tokens / 8 万 out。
+  - **如实结论**：检索级 +13/97 的收益在 agent-loop 口径被 agent 自主查询改写部分替代，
+    净传导 ≈ +1/36（cross_repo 类传导显著）。R14 绝对底线（Hit≥0.80）在 agent 口径仍远
+    （17/36），差距主体是 agent 引用行为与 doc/fresh 题质（mock 文档问题，见历史审计），
+    非纯检索——后续轮次应指向 agent 提示/引用纪律与题目质量，单靠检索层收益有限。
+- 已知边界：cross_repo_trace 检索级 0/11 未动（gold 多为图外族 SQL/需标识符路由）；
+  单重复无置信区间（重复批次为后续项）。
 - 回退：revert 单提交 + 删 `.emb.json`；无数据格式变更（sidecar 可删）。
