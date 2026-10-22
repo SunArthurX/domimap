@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "product-embedding-index",
+  "state": "verified",
+  "spec": "specs/tasks/product-embedding-index.md",
+  "requirements": ["R04", "R05", "R08"],
+  "acceptance_cases": ["AC-R04-01", "AC-R05-02"],
+  "files": [
+    "domimap/embedding.py",
+    "domimap/search.py",
+    "domimap/__main__.py",
+    "docs/knowledge-graph.md",
+    "README.md"
+  ],
+  "test_files": [
+    "tests/test_embedding.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_embedding -v",
+    "make verify",
+    "out/embedding-ab/ 真实 e2e（本地 bge 建索引 + pub 97+40 / dev 36+4 检索级 A/B，如实记录）"
+  ],
+  "rollback": "revert 单提交 + 删 .emb.json sidecar；无数据格式变更"
+}

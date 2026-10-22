@@ -55,6 +55,14 @@ class Searcher:
         if self._rerank_cache:
             from .llm_rerank import load_disk_cache as _lr_load
             _lr_load(self._rerank_cache)
+        # 嵌入索引 sidecar（可选层；cache_path 通常为 <graph>.idx.json → 图旁 .emb.json）
+        self.emb_store = None
+        self.emb_backend_factory = None
+        if cache_path:
+            gp = cache_path[:-len(".idx.json")] if cache_path.endswith(".idx.json") else None
+            if gp:
+                from .embedding import load_store, store_path_for
+                self.emb_store = load_store(store_path_for(gp))
 
     def _node(self, nid):
         return self.g.nodes.get(nid) or self.extra[nid]
@@ -226,8 +234,20 @@ class Searcher:
                 out.update(seg[i:i+2] for i in range(len(seg) - 1))
         return out
 
+    def load_embeddings(self, path):
+        """显式加载嵌入索引 sidecar（基准回放/无 cache_path 场景）。失败保持 None。"""
+        from .embedding import load_store
+        store = load_store(path)
+        if store:
+            self.emb_store = store
+        return self.emb_store
+
+    def set_embedding_backend(self, factory):
+        """注入查询期嵌入后端工厂（测试/自定义后端；None=默认 local/api 按环境）。"""
+        self.emb_backend_factory = factory
+
     def query(self, text, top_k=6, expand=True, budget=3800, domain=None, min_cov=0.3, seeds=None,
-              as_of=None, semantic=None, rerank=None, rerank_pool=None):
+              as_of=None, semantic=None, rerank=None, rerank_pool=None, embed=None):
         """as_of（epoch 秒）给定时时先做资格筛选：first_seen 晚于 as_of 的节点不进候选（F4）。
 
         标识符守门（先于词表扩展）：单一 latin 标识符且图中无任何节点名/索引词包含它时
@@ -407,6 +427,32 @@ class Searcher:
                 return {"seeds": [], "expanded": [],
                         "text": "（诚实拒答：查询词覆盖率 %.0f%%，不足 %d%% 阈值。已查 %d 节点；建议换关键词/先 build。）" % (cov * 100, min_cov * 100, self.N),
                         "refused": True}
+        # 嵌入语义融合（可选默认关；拒答守门已过——负例结构性安全）：RRF 融合 BM25 序与
+        # 语义序，融合后的序与分值替换 scored 进入时新加权/重排/三路融合（下游零变化）。
+        # 索引缺失/后端缺失/任何失败 → BM25 原序继续。
+        embed_info = None
+        from . import embedding as _eb
+        if _eb.enabled(embed) and self.emb_store:
+            # 融合资格门（pub A/B 两轮实证）：①定义性信号——查询标识符与节点名精确相等
+            # （IDENTIFIER_NAME_BOOST 同一语义）；②代码定位意图——查询含 DDL 语义集同型的
+            # 意图词（处理类/位置/列名/字段/表/定义/写入…）。两者任一 → 词法通道（含其
+            # 已证加成）权威，跳过语义融合（RRF 会把词法精确证据稀释：code_location
+            # 19/27→8/27 回归）；纯中文文档/诊断意图（教程/限制条件/最新…）才融合。
+            _code_intent = qset & {"表", "定义", "写入", "位置", "ddl", "建表", "create",
+                                   "处理类", "列名", "字段", "哪个类", "哪个服务", "读写"}
+            has_definitive = any(self._name_exact_hit(qt, nid) for _, nid in scored[:10])
+            if has_definitive or _code_intent:
+                embed_info = {"backend": self.emb_store.get("backend"),
+                              "skipped": "definitive_identifier" if has_definitive else "code_intent"}
+            else:
+                sem_pairs = _eb.semantic_recall(
+                    _o, self.emb_store, backend_factory=self.emb_backend_factory)
+                if sem_pairs:
+                    fused = _eb.fuse_rrf(scored, sem_pairs)
+                    if fused:
+                        scored = fused
+                        embed_info = {"backend": self.emb_store.get("backend"),
+                                      "sem_top": len(sem_pairs)}
         # 时新意图：查询含时间词时按 first_seen 近因加权（文件 mtime 为资格事实）
         import re as _re0
         fresh_query = bool(_re0.search(r"最新|最近|更新|变更|changelog|change", text, _re0.I))
@@ -562,7 +608,7 @@ class Searcher:
                     reasons[key] = reasons.get(key, 0) + 1
         return {"seeds": [self._node(n) for n in seed_ids], "expanded_count": len(exp_lines),
                 "text": out, "refused": False,
-                "semantic_bridge": sem_info, "llm_rerank": rerank_info,
+                "semantic_bridge": sem_info, "llm_rerank": rerank_info, "embedding": embed_info,
                 "coverage": {"files_scanned": self.coverage.get("files_scanned"),
                              "skipped": len(self.coverage.get("skipped") or []), "reasons": reasons}}
 

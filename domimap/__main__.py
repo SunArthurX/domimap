@@ -105,6 +105,29 @@ def cmd_build(args):
         if cov["skipped"]:
             print("         覆盖缺口 %d 条（详见 coverage.json）" % len(cov["skipped"]))
 
+def cmd_embed(args):
+    """嵌入索引（product-embedding-index）：图旁 <graph>.emb.json，幂等，查询期 --embed 启用。"""
+    from domimap.graph import Graph
+    from domimap import embedding
+    g = Graph.load(args.graph)
+    path = embedding.store_path_for(args.graph)
+    existing = embedding.load_store(path) or {}
+    try:
+        store, stats = embedding.build_index(g, targets=args.targets,
+                                             limit=args.limit, existing=existing)
+    except embedding.EmbeddingUnavailable as error:
+        import sys
+        print("嵌入后端不可用：%s" % error, file=sys.stderr)
+        raise SystemExit(6)
+    embedding.save_store(store, path)
+    import json as _j
+    if getattr(args, "json", False):
+        print(_j.dumps({"store": path, **stats}, ensure_ascii=False))
+    else:
+        print("嵌入索引完成：%s（后端 %s，共 %d 项，新嵌 %d，复用 %d；查询用 --embed 启用语义融合）"
+              % (path, stats["backend"], stats["total"], stats["embedded"], stats["reused"]))
+
+
 def cmd_query(args):
     from domimap.graph import Graph
     from domimap.search import Searcher
@@ -117,7 +140,8 @@ def cmd_query(args):
     r = s.query(args.text, top_k=args.top, domain=args.domain, seeds=seeds,
                 semantic=True if getattr(args, "semantic", False) else None,
                 rerank=True if getattr(args, "rerank", False) else None,
-                rerank_pool=getattr(args, "rerank_pool", None))
+                rerank_pool=getattr(args, "rerank_pool", None),
+                embed=True if getattr(args, "embed", False) else None)
     if getattr(args, "json", False):
         import json as _j
         print(_j.dumps({"seeds": [{"id": n["id"], "kind": n["kind"], "name": n["name"],
@@ -269,6 +293,8 @@ def main():
                    help="BM25 top-N 候选 LLM 语义重排（需 GLM_API_KEY 等；默认关）")
     q.add_argument("--rerank-pool", type=int, default=None,
                    help="重排池大小（默认 50，上限 100）")
+    q.add_argument("--embed", action="store_true",
+                   help="启用嵌入语义融合（需先 domimap embed 建索引；默认关）")
     q.add_argument("--json", action="store_true")
     q.add_argument("--domain"); q.set_defaults(fn=cmd_query)
     with_g(sub.add_parser("domain")).set_defaults(fn=cmd_domain)
@@ -293,6 +319,12 @@ def main():
                     help="单篇材料送入模型的字符上限（R08 资源纪律）")
     en.add_argument("--json", action="store_true", help="机器可读输出（含逐篇明细）")
     en.set_defaults(fn=cmd_enrich)
+    em = with_g(sub.add_parser("embed")); em.add_argument("--targets",
+                                                          choices=["docs", "sql", "all"],
+                                                          default="all")
+    em.add_argument("--limit", type=int, default=None, help="只嵌前 N 个目标节点（试跑）")
+    em.add_argument("--json", action="store_true", help="机器可读输出")
+    em.set_defaults(fn=cmd_embed)
     args = ap.parse_args()
     args.fn(args)
 

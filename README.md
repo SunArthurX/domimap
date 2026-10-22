@@ -109,6 +109,14 @@ top-N，默认 50/上限 100）带紧凑片段送同一可配置 LLM 按查询�
 LLM 只排列给定不透明 id（未知丢弃/缺席补尾/失败原序，注入面=0）；缓存去重
 （`domimap/llm_rerank.py`）。
 
+**Optional embedding fusion / 可选嵌入语义融合**：`python3 -m domimap embed -g <graph>`
+一次性建向量索引（Doc/Knowledge/SqlStmt/Table，图旁 `.emb.json`，幂等；默认本地
+**bge-small-zh-v1.5**（`pip install fastembed`，离线免费），`DOMIMAP_EMBED_BACKEND=api`
+切换 bigmodel embedding-3），查询期 `--embed`/`DOMIMAP_EMBED=1` 用 RRF(K=60) 融合词法序与
+语义序。**融合资格门**：查询含定义性标识符命中或代码定位意图词（处理类/位置/列名/字段/表/
+定义/写入…）时词法通道权威、跳过融合。真实双集 A/B：pub 23/97→36/97、dev 19/36→26/36，
+既有类别零回归、负例底线不变（`domimap/embedding.py`）。
+
 **Threat model / 威胁模型**：key 只在进程内存使用、绝不落盘（审计仅存 prompt_sha 与用量）；文档内容可能
 包含注入文本——已做分隔隔离与服务端结构校验，但对抗性内容仍可能影响摘要质量，人工审定是最终闸门；
 端点由你配置，请自行确任其可信（数据将发往该端点）。

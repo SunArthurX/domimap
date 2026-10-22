@@ -79,6 +79,12 @@ PDF*/DOCX* TS/JS/Vue                                            │
      按原语义跑完后，对全部分路候选（分数序 top-N，默认 50/上限 100）送 LLM 按查询相关性
      重排取 top_k，再执行路保底——LLM 只排列给定不透明 id（未知 id 丢弃/缺席补尾/失败原序，
      注入面=0）；默认关路径逐字节不变（product-llm-rerank）。
+   - 可选**嵌入语义融合**（`domimap embed` 建索引 + `query --embed`/`DOMIMAP_EMBED=1`，
+     默认关）：本地 bge-small-zh-v1.5（fastembed，离线免费；或 bigmodel embedding-3）对
+     Doc/Knowledge/SqlStmt/Table 建向量索引（图旁 `.emb.json`，幂等），查询期 RRF(K=60)
+     融合词法序与语义序；**融合资格门**——查询含定义性标识符命中或代码定位意图词
+     （处理类/位置/列名/字段/表/定义/写入…，与 DDL 语义集同型）时词法通道权威、跳过融合
+     （pub/dev 双集 A/B：pub 23/97→36/97、dev 19/36→26/36，全部既有类别零回归；product-embedding-index）。
 3. **负例守门（诚实拒答）**，四道：
    - 仅命中通用词（无实质概念）→ 拒答；
    - 含 ≥4 字符拉丁标识符且全部缺席 → 拒答；
