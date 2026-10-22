@@ -1,6 +1,6 @@
 """类注释关键词召回契约（product-comment-recall）。
 
-第 5 步诊断驱动：admin-ware Dao 类 recall miss——中文注释词与 Class 节点词面零交集。
+第 5 步诊断驱动：企业 Dao 仓类 recall miss——中文注释词与 Class 节点词面零交集。
 """
 import os
 import sys

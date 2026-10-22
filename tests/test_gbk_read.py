@@ -1,6 +1,6 @@
 """GBK 源码读取回退契约（product-gbk-read）。
 
-实况：admin-ware Dao 文件 GBK 编码，utf-8 宽容读使中文注释乱码、注释桥失效。
+实况：企业 Dao 仓文件 GBK 编码，utf-8 宽容读使中文注释乱码、注释桥失效。
 """
 import os
 import sys

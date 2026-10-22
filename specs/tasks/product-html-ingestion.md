@@ -47,5 +47,5 @@
 
 - **ingestion miss 7 → 0**（目标达成：.html 证据全部入图，含 javadoc/GitLab wiki/门户页/帮助页）。
 - Hit@5 持平 16/32（必要非充分）：miss 归因后移 recall 7→15、ranking 3→2——瓶颈从"摄入"转为"召回/排序"。
-- **连带发现（gold 质量维度）**：部分"recall miss"实为题/gold 质量问题——sy_html 等 mock 页占位文本（"谁谁谁/啥啥啥"）被 v2 生成器当主题词，短查询实测亦无法命中（文档正文无实质主题词）。下一轮需：①注释关键词→代码文件的召回（admin-ware Dao 4 例）；②生成器 gold 质量过滤（mock 页启发式）；③负例 seeds.json 噪声与 ranking（位置 13/13/24）。
+- **连带发现（gold 质量维度）**：部分"recall miss"实为题/gold 质量问题——sy_html 等 mock 页占位文本（"谁谁谁/啥啥啥"）被 v2 生成器当主题词，短查询实测亦无法命中（文档正文无实质主题词）。下一轮需：①注释关键词→代码文件的召回（企业 Dao 仓 4 例）；②生成器 gold 质量过滤（mock 页启发式）；③负例 seeds.json 噪声与 ranking（位置 13/13/24）。
 - 契约测试 5/5 绿；全量回归随后执行。

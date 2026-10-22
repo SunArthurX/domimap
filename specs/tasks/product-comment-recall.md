@@ -1,6 +1,6 @@
 # product-comment-recall：类注释关键词入检索面（有界改进第 2 轮 b）
 
-来源：第 5 步诊断——admin-ware Dao 4 例 recall miss：查询词为类邻近中文注释关键词
+来源：第 5 步诊断——企业 Dao 仓 4 例 recall miss：查询词为类邻近中文注释关键词
 （"配送 区域 限额 处理类"），而 Class 节点可检索文本只有 name/kind/file（拉丁标识符），
 中文注释词与节点词面零交集，永不可召回。
 

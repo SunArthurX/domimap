@@ -103,7 +103,7 @@ def scan_repo(root, repo_label=None):
                 with open(path, encoding="utf-8") as f:  # 严格读：失败说明非 utf-8
                     text = f.read()
             except UnicodeDecodeError:
-                # 实况：admin-ware 等 Java 注释为 GBK（utf-8 宽容读成乱码使中文注释不可检索）
+                # 实况：企业 Java 仓注释常为 GBK（utf-8 宽容读成乱码使中文注释不可检索）
                 with open(path, encoding="gb18030", errors="replace") as f:
                     text = f.read()
         except OSError:

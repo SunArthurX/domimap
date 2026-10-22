@@ -51,7 +51,7 @@ code_location 30、cross_repo_trace 30、document_reasoning 30、knowledge_fresh
 - **integrity_problems = 0**：记录数恰等（40 批 200 条 = 5 系统×40 题；5×5 批 125 条 = 5 系统×5 题×5 重复）、run_id 唯一、原始工件齐全、无预算超限、env 零跳过。
 - 错误分类（40 批）：ok 148 / product_empty 52 / **无 error、无 timeout、无 env_error**——五系统全部健康，空结果即真实检索行为（含 4 负例的合理拒答）。
 - 每系统（40 批）：domimap 38 ok+2 empty（0.7s）、claude_obsidian 40 ok（92.1s）、cbm 36 ok+4 empty（5.5s）、graphify 21+19（230.7s）、codegraph 13+27（81.1s）。
-- domimap 跨仓查询返回多仓证据（seller.shop+seller.man 路径同列 top5）——无 gold 路由下的跨仓访问实测有效。
+- domimap 跨仓查询返回多仓证据（两个 seller 前端仓路径同列 top5）——无 gold 路由下的跨仓访问实测有效。
 - 过程处置（如实）：claude-obsidian contextual 分块走本地 ollama，无页上限时每族 8-15 分钟（首次试跑 23 分钟仍在 prepare）→ 试点预算页上限 300+prepare 420s，截断逐仓记账；首个超时批次作废重跑（diag-cb480a14aa01 弃用，未计入报告）。
 - 5×5 批：五重复独立记录验证通过（确定性系统输出相同、run_id/工件独立）。
 

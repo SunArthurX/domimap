@@ -1,7 +1,7 @@
 # product-gbk-read：源码读取 GB18030 回退（有界改进第 3 轮 b）
 
 来源：干净集复评——注释桥 4 例（AreaLimitTaskDao 等）仍 recall miss；实况核查：
-admin-ware Dao 文件为 **GBK 编码**，lite_scan 以 utf-8 errors=replace 读入后中文注释全部
+企业 Dao 仓文件为 **GBK 编码**，lite_scan 以 utf-8 errors=replace 读入后中文注释全部
 乱码，第 2 轮 b 的注释桥对 GBK 文件失效。（v2 生成器早前已因同一真相修复过文档侧。）
 
 ## 需求/案例

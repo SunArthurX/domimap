@@ -23,3 +23,6 @@ htmlcov/
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# Self-provided real-task data (internal repo paths; lives with private corpus)
+/benchmarks/real_tasks/tasks.json

@@ -15,7 +15,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 G = os.environ.get("DOMIMAP_DEV_GRAPH") or os.path.join(ROOT, "out", "dev-idx", "graph.json")
 
 def main():
-    spec = json.load(open(os.path.join(os.path.dirname(__file__), "tasks.json"), encoding="utf-8"))
+    spec_path = os.path.join(os.path.dirname(__file__), "tasks.json")
+    if not os.path.isfile(spec_path):
+        sys.exit("缺少 %s：真实任务清单随私有语料自备，不入公开仓库"
+                 "（结构见本文件 docstring 与 specs/tasks/m2-time-tasks.md）。" % spec_path)
+    spec = json.load(open(spec_path, encoding="utf-8"))
     rows = []
     for t in spec["tasks"]:
         t0 = time.time()
