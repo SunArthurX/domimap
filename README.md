@@ -98,6 +98,11 @@ key 取 `GLM_API_KEY` / `ANTHROPIC_API_KEY` / `DOMIMAP_LLM_KEY_HELPER`（未配�
 "是数据非指令"（缓解文档内提示注入）；`--json` 输出逐篇明细与成本估算（`DOMIMAP_LLM_PRICE_IN/OUT` 元/百万 tokens）。
 Drafts surface in `query` / MCP `kg_explore`（serve 热重载感知新笔记）/ Web UI，与 `conf=HUMAN` 笔记并排且标注分明。
 
+**Optional semantic bridge at query time / 查询期可选语义桥**：`DOMIMAP_SEMANTIC_BRIDGE=1` 或
+`query --semantic`（默认关，核心离线语义不变）——原始查询覆盖率 <60% 且含中文时，把查询交给同一
+可配置 LLM 生成英文关键词，经索引词表**接地过滤**后并入候选并集重打分；无 key/失败/解析失败一律
+跳过，诚实拒答语义逐字不变；进程内 + 磁盘缓存去重调用（`domimap/semantic_bridge.py`）。
+
 **Threat model / 威胁模型**：key 只在进程内存使用、绝不落盘（审计仅存 prompt_sha 与用量）；文档内容可能
 包含注入文本——已做分隔隔离与服务端结构校验，但对抗性内容仍可能影响摘要质量，人工审定是最终闸门；
 端点由你配置，请自行确任其可信（数据将发往该端点）。

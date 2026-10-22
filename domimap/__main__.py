@@ -114,7 +114,8 @@ def cmd_query(args):
     s = Searcher(g, cache_path=args.graph + ".idx.json")
     from domimap.knowledge import attach_if_present
     attach_if_present(s, args.graph)  # 图旁 knowledge.db（人工/LLM 笔记）存在才挂
-    r = s.query(args.text, top_k=args.top, domain=args.domain, seeds=seeds)
+    r = s.query(args.text, top_k=args.top, domain=args.domain, seeds=seeds,
+                semantic=True if getattr(args, "semantic", False) else None)
     if getattr(args, "json", False):
         import json as _j
         print(_j.dumps({"seeds": [{"id": n["id"], "kind": n["kind"], "name": n["name"],
@@ -260,6 +261,8 @@ def main():
     sc = with_g(sub.add_parser("scenario")); sc.add_argument("kind", choices=["req", "trb"])
     sc.add_argument("text"); sc.set_defaults(fn=cmd_scenario)
     q = with_g(sub.add_parser("query")); q.add_argument("text"); q.add_argument("--top", type=int, default=6)
+    q.add_argument("--semantic", action="store_true",
+                   help="低覆盖率回退启用 LLM 语义桥（需 GLM_API_KEY 等；默认关）")
     q.add_argument("--json", action="store_true")
     q.add_argument("--domain"); q.set_defaults(fn=cmd_query)
     with_g(sub.add_parser("domain")).set_defaults(fn=cmd_domain)

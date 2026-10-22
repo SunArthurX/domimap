@@ -25,6 +25,7 @@ DECAY_FLOOR = 0.05
 # 中文查询"接入 教程"匹配不上英文 README 标题词——类型先验补偿词汇鸿沟的非桥部分）
 DOC_TYPE_PRIOR = 1.0  # 禁用：公共语料实测 README 宽泛内容被推过特定 gold 致 doc/fresh 回退
 DDL_SEMANTIC_BOOST = 2.0  # DDL 语义匹配：查询含"表/定义/写入"时 CREATE TABLE 的 SqlStmt ×2
+SEM_COV_GATE = 0.6        # 语义桥触发门：覆盖率低于此且查询含 CJK 才触发（跨语言信号）
 _DOC_TYPE_HINTS = ("readme", "tutorial", "getting started", "quickstart",
                    "changelog", "spec", "guide", "manual", "migration")
 
@@ -44,6 +45,11 @@ class Searcher:
             self._build()
             if cache_path and getattr(g, "sig", None):
                 self._save_cache(cache_path)
+        # 语义桥磁盘缓存（可选层；未启用不读不写）
+        self._bridge_cache = (cache_path + ".bridge.json") if cache_path else None
+        if self._bridge_cache:
+            from .semantic_bridge import load_disk_cache
+            load_disk_cache(self._bridge_cache)
 
     def _node(self, nid):
         return self.g.nodes.get(nid) or self.extra[nid]
@@ -216,7 +222,7 @@ class Searcher:
         return out
 
     def query(self, text, top_k=6, expand=True, budget=3800, domain=None, min_cov=0.3, seeds=None,
-              as_of=None):
+              as_of=None, semantic=None):
         """as_of（epoch 秒）给定时时先做资格筛选：first_seen 晚于 as_of 的节点不进候选（F4）。
 
         标识符守门（先于词表扩展）：单一 latin 标识符且图中无任何节点名/索引词包含它时
@@ -244,6 +250,9 @@ class Searcher:
                     ext.extend(en)   # 中英词法桥：域无关查询同义词
             if ext:
                 text = text + " " + " ".join(ext)
+        # 原始查询单元（先于 seeds 域扩展计算）：语义桥触发门用——seeds 拼入的英文域词
+        # 会把覆盖率抬高，掩盖中文查询与英文内容之间的真实词法鸿沟（pub A/B 实测发现）
+        orig_units = self._units(_o)
         qt = tokenize(text)
         qset = set(qt)
         if not qset:
@@ -306,11 +315,69 @@ class Searcher:
                 scored.append((s, nid))
         scored.sort(reverse=True)
         strong = any(len(t) >= 2 and t in self.df for t in denom)
+        # 语义桥（可选默认关；触发=覆盖率<60% 且查询含 CJK——跨语言信号。触发门修订依据：
+        # dev 40 题与 pub 97 题图内集的 miss 全部是"弱覆盖返回错结果"而非拒答，人群实测）。
+        # LLM 动态扩展查询词并 df 接地后并入候选并集重打分；失败/未配置/解析失败 → 跳过，
+        # 后续路径与拒答语义逐字不变。绝不把拒答变假命中（<30% 救援仍需过覆盖率门）。
+        sem_info = None
+        sem_units = set()
+        from . import semantic_bridge as _sb
+        if _sb.enabled(semantic):
+            # 原始查询覆盖率（CJK 感知，与 denom 同规则；不含 seeds 域词）
+            orig_denom = {u for u in orig_units if not is_cjk(u)} | \
+                         ({u for u in orig_units if is_cjk(u)} if graph_has_cjk else set())
+            orig_matched = {t for t in orig_denom if t in self.df}
+            orig_cov = (len(orig_matched) / len(orig_denom)) if orig_denom else 0.0
+            if orig_cov < SEM_COV_GATE and any(is_cjk(u) for u in orig_units):
+                sem_tokens, sem_note = _sb.expand_tokens(
+                    _o, self.df, cache_path=self._bridge_cache)
+                grounded = [t for t in sem_tokens if t in self.df]
+                if grounded:
+                    sem_units = set(grounded)
+                    sem_info = {"tokens": grounded, "note": sem_note}
+                    for t in sem_units:
+                        cand |= self.index.get(t, set())
+
+                    def _sem_eligible(nid):
+                        n = self._node(nid)
+                        if domain and n["meta"].get("domain") != domain:
+                            return False
+                        if as_of is not None:
+                            m = n["meta"]
+                            if m.get("superseded_by"):
+                                return False
+                            vu = m.get("valid_until")
+                            if vu:
+                                import time as _t
+                                try:
+                                    if _t.mktime(_t.strptime(vu[:10], "%Y-%m-%d")) < as_of:
+                                        return False
+                                except ValueError:
+                                    pass
+                            if m.get("first_seen", 0) > as_of:
+                                return False
+                        return True
+
+                    denom_sem = denom | sem_units
+                    matched_sem = {t for t in denom_sem if t in self.df}
+                    if cov < min_cov:
+                        # 拒答救援：覆盖率按"原分母 ∪ 接地扩展词"重算（与静态桥同型）
+                        cov = (len(matched_sem) / len(denom_sem)) if denom_sem else 0
+                        strong = strong or bool(matched_sem)
+                    scored = []
+                    for nid in cand:
+                        if not _sem_eligible(nid):
+                            continue
+                        s_sem = self._score(list(qset | sem_units), nid) * cov * cov
+                        if s_sem > 0:
+                            scored.append((s_sem, nid))
+                    scored.sort(reverse=True)
         if cov < min_cov or not scored or not strong:
             # 中英桥回退：原始查询覆盖率不足时，附加 CJK 二元组的英文对应词重试
             # （主路径不加桥——公共语料实测桥接加入主计分路径稀释 BM25 IDF 使 11 题回退）
             from .tokenize import EN_BRIDGE
             ext_tokens = set()
+            ext_matched = set()
             for u in units:
                 ens = EN_BRIDGE.get(u)
                 if ens:
@@ -326,7 +393,7 @@ class Searcher:
                     cov = len(ext_matched) / len(ext_tokens | denom) if (ext_tokens | denom) else 0
                     scored = []
                     for nid in cand:
-                        s2_ = self._score(list(qset | ext_matched), nid) * cov * cov
+                        s2_ = self._score(list(qset | ext_matched | sem_units), nid) * cov * cov
                         if s2_ > 0:
                             scored.append((s2_, nid))
                     scored.sort(reverse=True)
@@ -445,6 +512,8 @@ class Searcher:
                     seen.add(other["id"])
                     exp_lines.append("- %s --%s(%s)--> %s" % (self.g.nodes[nid]["name"], e["kind"], e["conf"], other["name"]))
         out = "\n".join(lines + exp_lines)
+        if sem_info:
+            out = "（语义桥扩展：%s）\n%s" % (" ".join(sem_info["tokens"]), out)
         if len(out) > budget:
             out = out[:budget] + "\n…(预算截断)"
         reasons = {}
@@ -454,6 +523,7 @@ class Searcher:
                     reasons[key] = reasons.get(key, 0) + 1
         return {"seeds": [self._node(n) for n in seed_ids], "expanded_count": len(exp_lines),
                 "text": out, "refused": False,
+                "semantic_bridge": sem_info,
                 "coverage": {"files_scanned": self.coverage.get("files_scanned"),
                              "skipped": len(self.coverage.get("skipped") or []), "reasons": reasons}}
 

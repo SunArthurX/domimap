@@ -71,7 +71,7 @@ PDF*/DOCX* TS/JS/Vue                                            │
 
 ## 5. 一次检索的完整数据流（`kg_explore` / `query`）
 
-1. **分词**：中文 2-gram + 拉丁标识符切分；主路径只用户令牌，中英桥（`EN_BRIDGE`）仅在词法覆盖率不足时作为**查询期回退**注入（索引期桥接会稀释 BM25 IDF，实测有害已回退）。
+1. **分词**：中文 2-gram + 拉丁标识符切分；主路径只用户令牌，中英桥（`EN_BRIDGE`）仅在词法覆盖率不足时作为**查询期回退**注入（索引期桥接会稀释 BM25 IDF，实测有害已回退）。可选**语义桥**（`DOMIMAP_SEMANTIC_BRIDGE=1` 或 `query --semantic`，默认关）：原始查询覆盖率 <60% 且含中文时，把查询交给可配置 LLM 生成英文关键词，经索引词表接地过滤后并入候选并集重打分——失败/未配置/解析失败一律跳过，拒答语义不变（product-semantic-bridge；dev/pub 双集 A/B 实测零效果零回归：miss 人群的原始覆盖率全部 ≥60%，瓶颈在排序而非词法召回）。
 2. **词法打分**：BM25（k=1.2，b=0.75 饱和长度归一）；
    - 名称精确命中 → ×3.0（`IDENTIFIER_NAME_BOOST`）
    - 查询含"表/定义/写入"类词且节点为 CREATE TABLE 的 SqlStmt → ×2.0（`DDL_SEMANTIC_BOOST`）
