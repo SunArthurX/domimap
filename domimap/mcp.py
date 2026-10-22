@@ -8,9 +8,11 @@ import sys
 
 TOOLS = [
     {"name": "kg_explore",
-     "description": "知识中台主检索：词法种子+图扩展，返回相关 服务/类/方法/路由/表/MQ主题/文档 及关系（Read 等价格式，带置信与出处）",
+     "description": "知识中台主检索：词法种子+图扩展，返回相关 服务/类/方法/路由/表/MQ主题/文档 及关系（Read 等价格式，带置信与出处）。"
+     "查询建议：第一次直接使用问题原文（保留原词面）检索——改写/概括会丢失与原文逐字匹配的关键词；"
+     "原文无结果时再按概念改写重试。回答时只引用检索结果中出现过的 @ 路径。",
      "inputSchema": {"type": "object", "properties": {
-         "query": {"type": "string", "description": "自然语言或符号名（支持中文）"},
+         "query": {"type": "string", "description": "自然语言或符号名（支持中文；建议先原文直查）"},
          "domain": {"type": "string", "description": "可选：限定领域（如 订单域/商品域）"},
          "top_k": {"type": "integer", "default": 6}}},
          "required": ["query"]},

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "product-query-discipline",
+  "state": "verified",
+  "spec": "specs/tasks/product-query-discipline.md",
+  "requirements": ["R14", "R04", "R05"],
+  "acceptance_cases": ["AC-R14-01"],
+  "files": [
+    "domimap/mcp.py",
+    "benchmarks/runners/glm_host.py"
+  ],
+  "test_files": [
+    "tests/test_mcp_desc.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_mcp_desc -v",
+    "make verify",
+    "out/diagnostic-runs/pub-eval-embed/discipline/ agent-loop A/B（vs 已录 embed 臂 17/36，如实记录）"
+  ],
+  "rollback": "revert 单提交"
+}
