@@ -81,7 +81,8 @@ PDF*/DOCX* TS/JS/Vue                                            │
    - 精确标识符不存在 → 拒答且**不猜近名**（防变异标识符幻觉命中）；
    - 词法覆盖率 < 30%（`min_cov`）→ 拒答并建议换关键词/先 build。
 4. **图扩展**：从词法种子沿第 2 节的影响传播边扩展，补全"改这里会影响谁/谁定义了它"。
-5. **文档泳道合并**：Doc 节点与代码结果合并排序，附文件类型标注（README/SPEC/CHANGELOG/TUTORIAL/GUIDE/MIGRATION/DOC，仅信息不加权）。
+5. **分路命中再融合**（product-lane-fusion）：打分后按 **code / doc / knowledge 三路**各自完成 同文件 ≤2 去重 与 **路内**断崖精剪（<45% 路内 top 截尾）；融合时每条非空路**保底入席**（code/doc ≤2、knowledge ≤1，保证落位 top_k、不被跨族交换挤出），其余席位按全局分补足，最后做跨族覆盖。巨型泛词文档不再独占结果——这正是"文档与代码分别命中后再融合"的语义。
+6. **文档泳道标注**：Doc/Knowledge 附文件类型标注（README/SPEC/CHANGELOG/TUTORIAL/GUIDE/MIGRATION/DOC，仅信息不加权）。
 6. **输出**：路径 + `ev_id` + rank + conf/prov + `time_note`；`refused: true` 时表示图中无足够证据——**调用方不应编造**。
 
 ## 6. 查询入口

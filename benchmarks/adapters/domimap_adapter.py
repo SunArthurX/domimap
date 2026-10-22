@@ -4,6 +4,7 @@
 无法归属的路径保留原样并计入 notes（不猜映射）。
 """
 import os
+import re
 import sys
 
 from .base import (ADAPTER_ERROR, OK, PRODUCT_EMPTY, PRODUCT_ERROR, Adapter,
@@ -73,6 +74,14 @@ class DomimapAdapter(Adapter):
                 return name
         return None
 
+    _KN_SOURCE = re.compile(r"source=([^｜]+)｜")
+
+    def _knowledge_source(self, node):
+        """Knowledge 笔记 → 其 marker 声明的源文档路径（product-lane-fusion 归因）。"""
+        text = node.get("meta", {}).get("text") or node.get("name", "")
+        m = self._KN_SOURCE.search(text)
+        return m.group(1).strip() if m else None
+
     def query(self, question_id, text, budget=None):
         if self.searcher is None:
             return QueryRecord(new_run_id(), question_id, self.name, time.time(), time.time(),
@@ -89,6 +98,13 @@ class DomimapAdapter(Adapter):
         for node in result.get("seeds", [])[:10]:
             repo = self._attribute(node)
             rel = node.get("file", "")
+            if node.get("kind") == "Knowledge":
+                src = self._knowledge_source(node)
+                if not src:
+                    continue  # 无源路径不猜（负例：Knowledge 无 marker 不参与路径）
+                repo, rel = self._attribute({"id": "", "file": src}), src
+                if "via:knowledge" not in notes:
+                    notes.append("via:knowledge")
             if not rel:
                 continue
             path = (repo + "/" + rel.strip("/")) if repo else rel

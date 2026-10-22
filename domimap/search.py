@@ -361,62 +361,71 @@ class Searcher:
         # 声明 2017 者 ×0.05 地板，20 倍 handicap，与 time_note"日期未知按最早资格处理"矛盾）。
         # 重加权 0.5+0.5×norm：未知=最早（×0.5）、最新 ×1.0，单调、有界、仅作用排序（F4）。
         scored.sort(reverse=True)
-        # R04-01：①来源家族去重（同文件 ≤2 席，防 seeds/README 型噪声霸榜）②分路融合（Doc 保底）
-        fam, capped = {}, []
+        # R04-01 v2（用户 2026-10-22 指示：文档与代码分别命中后再融合，而非一路独占）：
+        # 三路（code/doc/knowledge）各自完成 fam 去重与路内断崖精剪，融合时每条非空路
+        # 保底入席（code/doc ≤2、kn ≤1），其余席位按全局分补足。旧全局断崖使巨型泛词
+        # 文档独占结果（product-llm-enrich-hardening A/B 实证：代码路与 Knowledge 笔记
+        # 同时被剪光）——精度守门保留，比较对象从全局 top 改为路内 top。
+        def _lane_of(nid):
+            kind = self._node(nid)["kind"]
+            if kind == "Knowledge":
+                return "kn"
+            return "doc" if kind == "Doc" else "code"
+
+        def _lane_prepare(pairs):
+            """路内：同文件 ≤2 席（防 seeds/README 型噪声霸榜）+ 断崖精剪（<45% 路内 top 截尾）。"""
+            fam, kept = {}, []
+            for s, nid in sorted(pairs, reverse=True):
+                f = self._node(nid)["file"]
+                fam[f] = fam.get(f, 0) + 1
+                if fam[f] <= 2:
+                    kept.append((s, nid))
+            if len(kept) >= 2:
+                top = kept[0][0]
+                kept = [kept[0]] + [x for x in kept[1:] if x[0] >= 0.45 * top]
+            return kept
+
+        lanes = {"code": [], "doc": [], "kn": []}
         for s, nid in scored:
-            f = self._node(nid)["file"]
-            fam[f] = fam.get(f, 0) + 1
-            if fam[f] <= 2:
-                capped.append((s, nid))
-        # 跨族覆盖：top_k 选择后，若得分前 20 的其它族无代表，则用该族最佳替换选择尾部最低分项
-        # （全局最佳始终保留；替换按族头得分与被替项得分顺序进行——不破坏排序质量）
-        sel = capped[:top_k]
-        pool = capped[:max(20, top_k)]
-        sel_fams = {self._node(nid)["file"].split("/", 1)[0] for _, nid in sel}
+            lanes[_lane_of(nid)].append((s, nid))
+        lanes = {k: _lane_prepare(v) for k, v in lanes.items() if v}
+        guaranteed, taken = [], set()
+        for lane, cap in (("code", 2), ("doc", 2), ("kn", 1)):
+            for item in lanes.get(lane, [])[:cap]:
+                guaranteed.append(item)
+                taken.add(item[1])
+        rest = sorted((x for lane in lanes.values() for x in lane if x[1] not in taken),
+                      reverse=True)
+        merged = sorted(guaranteed + rest, reverse=True)[:top_k]
+        # 保底落位：保证席位被高分挤出 top_k 时，替换尾部非保证项（每条非空路必有代表）
+        gua_ids = {nid for _, nid in guaranteed}
+        in_final = {nid for _, nid in merged}
+        for gsc, gnid in guaranteed:
+            if gnid in in_final:
+                continue
+            for j in range(len(merged) - 1, -1, -1):
+                if merged[j][1] not in gua_ids:
+                    merged[j] = (gsc, gnid)
+                    in_final.add(gnid)
+                    break
+        merged.sort(reverse=True)
+        # 跨族覆盖：若得分前 20 的其它族（文件根）在 top_k 无代表，用该族最佳替换尾部最低分
+        # （全局最佳与保底席位始终保留；替换按族头得分与被替项得分顺序进行）
+        pool = sorted((x for lane in lanes.values() for x in lane), reverse=True)[:max(20, top_k)]
+        sel_fams = {self._node(nid)["file"].split("/", 1)[0] for _, nid in merged}
         for sc, nid in pool:
             fseg = self._node(nid)["file"].split("/", 1)[0]
             if fseg in sel_fams:
                 continue
-            if len(sel) >= top_k and sc > sel[-1][0]:
-                sel[-1] = (sc, nid)          # 替换最低分尾部
-            elif len(sel) < top_k:
-                sel.append((sc, nid))
+            if (len(merged) >= top_k and sc > merged[-1][0]
+                    and merged[-1][1] not in gua_ids):  # 保底席位不被跨族交换挤掉
+                merged[-1] = (sc, nid)
+            elif len(merged) < top_k:
+                merged.append((sc, nid))
             else:
                 break
             sel_fams.add(fseg)
-            sel.sort(reverse=True)
-        capped = sel + capped[top_k:]
-        doc_hits = [x for x in capped if self._node(x[1])["kind"] in ("Doc", "Knowledge")]
-        code_hits = [x for x in capped if self._node(x[1])["kind"] not in ("Doc", "Knowledge")]
-        # 文档路配额自适应：候选头部文档浓度高（文档型查询）时扩到 3 席，防代码挤占
-        head = capped[:10]
-        doc_dense = len(doc_hits) >= 3 and sum(1 for _, nid in head
-                                               if self._node(nid)["kind"] in ("Doc", "Knowledge")) >= 4
-        want_docs = min(3 if doc_dense else 2, len(doc_hits)) if doc_hits else 0
-        # 保底约束下的按分交错（4b）：旧泳道拼接（code 先占席、docs 殿后）使高分文档
-        # 被低分代码节点压出 top5——BM25 后两路分数已可比；席位保底、排序按分
-        merged = sorted(code_hits + doc_hits, reverse=True)[:top_k]
-        if want_docs:
-            have = sum(1 for _, nid in merged
-                       if self._node(nid)["kind"] in ("Doc", "Knowledge"))
-            for item in doc_hits:
-                if have >= want_docs:
-                    break
-                if item in merged:
-                    continue
-                for j in range(len(merged) - 1, -1, -1):
-                    if self._node(merged[j][1])["kind"] not in ("Doc", "Knowledge"):
-                        merged[j] = item
-                        merged.sort(reverse=True)
-                        have += 1
-                        break
-        # 候选精剪（precision）：与上一名得分断崖 >55% 时截断（丢弃低置信尾部，减 FP）
-        if len(merged) >= 2:
-            keep = [merged[0]]
-            for i in range(1, len(merged)):
-                if merged[i][0] >= 0.45 * merged[0][0]:
-                    keep.append(merged[i])
-            merged = keep
+            merged.sort(reverse=True)
         seeds = merged[:top_k]
         seed_ids = [nid for _, nid in seeds]
         seen = set(seed_ids)

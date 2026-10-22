@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "product-lane-fusion",
+  "state": "verified",
+  "spec": "specs/tasks/product-lane-fusion.md",
+  "requirements": [
+    "R04"
+  ],
+  "acceptance_cases": [
+    "AC-R04-01",
+    "AC-R04-02"
+  ],
+  "files": [
+    "CHANGELOG.md",
+    "README.md",
+    "benchmarks/adapters/domimap_adapter.py",
+    "docs/knowledge-graph.md",
+    "domimap/search.py",
+    "specs/tasks/product-lane-fusion.md",
+    "specs/tasks/product-lane-fusion.json",
+    "tests/test_lane_fusion.py"
+  ],
+  "test_files": [
+    "tests/test_lane_fusion.py"
+  ]
+}
