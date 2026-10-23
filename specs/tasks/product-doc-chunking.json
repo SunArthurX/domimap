@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "product-doc-chunking",
+  "state": "verified",
+  "spec": "specs/tasks/product-doc-chunking.md",
+  "requirements": ["R04", "R14"],
+  "acceptance_cases": ["AC-R04-01"],
+  "files": [
+    "domimap/chunking.py",
+    "domimap/search.py",
+    "domimap/embedding.py",
+    "tests/test_doc_chunking.py"
+  ],
+  "test_files": [
+    "tests/test_doc_chunking.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_doc_chunking -v",
+    "make verify",
+    "out/full-eval/retrieval-embed-chunked.json 检索级 A/B（doc/fresh 主读数，如实记录）"
+  ],
+  "rollback": "revert 单提交（schema 版本回退自动重建）"
+}

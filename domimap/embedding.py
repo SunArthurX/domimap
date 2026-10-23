@@ -26,7 +26,7 @@ import time
 
 EMB_ENV = "DOMIMAP_EMBED"
 BACKEND_ENV = "DOMIMAP_EMBED_BACKEND"
-EMB_SCHEMA = "domimap.emb.v2"   # v2：每项带 kind（doc-semantic-lane——文档意图语义召回需子池过滤）
+EMB_SCHEMA = "domimap.emb.v3"   # v3：索引层分段展开（product-doc-chunking，长文后段可嵌入）
 LOCAL_MODEL = "BAAI/bge-small-zh-v1.5"
 BGE_QUERY_PREFIX = "为这个句子生成表示以用于检索相关文章："
 MAX_TEXT_CHARS = 2000        # 文档侧截断（Doc 全文过长；BM25 索引用 50000，嵌入用短文足够）
@@ -121,6 +121,19 @@ def make_backend(name=None):
     return backend
 
 
+def _item_text(graph, cid):
+    """索引项文本（chunk id → extra 注册未发生时的兜底：重展开原节点取对应段）。"""
+    node = graph.nodes.get(cid)
+    if node is not None:
+        return node_text(node)
+    base, _, seg = cid.rpartition("#c")
+    from .chunking import expand_node
+    for c_id, cn in expand_node(base, graph.nodes[base]):
+        if c_id == cid and cn is not None:
+            return node_text(cn)
+    return node_text(graph.nodes[base])
+
+
 def node_text(node):
     """嵌入文本：名称/类型/路径 + 截断正文（SQL 语句 / 文档正文）。"""
     kind = node.get("kind", "?")
@@ -147,18 +160,21 @@ def build_index(graph, targets="all", backend_factory=None, limit=None, existing
         raise ValueError("targets 取值 docs|sql|all，收到 %r" % targets)
     old_items = (existing or {}).get("items") or {}
     items = {}
+    from .chunking import expand_node
     for nid, node in graph.nodes.items():
         if node.get("kind") not in kinds:
             continue
-        text = node_text(node)
-        if not text.strip():
-            continue
-        sha = _sha(text)
-        prev = old_items.get(nid)
-        if prev and prev.get("sha") == sha and prev.get("vec"):
-            items[nid] = {"sha": sha, "vec": prev["vec"]}
-        else:
-            items[nid] = {"sha": sha}
+        for cid, cn in expand_node(nid, node):
+            use = cn if cn is not None else node
+            text = node_text(use)
+            if not text.strip():
+                continue
+            sha = _sha(text)
+            prev = old_items.get(cid)
+            if prev and prev.get("sha") == sha and prev.get("vec"):
+                items[cid] = {"sha": sha, "vec": prev["vec"], "kind": use.get("kind", "?")}
+            else:
+                items[cid] = {"sha": sha, "kind": use.get("kind", "?")}
     if limit:
         nids = sorted(items)[:limit]
         items = {k: items[k] for k in nids}
@@ -168,12 +184,9 @@ def build_index(graph, targets="all", backend_factory=None, limit=None, existing
              "backend": backend.name}
     todo = [n for n, v in items.items() if "vec" not in v]
     if todo:
-        vecs = backend.embed_texts([node_text(graph.nodes[n]) for n in todo])
+        vecs = backend.embed_texts([_item_text(graph, n) for n in todo])
         for nid, vec in zip(todo, vecs):
             items[nid]["vec"] = [round(float(x), 5) for x in vec]
-            items[nid]["kind"] = graph.nodes[nid].get("kind", "?")
-    for nid, v in items.items():  # 复用项补 kind（v1 升级或补挂）
-        v.setdefault("kind", graph.nodes[nid].get("kind", "?"))
     store = {"schema": EMB_SCHEMA, "backend": backend.name,
              "dims": len(next(iter(items.values()))["vec"]) if items else 0,
              "built_at": time.time(), "items": items}

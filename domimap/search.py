@@ -9,7 +9,7 @@ from collections import Counter, defaultdict
 
 from .tokenize import tokenize
 
-IDX_SCHEMA = "domimap.idx.v1"
+IDX_SCHEMA = "domimap.idx.v2"  # v2：索引层长文档分段（product-doc-chunking）
 
 # 通用词集合：仅命中这些词不足以定位任何实质概念（负例拒答守门；不含真实业务域词，
 # 防误拒面扩大——集合只放检索后缀/问法词，永不放订单/商品这类域词）
@@ -117,6 +117,13 @@ class Searcher:
         self.N = d["N"]
         self._dl_sum = sum(sum(c.values()) for c in self.docs.values())
         self.avgdl = max(1.0, self._dl_sum / max(1, self.N))
+        # 恢复索引层分段的 extra 注册（chunk id 只存在于 docs/index，_node 渲染需要节点体）
+        from .chunking import expand_node
+        for nid, n in self.g.nodes.items():
+            if n.get("kind") in ("Doc", "Knowledge", "SqlStmt"):
+                for cid, cn in expand_node(nid, n):
+                    if cn is not None:
+                        self.extra[cid] = cn
         return True
 
     def _save_cache(self, path):
@@ -156,6 +163,22 @@ class Searcher:
                 self.index[t].add(nid)
             self.N += 1
             self._dl_sum += sum(self.docs[nid].values())
+        # 索引层长文档分段（product-doc-chunking）：chunk 注册进 extra（_node 回退 extra，
+        # 渲染/路径/file 语义不变）；同文件 ≤2 席的防霸榜语义顺带限流单文件 chunk 数
+        from .chunking import expand_node
+        for nid, n in list(self.g.nodes.items()):
+            if n.get("kind") not in ("Doc", "Knowledge", "SqlStmt"):
+                continue
+            for cid, cn in expand_node(nid, n):
+                if cn is None:
+                    continue
+                self.extra[cid] = cn
+                tks = tokenize(self._node_text(cn))
+                self.docs[cid] = Counter(tks)
+                for t in set(tks):
+                    self.index[t].add(cid)
+                self.N += 1
+                self._dl_sum += sum(self.docs[cid].values())
         self.avgdl = max(1.0, self._dl_sum / max(1, self.N))
         self.df = Counter({t: len(s) for t, s in self.index.items()})
 
