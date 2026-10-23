@@ -445,8 +445,11 @@ class Searcher:
                 embed_info = {"backend": self.emb_store.get("backend"),
                               "skipped": "definitive_identifier" if has_definitive else "code_intent"}
             else:
+                # 文档意图（既非定义性标识符也无代码意图词）→ 语义召回限定 Doc/Knowledge
+                # 子池（product-doc-semantic-lane：混池下文档查询的语义近邻被 SQL/代码占据）
                 sem_pairs = _eb.semantic_recall(
-                    _o, self.emb_store, backend_factory=self.emb_backend_factory)
+                    _o, self.emb_store, backend_factory=self.emb_backend_factory,
+                    kinds=("Doc", "Knowledge"))
                 if sem_pairs:
                     fused = _eb.fuse_rrf(scored, sem_pairs)
                     if fused:

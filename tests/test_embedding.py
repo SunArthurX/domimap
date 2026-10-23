@@ -187,6 +187,27 @@ class TestEmbeddingIndex(unittest.TestCase):
             f.write("{not json")
         self.assertIsNone(embedding.load_store(corrupt))
 
+    def test_store_v2_items_carry_kind(self):
+        store, _, _ = self.store()
+        kinds = {v.get("kind") for v in store["items"].values()}
+        self.assertTrue(kinds and kinds <= {"Doc", "Knowledge", "SqlStmt", "Table"},
+                        "v2 store 每项必须带 kind: %s" % kinds)
+
+    def test_semantic_recall_kind_whitelist(self):
+        """kinds 白名单：文档子池过滤后语义序不含非白名单节点。"""
+        store, _, _ = self.store()
+        ok_kinds = {"Doc", "Knowledge"}
+        pool = [nid for nid, it in store["items"].items() if it.get("kind") in ok_kinds]
+        self.assertTrue(pool, "夹具应有 Doc 节点")
+        sem = embedding.semantic_recall(
+            QUERY_HIT, store,
+            backend_factory=lambda: type("B", (), {
+                "embed_query": lambda self, t: [1.0, 0.0]})(),
+            kinds=ok_kinds)
+        self.assertTrue(sem, "子池语义序应非空")
+        self.assertTrue(all(store["items"][nid].get("kind") in ok_kinds for _, nid in sem),
+                        "白名单外的节点不得进入语义序")
+
     def test_local_backend_query_prefix(self):
         """bge 查询指令前缀：本地后端 embed_query 的输入带前缀（跨语言分离度）。"""
 

@@ -26,7 +26,7 @@ import time
 
 EMB_ENV = "DOMIMAP_EMBED"
 BACKEND_ENV = "DOMIMAP_EMBED_BACKEND"
-EMB_SCHEMA = "domimap.emb.v1"
+EMB_SCHEMA = "domimap.emb.v2"   # v2：每项带 kind（doc-semantic-lane——文档意图语义召回需子池过滤）
 LOCAL_MODEL = "BAAI/bge-small-zh-v1.5"
 BGE_QUERY_PREFIX = "为这个句子生成表示以用于检索相关文章："
 MAX_TEXT_CHARS = 2000        # 文档侧截断（Doc 全文过长；BM25 索引用 50000，嵌入用短文足够）
@@ -171,6 +171,9 @@ def build_index(graph, targets="all", backend_factory=None, limit=None, existing
         vecs = backend.embed_texts([node_text(graph.nodes[n]) for n in todo])
         for nid, vec in zip(todo, vecs):
             items[nid]["vec"] = [round(float(x), 5) for x in vec]
+            items[nid]["kind"] = graph.nodes[nid].get("kind", "?")
+    for nid, v in items.items():  # 复用项补 kind（v1 升级或补挂）
+        v.setdefault("kind", graph.nodes[nid].get("kind", "?"))
     store = {"schema": EMB_SCHEMA, "backend": backend.name,
              "dims": len(next(iter(items.values()))["vec"]) if items else 0,
              "built_at": time.time(), "items": items}
@@ -199,12 +202,19 @@ def load_store(path):
     return store if isinstance(store.get("items"), dict) and store["items"] else None
 
 
-def _cosine_top(query_vec, items, top_n=TOPN):
-    """查询向量 → 语义序 [(cos, nid)]。numpy 可用时矩阵化（42k×512 纯 Python 过慢）。"""
+def _cosine_top(query_vec, items, top_n=TOPN, kinds=None):
+    """查询向量 → 语义序 [(cos, nid)]。kinds 白名单时只在对应子池内（doc-semantic-lane：
+    文档意图查询的语义近邻常被 SQL/代码向量占据）。numpy 可用时矩阵化。"""
+    if kinds is not None:
+        pool = [(nid, it) for nid, it in items.items() if it.get("kind") in kinds]
+        if not pool:
+            return []
+    else:
+        pool = list(items.items())
     try:
         import numpy as _np
-        ids = list(items)
-        mat = _np.array([items[n]["vec"] for n in ids], dtype=_np.float32)
+        ids = [nid for nid, _ in pool]
+        mat = _np.array([it["vec"] for _, it in pool], dtype=_np.float32)
         q = _np.array(query_vec, dtype=_np.float32)
         denom = (_np.linalg.norm(mat, axis=1) * _np.linalg.norm(q))
         denom[denom == 0] = 1e-9
@@ -215,7 +225,7 @@ def _cosine_top(query_vec, items, top_n=TOPN):
         import math
         qn = math.sqrt(sum(x * x for x in query_vec)) or 1e-9
         scored = []
-        for nid, it in items.items():
+        for nid, it in pool:
             v = it["vec"]
             dot = sum(a * b for a, b in zip(v, query_vec))
             nv = math.sqrt(sum(a * a for a in v)) or 1e-9
@@ -235,9 +245,10 @@ def fuse_rrf(bm25_pairs, sem_pairs, k=RRF_K):
     return fused
 
 
-def semantic_recall(query_text, store, backend_factory=None):
-    """查询 → 语义序 [(cos, nid)]；任何失败/维度不匹配返回 None（调用方回退 BM25 序）。"""
-    key = _sha(query_text)
+def semantic_recall(query_text, store, backend_factory=None, kinds=None):
+    """查询 → 语义序 [(cos, nid)]；kinds 白名单传子池（文档意图→Doc/Knowledge）。
+    任何失败/维度不匹配返回 None（调用方回退 BM25 序）。"""
+    key = _sha(query_text) + ("|" + ",".join(sorted(kinds)) if kinds else "")
     cached = _QUERY_CACHE.get(key)
     try:
         if cached is None:
@@ -248,7 +259,7 @@ def semantic_recall(query_text, store, backend_factory=None):
             _QUERY_CACHE[key] = cached
         if store.get("dims") and len(cached) != store["dims"]:
             return None  # 后端/索引维度不匹配：不猜，回退词法序
-        return _cosine_top(cached, store["items"])
+        return _cosine_top(cached, store["items"], kinds=kinds)
     except EmbeddingUnavailable:
         return None
     except Exception:
