@@ -53,11 +53,12 @@ class TestCommentRecall(unittest.TestCase):
              "src/main/java/com/example/pop/dao/delivery/PlainDao.java": JAVA_NO_COMMENT})
 
     def test_comment_captured_in_records(self):
-        cls_rec = self.records["classes"][0]
-        self.assertEqual(cls_rec["name"], "AreaLimitTaskDao")
+        # 按名字查找而非下标：目录遍历顺序随平台/文件系统不同（Linux CI 上 PlainDao 曾排前）
+        by_name = {r["name"]: r for r in self.records["classes"]}
+        cls_rec = by_name["AreaLimitTaskDao"]
         for word in ("配送", "区域", "限额"):
             self.assertIn(word, cls_rec["comment"])
-        self.assertEqual(self.records["classes"][1]["comment"], "")
+        self.assertEqual(by_name["PlainDao"]["comment"], "")
 
     def test_comment_keywords_retrieve_class(self):
         result = self.searcher.query("配送 区域 限额 处理", top_k=5)
