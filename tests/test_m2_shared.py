@@ -34,6 +34,10 @@ def core_ids():
     return [n["id"] for n in r["seeds"]]
 
 class TestSameSourceFourEntries(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        G()  # 新克隆无 tests/out_shared 残留：先建图（字母序首个用例不触发惰性构建）
+
     def test_cli_text_matches_core(self):
         g = OUT + "/graph.json"
         p = subprocess.run([sys.executable, "-B", "-m", "domimap", "query", Q, "-g", g],
@@ -74,6 +78,10 @@ class TestSameSourceFourEntries(unittest.TestCase):
             srv.shutdown()
 
 class TestBudgetsAndRead(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        G()  # 同上：用图前先确保夹具存在
+
     def test_impact_budget_partial(self):
         from domimap.mcp import Server
         srv = Server(OUT + "/graph.json")

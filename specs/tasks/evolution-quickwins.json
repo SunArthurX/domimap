@@ -23,9 +23,13 @@
     "docs/knowledge-graph.md",
     "pyproject.toml",
     "scripts/install_check.sh",
+    "tests/test_m2_closeout.py",
+    "tests/test_m2_shared.py",
     "tests/test_m4_security.py"
   ],
   "test_files": [
+    "tests/test_m2_closeout.py",
+    "tests/test_m2_shared.py",
     "tests/test_m4_security.py"
   ]
 }

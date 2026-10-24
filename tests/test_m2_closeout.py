@@ -69,6 +69,12 @@ class TestMcpFaultTolerance(unittest.TestCase):
 
     def test_huge_request_bounded(self):
         import subprocess as sp
+        out = os.path.join(HERE, "out_shared")
+        if not os.path.exists(out + "/graph.json"):
+            # 新克隆无残留夹具：按 test_m2_shared 同规则现建（不依赖本机历史产物）
+            from domimap import batch
+            batch.build_many(batch.discover_roots(os.path.join(HERE, "fixtures")), out,
+                             force=True, merged_name="fixtures")
         big = "x" * (2 << 20)
         msg = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
                           "params": {"name": "kg_explore", "arguments": {"query": big}}})
