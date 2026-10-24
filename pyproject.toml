@@ -40,4 +40,4 @@ domimap = "domimap.__main__:main"
 packages = ["domimap"]
 
 [tool.setuptools.package-data]
-domimap = ["seeds.json"]
+domimap = ["seeds.json", "schema.json"]

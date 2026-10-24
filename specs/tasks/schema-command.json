@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "schema-command",
+  "state": "verified",
+  "spec": "specs/tasks/schema-command.md",
+  "requirements": [
+    "R11",
+    "R13"
+  ],
+  "acceptance_cases": [
+    "AC-R11-01",
+    "AC-R13-01"
+  ],
+  "files": [
+    "CHANGELOG.md",
+    "README.md",
+    "docs/assets/domimap-ui.png",
+    "docs/knowledge-graph.md",
+    "domimap/__main__.py",
+    "domimap/schema.json",
+    "pyproject.toml",
+    "tests/test_schema.py"
+  ],
+  "test_files": [
+    "tests/test_schema.py"
+  ]
+}

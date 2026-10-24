@@ -47,7 +47,8 @@ PDF*/DOCX* TS/JS/Vue                                            │
 | `CALLS` | mth→mth | 方法调用 | **是** |
 | `HANDLES` | mth→route | 方法处理该路由 | 是 |
 | `CALLS_SQL` | mth→sql | 方法执行该语句 | **是** |
-| `MAPS_TO` | sql→tbl | 语句读写表（读/写在 meta） | **是** |
+| `READS` / `WRITES` | sql→tbl | 语句读取/写入表（SELECT vs INSERT/UPDATE/DELETE） | **是** |
+| `MAPS_TO` | 实体→tbl | 实体注解映射到表（JPA 路径） | **是** |
 | `PUBLISHES` / `SUBSCRIBES` | mth/svc→topic | MQ 生产/消费 | **是** |
 | `RPC` | svc→svc | 服务间调用 | **是** |
 | `ROUTES_TO` | page→route | 前端路由指向后端 | 是（跨端追踪） |
@@ -125,4 +126,4 @@ PDF*/DOCX* TS/JS/Vue                                            │
 
 - BM25 是词法匹配：中文查询 ↔ 英文正文无法语义对齐（跨语检索是当前主要短板，见 README 基准表）。
 - 同名方法在不同类下共享一个 Method 节点（服务级命名取舍）。
-- 机器可读 schema（`domimap schema` 输出本表的 JSON 形式）为规划中的产品能力，未实现前以本文档为准。
+- 机器可读 schema 已实现：`domimap schema` 输出节点/边/置信度/prov 域/工具/拒答门的 JSON（`domimap/schema.json`），`tests/test_schema.py` 用真实构建的图反向校验与本文档零漂移。

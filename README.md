@@ -155,8 +155,22 @@ python3 -m domimap serve -g out/idx/graph.json
 | `kg_doc_search` | Full-text document search |
 | `kg_troubleshoot` | Symptom → graph+docs dual recall → ranked suspects |
 
-Full node/edge schema and query data flow: [docs/knowledge-graph.md](docs/knowledge-graph.md) — written for both humans and AI agents.
-完整节点/边类型与检索数据流见 [docs/knowledge-graph.md](docs/knowledge-graph.md)——面向人类与 AI Agent 的图谱模型参考。
+### Web UI / 交互界面
+
+```bash
+python3 -m domimap ui -g out/idx/graph.json --port 8080   # 仅回环监听，零依赖
+```
+
+![domimap Web UI — 混合检索：方法/表/文档三路结果](docs/assets/domimap-ui.png)
+
+### Machine-readable schema / 机器可读 schema
+
+`domimap schema` outputs the full node/edge taxonomy, confidence & provenance semantics, tool list and refusal gates as JSON — feed it to your AI client so it understands the graph without reading source code. A contract test keeps it in sync with the implementation (zero drift).
+
+`domimap schema` 输出节点/边类型、置信度与来源语义、工具清单、拒答门的 JSON——把它喂给你的 AI 客户端，无需读源码即可理解图谱；契约测试保证与实现零漂移。
+
+Human reference: [docs/knowledge-graph.md](docs/knowledge-graph.md) — full schema & query data flow, for humans and AI agents.
+人类可读参考：[docs/knowledge-graph.md](docs/knowledge-graph.md)——完整图谱模型与检索数据流。
 
 ## Architecture / 架构
 

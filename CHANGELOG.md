@@ -35,6 +35,7 @@
 - 安全：UI 全请求回环 Host 校验（DNS rebinding 读泄露修复，R08-02 契约测试扩展）；POST 跨站写拒绝、JSON+nosniff、SQL 参数化、MCP 有界入口复核确认。
 - 文档：`docs/knowledge-graph.md` 图谱模型参考、`docs/evolution.md` 成熟度差距与 E1–E6 进化计划、README 生产级 mermaid 架构图与查询数据流图、基准表分表、实测修正的快速开始。
 - 社区：issue 模板（bug/feature/usage）、PR 模板、行为准则。
+- 机器可读 schema：`domimap schema` 输出节点/边/置信度/prov/工具/拒答门 JSON（`domimap/schema.json`），契约测试用真实构建反向校验零漂移（并据此修正文档中 READS/WRITES 边与 seed/vote prov 域）；README 增真实 UI 截图与 schema 章节。
 - 分发就绪：版本 0.5.0、`domimap --version`、PyPI Trusted Publishing 工作流（`.github/workflows/pypi.yml`，tag 与 pyproject 版本校验）；`pip install pypdf python-docx` 缺失时 PDF/DOCX 契约测试自动跳过。
 
 ## [0.4.0] - 2026-10-16

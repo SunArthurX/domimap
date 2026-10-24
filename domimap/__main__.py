@@ -270,6 +270,13 @@ def cmd_enrich(args):
     print("[enrich] 笔记已入 knowledge.db（inference 草稿）；检索时标注 conf=LLM。")
 
 
+def cmd_schema(args):
+    """机器可读图谱 schema（R11：AI 客户端不读源码即可理解节点/边/置信度语义）。"""
+    import json as _json
+    with open(os.path.join(HERE, "schema.json"), encoding="utf-8") as f:
+        print(_json.dumps(_json.load(f), ensure_ascii=False, indent=1))
+
+
 def main():
     ap = argparse.ArgumentParser(prog="domimap", description="多仓 Java 知识中台 MVP")
     ap.add_argument("-g", "--graph", default=os.path.join("out", "mini", "graph.json"))
@@ -307,6 +314,7 @@ def main():
     u.add_argument("--port", type=int, default=8765); u.set_defaults(fn=cmd_ui)
     rd = sub.add_parser("read"); rd.add_argument("ev_id")
     rd.add_argument("--store", default=os.path.join("out", "store.db")); rd.set_defaults(fn=cmd_read)
+    sub.add_parser("schema").set_defaults(fn=cmd_schema)
     en = with_g(sub.add_parser("enrich")); en.add_argument("--limit", type=int, default=5)
     en.add_argument("--targets", choices=["docs", "domain", "all"], default="docs")
     en.add_argument("--dry-run", action="store_true"); en.add_argument("--force", action="store_true")
