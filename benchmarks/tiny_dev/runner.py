@@ -116,7 +116,6 @@ def run_codegraph(corpus, out):
 
 # ---------------- codebase-memory-mcp 适配器（原生 MCP stdio：index_repository + search_graph） ----------------
 def run_cbm(corpus, out):
-    import selectors
     binary = os.path.join(COMP, "codebase-memory-mcp", "build", "c", "codebase-memory-mcp")
     if not os.path.exists(binary):
         raise SystemExit("cbm 二进制未构建（make -f Makefile.cbm build/c/codebase-memory-mcp）")

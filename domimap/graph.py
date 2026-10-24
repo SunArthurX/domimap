@@ -6,7 +6,6 @@
 """
 import json
 import os
-import re
 from collections import Counter, defaultdict
 
 from . import lite_scan

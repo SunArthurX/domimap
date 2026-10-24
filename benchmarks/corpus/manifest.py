@@ -7,7 +7,6 @@
 import hashlib
 import json
 import os
-import sys
 
 # 语料根/外部文档族：自备（env；企业私有或开源语料均可，见 benchmarks/DATA_LAYOUT.md）
 WORKSPACE = os.path.expanduser(os.environ.get("DOMIMAP_DEV_CORPUS") or "")

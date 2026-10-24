@@ -350,7 +350,7 @@ class Searcher:
                     continue  # 已被替代：默认排除（历史查询经显式参数，M3 复核接入）
                 vu = m.get("valid_until")
                 if vu:
-                    import calendar, time as _t
+                    import time as _t
                     try:
                         if _t.mktime(_t.strptime(vu[:10], "%Y-%m-%d")) < as_of:
                             continue  # 过期资料不具资格

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "clean-code-pass",
+  "state": "verified",
+  "spec": "specs/tasks/clean-code-pass.md",
+  "requirements": [
+    "R13"
+  ],
+  "acceptance_cases": [
+    "AC-R13-01"
+  ],
+  "files": [
+    "benchmarks/ELEVEN_OF_TWELVE_RESULT.json",
+    "benchmarks/bootstrap_dev.py",
+    "benchmarks/corpus/generate_fact_gold.py",
+    "benchmarks/corpus/generate_questions.py",
+    "benchmarks/corpus/generate_questions_v2.py",
+    "benchmarks/corpus/generate_questions_v3.py",
+    "benchmarks/corpus/manifest.py",
+    "benchmarks/runners/competitor_host.py",
+    "benchmarks/tiny_dev/runner.py",
+    "domimap/batch.py",
+    "domimap/graph.py",
+    "domimap/search.py",
+    "scripts/check_release_behavior.py"
+  ],
+  "test_files": []
+}

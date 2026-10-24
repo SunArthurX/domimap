@@ -228,7 +228,6 @@ def make_cli_exec(kind, workdir_by_repo):
             return "\n\n".join(outs)[:12000]
         return run
     if kind == "graphify":
-        import re as _re
         venv = None
         if os.path.isfile("/tmp/dm-gf-venv.txt"):
             venv = open("/tmp/dm-gf-venv.txt").read().strip().split("=", 1)[-1]

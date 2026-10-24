@@ -7,7 +7,6 @@
 """
 import json
 import os
-import re
 
 # 语料根：自备（企业私有语料或开源语料均可，见 benchmarks/DATA_LAYOUT.md）
 WS = os.path.expanduser(os.environ.get("DOMIMAP_DEV_CORPUS") or "")

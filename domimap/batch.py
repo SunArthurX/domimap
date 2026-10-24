@@ -54,24 +54,6 @@ def repo_changed(root, manifest_path):
         return True
     return repo_signature(root) != old
 
-def scan_many(roots, jobs=8):
-    """并行扫描多仓并合并 records（服务名带仓前缀，跨仓 RPC/表引用自然对齐）。"""
-    merged = {"services": {}, "classes": [], "methods": [], "routes": [], "rpc": [],
-              "topics": [], "sqlstmts": [], "tables": [], "pages": [], "docs": [], "entities": [],
-              "calls": [],
-              "coverage": {"files_scanned": 0, "skipped": []}}
-    def one(root):
-        label = os.path.basename(os.path.abspath(root))
-        return lite_scan.scan_repo(root, repo_label=label)
-    with ThreadPoolExecutor(max_workers=jobs) as ex:
-        for R in ex.map(one, roots):
-            for k in ("classes", "methods", "routes", "rpc", "topics", "sqlstmts", "tables", "pages", "docs", "entities", "calls"):
-                merged[k].extend(R[k])
-            merged["services"].update(R["services"])
-            merged["coverage"]["files_scanned"] += R["coverage"]["files_scanned"]
-            merged["coverage"]["skipped"].extend(R["coverage"]["skipped"])
-    return merged
-
 def normalized(g):
     """规范化等价视图（增量=全量收敛比较用）：(节点ID集, 规范化边五元组集)。"""
     return (frozenset(g.nodes),

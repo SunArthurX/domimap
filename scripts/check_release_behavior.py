@@ -1,4 +1,4 @@
-import json, subprocess, sys
+import json, sys
 r = json.load(open("out/benchmark/report.json"))
 gates = r.get("gate_reasons", [])
 ok = ("below absolute floor" in " ".join(gates)) and \
