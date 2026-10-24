@@ -98,6 +98,7 @@ class MainTrackRunner:
             tpath = os.path.join(self.artifact_dir, "%s.json" % run_id)
             with open(tpath, "w", encoding="utf-8") as stream:
                 json.dump({"run_id": run_id, "question_id": question["id"],
+                           "status": status, "ledger": ledger,
                            "transcript": transcript}, stream, ensure_ascii=False, indent=1)
             records.append({
                 "schema": "domimap.maintrack.v1",
