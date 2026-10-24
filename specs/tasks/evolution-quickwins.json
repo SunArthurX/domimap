@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "evolution-quickwins",
+  "state": "verified",
+  "spec": "specs/tasks/evolution-quickwins.md",
+  "requirements": [
+    "R08",
+    "R13"
+  ],
+  "acceptance_cases": [
+    "AC-R08-02",
+    "AC-R13-01"
+  ],
+  "files": [
+    ".github/workflows/pypi.yml",
+    "CHANGELOG.md",
+    "README.md",
+    "domimap/__init__.py",
+    "domimap/__main__.py",
+    "domimap/ui.py",
+    "docs/README.md",
+    "docs/evolution.md",
+    "docs/knowledge-graph.md",
+    "pyproject.toml",
+    "scripts/install_check.sh",
+    "tests/test_m4_security.py"
+  ],
+  "test_files": [
+    "tests/test_m4_security.py"
+  ]
+}

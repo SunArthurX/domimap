@@ -87,5 +87,15 @@ class TestUiSecurity(unittest.TestCase):
         self.assertEqual(code3, 200)
         self.assertEqual(json.loads(out3)["revision"], 1)
 
+    def test_dns_rebinding_foreign_host_rejected_on_read(self):
+        """DNS rebinding 加固：非回环 Host 的读请求必须拒绝（否则恶意网页可重绑定域名读取索引内容）。"""
+        code, _, _ = self._get("/", headers={"Host": "evil.example.com"})
+        self.assertEqual(code, 403, "非回环 Host 的 GET 必须拒绝")
+        q = urllib.parse.quote("evil-marker 文档")
+        code2, _, _ = self._get("/api/search?q=" + q, headers={"Host": "evil.example.com:8080"})
+        self.assertEqual(code2, 403, "非回环 Host 的 API 读必须拒绝")
+        code3, _, _ = self._get("/", headers={"Host": "127.0.0.1:%d" % self.port})
+        self.assertEqual(code3, 200, "回环 Host 正常服务")
+
 if __name__ == "__main__":
     unittest.main()

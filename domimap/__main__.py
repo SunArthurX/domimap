@@ -273,6 +273,7 @@ def cmd_enrich(args):
 def main():
     ap = argparse.ArgumentParser(prog="domimap", description="多仓 Java 知识中台 MVP")
     ap.add_argument("-g", "--graph", default=os.path.join("out", "mini", "graph.json"))
+    ap.add_argument("--version", action="version", version="domimap " + __version__)
     sub = ap.add_subparsers(dest="cmd", required=True)
     def with_g(p):
         p.add_argument("-g", "--graph", default=ap.get_default("graph"))

@@ -4,17 +4,6 @@
 
 ## [Unreleased]
 
-### 已落地（原型推进；均为同会话开发者评测，不构成发布验收，`make release-check` 仍关闭）
-
-- 五系统比较基础设施：四竞品适配器与原生工作流宿主（Codebase-Memory-MCP 走动态发现的 MCP 工具；CodeGraph / Graphify / claude-obsidian 走各自原生 CLI），GLM-5.3 真实主轨宿主（hermetic 契约测试，无网络无费用），独立托管人用确认套件 `benchmarks/confirm_kit.py`。
-- 同会话评测结果：开发集 33 题 domimap 正例 24/27，公开语料（27 个未暴露开源族）40 题 22/32；对四竞品的配对差值均为正，但公开语料上差距明显收窄。分表与分母见 README。
-- 检索优化：DDL 语义加权（Table 节点）、版本号纪元提取、查询期中英桥接回退；索引期桥接、README 文档先验与双语提示引导三项在公开语料上被证实有害后撤销。
-- 工程卫生（2026-10-20）：`scripts/check_specs.py --structural` 与 `make ci` 供无本地证据工件的环境（CI / 新克隆）使用，`make verify` 的证据校验语义不变并有正负契约测试锁定；主轨宿主的凭据加载改为环境变量 / 本机未入库 helper，仓库内不再含凭据库解密细节与账号标识；CI 显式安装 PDF/DOCX 可选解析器，相关契约测试在缺依赖时跳过而非报错。
-- 分路命中再融合（product-lane-fusion）：检索选择层改为 code/doc/knowledge 三路各自召回（路内同文件 ≤2 去重 + 路内 45% 断崖精剪），融合时每条非空路保底落位（code/doc ≤2、kn ≤1，不被跨族交换挤出），其余按全局分——巨型泛词文档不再独占结果（旧全局断崖曾同时剪光代码路与 Knowledge 笔记）；拒答守门与打分逐字不变，回放契约（raw ≥75%）保持。适配器对 Knowledge 笔记做源路径归因（marker source → 仓前缀路径）。三方 A/B（复用 40 篇真实笔记）：Hit@5 19/40 三方一致（零回归、零提升——词法分数天花板仍在：泛词 SqlStmt 分数高于语义正确的笔记）；LLM 笔记可见性 0/40 → 40/40 题（top10 带源归因）；结果构成从"仅 1 个文档"变为"1 Doc + 8 代码 + 1 笔记"。
-- LLM 增强层生产化硬化（product-llm-enrich-hardening）：审计改 append-only `enrichment.jsonl` 逐条落盘（中断安全、重跑零重复计费，兼容旧 v1 只读）；传输分级——4xx 不重试、429/5xx 尊重 Retry-After 指数退避抖动、`--timeout`；`--budget-tokens` 预算中止；同目录 `.enrich.lock` 并发互斥；输出服务端校验（evidence_paths 白名单剔编造、长度上限截断、未知字段记录、双语 keywords 警告）与材料分隔符注入隔离；文档更新后旧 LLM 笔记自动 supersede 撤回（`--keep-old`）；`--targets docs|domain|all`；serve 热重载感知 knowledge.db；doctor 增 LLM 段；`--json` 逐篇明细与成本估算。适配器 prepare 支持 no-op 复用既有图。契约 15→31；真实 GLM-5.3 A/B（dev pilot 40 题 × 7 族，40 篇真实调用 15.2 万 tokens）：路径级 Hit@5 19/40 → 19/40 零变化——根因为检索侧中英桥回退候选集不含中文笔记 + 45% 断崖精剪（增强层本身质量达标，笔记原始分为全场最高级别），候选并集化与源路径归因列为后续独立任务，本轮未调任何检索参数。
-- 可选 LLM 语义增强层（product-llm-enrich，2026-10-21）：`domimap enrich` 一条命令把图内 Doc 材料交给可配置的 anthropic 协议模型（默认 glm-5.3）生成 inference 草稿笔记——`conf=LLM, prov=knowledge:llm`，claims 一律 `inference/proposed`，人工审定前不作为事实（AC-R05-02 纪律）；幂等重跑（同图同模型零调用零新笔记）、`--dry-run`/`--force`、审计文件、无 key 干净退出（码 6）；`query`/MCP `kg_explore`/UI 统一挂接图旁 `knowledge.db`（人工笔记 conf=HUMAN 语义不变）；14 个 hermetic 契约测试，构建期零模型调用的离线路径不变。
-- 发布前二次整理（2026-10-20）：新增 `docs/knowledge-graph.md` 图谱模型参考（节点/边类型、置信度与来源语义、证据层、时间模型、检索数据流，面向人与 AI Agent）；基准脚本语料全面脱敏——语料根/外部文档族/文档优先族/预建图改为 `DOMIMAP_DEV_CORPUS`、`DOMIMAP_EXTRA_FAMILIES`、`DOMIMAP_DOC_FAMILIES`、`DOMIMAP_DEV_GRAPH` 环境变量（未设置时入口明确报错），文档与测试夹具中不再出现公司名或内部语料名；`benchmarks/DATA_LAYOUT.md` 增自备语料指引（企业私有或 ≥20 个不相关开源族均可）；社区配套（issue 模板、PR 模板、行为准则）；README 补 `kg_troubleshoot` 工具。
-
 ### 计划中（按 docs/roadmap.md M0–M5 交付，未完成不得在此列为已完成）
 
 - M0 工程基线：Git、CI、安装闭环、四竞品比较协议 spike。
@@ -23,6 +12,30 @@
 - M3 人工知识事务闭环（保存/修订/审定/复核/恢复）。
 - M4 四客户端完整联调、格式/平台矩阵、并发与安全加固。
 - M5 冻结确认比较（对四竞品三指标严格胜出）、生产验收与发布。
+
+## [0.5.0] - 2026-10-21
+
+原型演进版：检索能力与工程化显著推进，仍不声明生产可用（M5 冻结确认未执行，`make release-check` 保持关闭）。
+
+### 检索与知识层（自 0.4.0）
+
+- 可选 LLM 语义增强层（`domimap enrich`，2026-10-21）：可配置 anthropic 协议模型为图内 Doc 材料生成 inference 草稿笔记（`conf=LLM, prov=knowledge:llm`，claims 一律 inference/proposed，人工审定前不作事实）；幂等重跑、审计 append-only、预算/超时/并发互斥、服务端输出校验、无 key 干净退出。
+- LLM 增强层生产化硬化：审计逐条落盘（中断安全、重跑零重复计费）、传输分级重试、`--budget-tokens`、同目录互斥锁、输出白名单校验与注入隔离、文档更新后旧笔记自动 supersede。
+- 分路命中再融合（product-lane-fusion）：code/doc/knowledge 三路各自召回 + 融合保底落位，巨型泛词文档不再独占结果；LLM 笔记可见性 0/40 → 40/40 题。
+- 可选本地嵌入语义融合（product-embedding-index）：bge-small-zh/fastembed 幂等建索引 + RRF 融合 + 融合资格门（定义性标识符/代码意图词时词法权威）——真实双集 A/B 首个净正收益：pub 23/97→36/97、dev 19/36→26/36 零回归、负例不变。
+- 查询期 LLM 语义重排（product-llm-rerank）：真实 A/B 如实零效果（池外 miss 为主因），结论保留、默认关闭。
+- 长文档分段（product-doc-chunking）：索引层 BM25+嵌入双端分段（3500/1500/250）——检索级全项目最大单轮收益：公开语料 50→70/140（document 6→15、freshness 6→17），全类别零回归。
+- 文档意图语义召回限定 Doc/Knowledge 子池；kg_explore 工具描述与宿主提示加"原文直查优先/引用守门"（agent-loop 三臂 16→17→20/36）；题面锚词准入规则 v3（如实零改进，主因确认）；DDL 语义加权、版本号纪元提取、查询期中英桥接回退、双向路径匹配评分（索引期桥接/文档先验/双语提示经实测有害后撤销）。
+
+### 基准与工程化（2026-10-20/21 发布整理）
+
+- 五系统比较基础设施：四竞品原生工作流宿主 + GLM-5.3 真实主轨宿主（hermetic 契约测试）、确认套件、main_track 逐题落盘账本。同会话评测：开发集正例 24/27、公开语料 22/32，四组配对差值均为正（分表分母见 README）。
+- `check_specs.py --structural` 与 `make ci`：无本地证据工件的环境可运行结构校验 + 全部测试；`make verify` 语义不变（正负契约锁定）。
+- 隐私与历史：仓库与全部历史不含凭据细节、账号标识、公司名与个人路径（两轮 filter-repo，全对象扫描 0 残留）；基准脚本语料环境变量化（`DOMIMAP_DEV_CORPUS` 等，自备/开源语料指引见 benchmarks/DATA_LAYOUT.md）。
+- 安全：UI 全请求回环 Host 校验（DNS rebinding 读泄露修复，R08-02 契约测试扩展）；POST 跨站写拒绝、JSON+nosniff、SQL 参数化、MCP 有界入口复核确认。
+- 文档：`docs/knowledge-graph.md` 图谱模型参考、`docs/evolution.md` 成熟度差距与 E1–E6 进化计划、README 生产级 mermaid 架构图与查询数据流图、基准表分表、实测修正的快速开始。
+- 社区：issue 模板（bug/feature/usage）、PR 模板、行为准则。
+- 分发就绪：版本 0.5.0、`domimap --version`、PyPI Trusted Publishing 工作流（`.github/workflows/pypi.yml`，tag 与 pyproject 版本校验）；`pip install pypdf python-docx` 缺失时 PDF/DOCX 契约测试自动跳过。
 
 ## [0.4.0] - 2026-10-16
 

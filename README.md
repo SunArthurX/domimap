@@ -160,34 +160,64 @@ Full node/edge schema and query data flow: [docs/knowledge-graph.md](docs/knowle
 
 ## Architecture / 架构
 
+```mermaid
+flowchart TB
+    subgraph SRC["Workspace / 代码与文档"]
+        REPOS["Java repos · MyBatis XML · SQL DDL"]
+        DOCS["Markdown · HTML · PDF* · DOCX* · TS/JS/Vue"]
+    end
+    subgraph BUILD["Build — deterministic, no LLM / 确定性构建，零模型调用"]
+        SCAN["Scanners (lite_scan)<br/>GBK/GB18030 auto-detect"]
+        CHUNK["Doc chunking (chunking.py)<br/>long docs → overlapping segments"]
+        GRAPH["Knowledge Graph<br/>12 node kinds · 11 edge kinds<br/>conf: EXTRACTED / INFERRED / AMBIGUOUS"]
+        STORE["Evidence Store (SQLite)<br/>ev_id · content-addressed<br/>immutable generations"]
+        SCAN --> CHUNK --> GRAPH
+        SCAN --> STORE
+    end
+    subgraph ENGINE["Search Engine (search.py)"]
+        BM25["BM25 k=1.2 b=0.75<br/>identifier ×3 · DDL semantic ×2"]
+        EMB["Semantic lane (optional)<br/>local embeddings · RRF fusion<br/>+ fusion eligibility gate"]
+        EXPAND["Graph expansion<br/>CALLS · MAPS_TO · MQ edges"]
+        LANE["Doc lane merge<br/>+ content-era time notes"]
+        GUARD["4 honest-refusal gates"]
+    end
+    KBX["Knowledge Base (SQLite)<br/>human notes · claims · review workflow"]
+    ENR["`domimap enrich` (optional post-build)<br/>LLM draft notes · conf=LLM<br/>human review before facts"]
+    CLI["CLI"]
+    MCP["MCP stdio server<br/>6 kg_* tools"]
+    UI["Web UI (loopback)"]
+    REPOS --> SCAN
+    DOCS --> SCAN
+    GRAPH --> BM25
+    GRAPH -.optional.-> EMB
+    STORE --> LANE
+    KBX -.attach.-> BM25
+    ENR -.drafts.-> KBX
+    BM25 --> EXPAND --> LANE --> GUARD
+    EMB --> LANE
+    GUARD --> CLI
+    GUARD --> MCP
+    GUARD --> UI
 ```
-┌─────────────────────────────────────────────────────┐
-│                  Interfaces                         │
-│  CLI ─── MCP Server ─── Web UI ─── JSON API        │
-├─────────────────────────────────────────────────────┤
-│               Search Engine                         │
-│  BM25 (k=1.2, b=0.75) + Identifier Boost           │
-│  + Graph Expansion + Domain Seeds                   │
-│  + Negative Refusal Guards + Doc Lane Merge         │
-├─────────────────────────────────────────────────────┤
-│              Knowledge Graph                        │
-│  231K nodes / 1.16M edges (9-repo test)            │
-│  Classes · Methods · Tables · Routes · MQ · Docs    │
-├─────────────────────────────────────────────────────┤
-│           Evidence Store (SQLite)                   │
-│  Content-addressed · Immutable generations          │
-│  SHA-256 blobs · Source versioning                  │
-├─────────────────────────────────────────────────────┤
-│         Knowledge Base (SQLite)                     │
-│  Human notes · Claims · Review workflow             │
-│  Dependency invalidation · Export/Restore           │
-├─────────────────────────────────────────────────────┤
-│           Scanners                                 │
-│  Java (GBK/UTF-8) · XML (MyBatis) · SQL (DDL)      │
-│  Markdown · HTML · PDF* · DOCX* · TS/JS/Vue         │
-└─────────────────────────────────────────────────────┘
-  * = optional dependency required
+
+* = optional dependency required（`pip install pypdf python-docx`）
+
+### Query data flow / 查询数据流
+
+```mermaid
+flowchart LR
+    Q["query 文本"] --> TOK["分词：CJK 2-gram + 拉丁标识符<br/>EN_BRIDGE 仅作查询期回退"]
+    TOK --> G1{"仅命中通用词？"}
+    G1 -->|是| R1["拒答：无实质概念"]
+    G1 -->|否| G2{"拉丁标识符全部缺席？"}
+    G2 -->|是| R2["拒答：不猜近名（防幻觉命中）"]
+    G2 -->|否| SCORE["BM25 词法打分<br/>+ 名称精确 ×3 + DDL 语义 ×2"]
+    SCORE --> G3{"词法覆盖率 ≥ 30%？"}
+    G3 -->|否| R3["拒答：覆盖率不足<br/>+ 换词建议"]
+    G3 -->|是| OUT["种子命中 + 一跳图扩展 + 文档泳道合并<br/>→ 路径 + ev_id + conf/prov + time_note"]
 ```
+
+Evolution / maturity plan: [docs/evolution.md](docs/evolution.md) · Full schema reference: [docs/knowledge-graph.md](docs/knowledge-graph.md)
 
 ## Benchmark Results / 基准测试结果
 
@@ -308,6 +338,7 @@ domimap/
 |---|---|
 | [docs/README.md](docs/README.md) | Documentation index |
 | [docs/knowledge-graph.md](docs/knowledge-graph.md) | **Knowledge-graph model reference** — node/edge taxonomy, evidence store, time model, query flow (for humans & AI agents) |
+| [docs/evolution.md](docs/evolution.md) | **Maturity gaps & evolution plan** — distribution, languages, semantic layer, watcher, ecosystem |
 | [docs/roadmap.md](docs/roadmap.md) | Production roadmap |
 | [docs/architecture.md](docs/architecture.md) | Architecture details |
 | [docs/capabilities.md](docs/capabilities.md) | Capability matrix |

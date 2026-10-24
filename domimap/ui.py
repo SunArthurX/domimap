@@ -1,7 +1,8 @@
-"""ui — 本地只读搜索与证据阅读页面（F2：无模型可用；仅回环监听）。
+"""ui — 本地搜索/证据阅读页面与知识笔记写入入口（F2：无模型可用；仅回环监听）。
 
 与 CLI/MCP 共用同一 Searcher+seeds 语义（AC-F2-01 三入口同源同序）。
-stdlib http.server 实现，无第三方依赖；拒绝非回环绑定。
+stdlib http.server 实现，无第三方依赖；拒绝非回环绑定；所有请求校验回环 Host，
+写操作另校验 Origin/Referer（R08-02）。
 """
 import json
 import os
@@ -97,6 +98,10 @@ def make_server(graph_path, host="127.0.0.1", port=0):
             self._send(404, json.dumps({"error": "not found"}))
 
         def do_GET(self):
+            # DNS rebinding 加固：读请求同样要求回环 Host/来源，防止恶意网页重绑定域名读取索引内容
+            if not self._origin_ok():
+                self._send(403, json.dumps({"error": "非回环来源请求被拒绝"}, ensure_ascii=False))
+                return
             u = urlparse(self.path)
             if u.path == "/":
                 self._send(200, PAGE, "text/html; charset=utf-8")
