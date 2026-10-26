@@ -12,6 +12,9 @@ from . import lite_scan
 from .tokenize import tokenize
 
 CONF_ORDER = {"EXTRACTED": 3, "INFERRED": 2, "AMBIGUOUS": 1}
+# 因果边：影响面遍历只走这些；MENTIONS（词面）/BELONGS_TO（领域归属）/CONTAINS（结构）不冒充依赖
+CAUSAL_EDGES = frozenset({"CALLS", "CALLS_SQL", "READS", "WRITES", "RPC", "PUBLISHES",
+                          "SUBSCRIBES", "ROUTES_TO", "HANDLES", "MAPS_TO"})
 
 class Graph:
     def __init__(self):
@@ -277,16 +280,26 @@ class Graph:
 
     # ---------- 影响面 ----------
     def impact(self, name, depth=2, max_nodes=None):
-        """反向影响面。max_nodes 在遍历中执行（达到即停，非先算全量再截断）。"""
+        """反向影响面（只走因果边：MENTIONS/BELONGS_TO/CONTAINS 不冒充依赖，roadmap M2）。
+
+        max_nodes 在遍历中执行（达到即停，非先算全量再截断）。
+        每条结果为 (src 节点, 边类型, dst 节点, 路径强度)；路径强度 = 该路径最弱边的置信
+        （路径强度不高于最弱边）。BFS 首达路径决定强度。
+        """
         start = [n for n in self.nodes.values() if name.lower() in n["id"].lower()]
         seen, frontier, out = set(), set(start and [n["id"] for n in start] or []), []
+        strength = {nid: "EXTRACTED" for nid in frontier}  # 起点自身无路径约束
         for _ in range(depth):
             nxt = set()
             for nid in frontier:
                 for e in self.neighbors(nid, rev=True):  # 反向：谁依赖我
+                    if e["kind"] not in CAUSAL_EDGES:
+                        continue  # 词面提及/领域归属/结构包含不是因果依赖
                     if e["src"] not in seen:
+                        path_strength = min((strength[nid], e["conf"]), key=lambda c: CONF_ORDER.get(c, 0))
                         seen.add(e["src"]); nxt.add(e["src"])
-                        out.append((self.nodes[e["src"]], e["kind"], self.nodes[nid]))
+                        strength[e["src"]] = path_strength
+                        out.append((self.nodes[e["src"]], e["kind"], self.nodes[nid], path_strength))
                         if max_nodes is not None and len(out) >= max_nodes:
                             return start, out
             frontier = nxt

@@ -138,7 +138,7 @@ class TestAppService(unittest.TestCase):
                            cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIn("partial", p.stdout, "CLI 也须显式标注预算截断")
-        self.assertIn("--READS--> hub", p.stdout, "CLI 打印：src --KIND--> dst（修正此前 dst/conf 错位）")
+        self.assertIn("--READS(EXTRACTED)--> hub", p.stdout, "CLI 打印：src --KIND(路径强度)--> dst（修正此前 dst/conf 错位）")
 
     def test_ui_hot_reloads_graph_and_knowledge_changes(self):
         ui = _UI(self.gp)

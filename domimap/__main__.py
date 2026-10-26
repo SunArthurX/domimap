@@ -197,9 +197,10 @@ def cmd_impact(args):
         print(str(e)); sys.exit(4)
     for n in r["start"]:
         print("起点: [%s] %s @%s" % (n["kind"], n["name"], n["file"]))
-    for src, kind, dst in r["deps"]:
-        dom = src["meta"].get("domain", "")
-        print("  ← %s --%s--> %s%s" % (src["name"], kind, dst["name"], ("  [%s]" % dom) if dom else ""))
+    for d in r["deps"]:
+        dom = d["src"]["meta"].get("domain", "")
+        print("  ← %s --%s(%s)--> %s%s" % (d["src"]["name"], d["kind"], d["strength"], d["dst"]["name"],
+                                          ("  [%s]" % dom) if dom else ""))
     if r["partial"]:
         print("（partial：影响面在 %d 节点预算内截断，--max-nodes 可调）" % r["max_nodes"])
 

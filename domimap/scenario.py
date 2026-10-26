@@ -5,6 +5,7 @@
 """
 from collections import Counter
 
+from .graph import CAUSAL_EDGES
 from .search import Searcher
 
 KIND_PRIORITY = {"Table": 0, "SqlStmt": 1, "Topic": 2, "Method": 3, "Service": 4, "Route": 5, "Class": 6}
@@ -99,7 +100,7 @@ def scenario_trb(g, s, symptom):
     if graph_hits:
         lines.append("## 图命中（疑点排序：表>SQL>主题>方法>服务）")
         for n in graph_hits[:8]:
-            dep_cnt = len(g.neighbors(n["id"], rev=True))
+            dep_cnt = len([e for e in g.neighbors(n["id"], rev=True) if e["kind"] in CAUSAL_EDGES])  # 因果反向边，MENTIONS/领域不计
             lines.append("- [%s] %s @%s  (被依赖 %d 处, %s/%s)" %
                          (n["kind"], n["name"], n["file"], dep_cnt, n["conf"], n["meta"].get("domain", "")))
         lines.append("")

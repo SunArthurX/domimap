@@ -1389,10 +1389,10 @@ def make_server(graph_path, host="127.0.0.1", port=0):
                     return {"id": n["id"], "kind": n["kind"], "name": n["name"], "file": n["file"]}
                 self._send(200, json.dumps({
                     "start": [_nm(n) for n in res["start"]],
-                    "deps": [{"src": s_["name"], "src_file": s_["file"], "kind": k,
-                              "dst": d["name"], "dst_file": d["file"],
-                              "domain": s_["meta"].get("domain", "")}
-                             for s_, k, d in res["deps"]],
+                    "deps": [{"src": d["src"]["name"], "src_file": d["src"]["file"], "kind": d["kind"],
+                              "strength": d["strength"], "dst": d["dst"]["name"], "dst_file": d["dst"]["file"],
+                              "domain": d["src"]["meta"].get("domain", "")}
+                             for d in res["deps"]],
                     "total": res["total"], "truncated": res["truncated"], "partial": res["partial"],
                     "max_nodes": res["max_nodes"]}, ensure_ascii=False))
                 return

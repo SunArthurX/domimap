@@ -245,7 +245,8 @@ class Server:
                 raise
             return _j.dumps({
                 "start": ["[%s] %s @%s" % (n["kind"], n["name"], n["file"]) for n in r["start"]],
-                "deps": ["%s --%s--> %s" % (a["name"], b, c["name"]) for a, b, c in r["deps"]],
+                "deps": ["%s --%s(%s)--> %s" % (d["src"]["name"], d["kind"], d["strength"], d["dst"]["name"])
+                         for d in r["deps"]],
                 "total_deps": r["total"], "truncated": int(r["truncated"]),
                 "partial": r["partial"]}, ensure_ascii=False)
         if name == "kg_doc_search":

@@ -132,6 +132,7 @@ class AppService:
             raise ServiceError("not_found", "无匹配符号")
         partial = len(deps) > max_nodes
         deps = deps[:max_nodes]
+        deps = [{"src": a, "kind": k, "dst": b, "strength": st} for a, k, b, st in deps]
         return {"start": start, "deps": deps, "total": len(deps), "partial": partial,
                 "truncated": partial, "max_nodes": max_nodes, "depth": depth}
 
