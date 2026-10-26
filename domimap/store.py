@@ -179,6 +179,26 @@ class EvidenceStore:
         return {k[len(prefix):]: v for k, v in self.db.execute(
             "SELECT key, value FROM meta WHERE key LIKE ?", (prefix + "%",))}
 
+    # ---------- 知识复核摘要（R06）：被引用的 ev_id 是不可变版本；"依据已变"= 同一来源出现更新版本 ----------
+    @_synchronized
+    def review_digests(self):
+        """返回 {"cited": {ev_id: 自身 blob_sha}, "current": {ev_id|sid: 来源最新 blob_sha}, "latest": {ev_id: 最新 ev_id}}。"""
+        prefix = "source_evidence:"
+        latest_ev = {k[len(prefix):]: v for k, v in self.db.execute(
+            "SELECT key, value FROM meta WHERE key LIKE ?", (prefix + "%",))}
+        sha_of = {ev: sha for ev, sha in self.db.execute("SELECT ev_id, blob_sha FROM evidence")}
+        cited, current, latest = {}, {}, {}
+        for ev, sid, sha in self.db.execute("SELECT ev_id, sid, blob_sha FROM evidence"):
+            cited[ev] = sha
+            lv = latest_ev.get(sid)
+            if lv and lv in sha_of:
+                current[ev] = sha_of[lv]
+                latest[ev] = lv
+        for sid, lv in latest_ev.items():
+            if lv in sha_of:
+                current[sid] = sha_of[lv]
+        return {"cited": cited, "current": current, "latest": latest}
+
     # ---------- 工作区元数据：可信上下文根与规则文件指纹（F3） ----------
     @_synchronized
     def meta_get(self, key):

@@ -184,6 +184,46 @@ class AppService:
         finally:
             store.close()
 
+    # ---------- 知识复核（R06 原义） ----------
+    def _kb(self):
+        from .knowledge import KnowledgeStore
+        path = os.path.join(self.ws, "knowledge.db")
+        if not os.path.exists(path):
+            raise ServiceError("unavailable", "无知识库（尚无笔记）")
+        return KnowledgeStore(path)
+
+    def review_queue(self):
+        kb = self._kb()
+        try:
+            return kb.review_queue()
+        finally:
+            kb.close()
+
+    def confirm_review(self, note_id, claim_idx):
+        """确认 = 把陈述的引用换成同来源最新证据并绑定其版本；不是点击即真。"""
+        try:
+            claim_idx = int(claim_idx)
+        except (TypeError, ValueError):
+            raise ServiceError("invalid_params", "claim_idx 须为整数")
+        kb = self._kb()
+        try:
+            item = next((q for q in kb.review_queue()
+                         if q["note_id"] == note_id and q["claim_idx"] == claim_idx), None)
+            if item is None:
+                raise ServiceError("not_found", "无此待复核项：%s#%s" % (note_id, claim_idx))
+            claims = kb._claims_of(note_id)
+            claim = next((c for c in claims if c.get("idx", claims.index(c)) == claim_idx), None)
+            if claim is None:
+                raise ServiceError("not_found", "陈述不存在：%s#%s" % (note_id, claim_idx))
+            new_ev = item.get("new_evidence") or item["evidence"]
+            new_evidence = [new_ev if ev == item["evidence"] else ev for ev in claim.get("evidence", [])]
+            kb.confirm_review(note_id, claim_idx, new_evidence, item["new_sha"])
+            self.refresh(force=True)
+            return {"note_id": note_id, "claim_idx": claim_idx, "new_evidence": new_ev,
+                    "bound_sha": item["new_sha"]}
+        finally:
+            kb.close()
+
     # ---------- 证据 ----------
     def evidence_for(self, node):
         return self.resolver.for_node(node)

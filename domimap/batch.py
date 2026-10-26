@@ -137,6 +137,25 @@ def publish_generation(store, g, out_dir):
         _atomic_write(os.path.join(out_dir, "graph.json"), f.read())
     return rec
 
+def refresh_reviews(out_dir, store):
+    """R06：发布新代后，把"依据已变"的知识陈述送入待复核队列（只增队列/基线，不改人工正文）。
+
+    基线 = 陈述引用的那个 ev_id 自身版本（不随扫描推进）；当前 = 同一来源最新版本；不同即入队。
+    knowledge.db 不存在则无事。返回当前队列。
+    """
+    kb_path = os.path.join(out_dir, "knowledge.db")
+    if not os.path.exists(kb_path):
+        return []
+    from .knowledge import KnowledgeStore
+    d = store.review_digests()
+    kb = KnowledgeStore(kb_path)
+    try:
+        kb.record_baseline(d["cited"], overwrite=False)
+        return kb.scan_dependencies(d["current"], latest_keys=d["latest"])
+    finally:
+        kb.close()
+
+
 def _store_healthy(out_dir):
     from .store import EvidenceStore
     db = os.path.join(out_dir, "store.db")
@@ -239,6 +258,7 @@ def build_many(roots, out_dir, jobs=8, force=False, merged_name=None, service_pr
         g = Graph()
         g.build_from_records(merged, seeds)
         publish_generation(store, g, out_dir)
+        refresh_reviews(out_dir, store)
     finally:
         store.close()
     _atomic_write(os.path.join(out_dir, "coverage.json"),

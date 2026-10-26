@@ -159,7 +159,7 @@ class TestUiWorkbench(unittest.TestCase):
         for s in d["seeds"]:
             # ev/conf 为可选字段：ev 仅在有固化证据时出现；conf 用于知识笔记来源标识
             self.assertTrue(set(s.keys()) <= {"file", "id", "kind", "name", "ev", "conf", "domain",
-                                              "time_note", "era_source", "valid_until"})  # 时效字段可选（F4）
+                                              "time_note", "era_source", "valid_until", "stale"})  # 时效/陈旧字段可选（F4/R06）
             for k in ("file", "id", "kind", "name"):
                 self.assertIn(k, s)
 

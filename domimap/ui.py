@@ -1254,6 +1254,8 @@ def make_server(graph_path, host="127.0.0.1", port=0):
                             item["era_source"] = n["meta"]["era_source"]
                     if n.get("meta", {}).get("valid_until"):
                         item["valid_until"] = n["meta"]["valid_until"]
+                    if n["kind"] == "Knowledge" and any(c.get("stale") for c in n["meta"].get("claims", [])):
+                        item["stale"] = True  # 依据已变待复核（R06-02）
                     if n.get("meta", {}).get("domain"):
                         item["domain"] = n["meta"]["domain"]
                     ev_id = ev_by_rel.for_node(n)
@@ -1393,6 +1395,12 @@ def make_server(graph_path, host="127.0.0.1", port=0):
                              for s_, k, d in res["deps"]],
                     "total": res["total"], "truncated": res["truncated"], "partial": res["partial"],
                     "max_nodes": res["max_nodes"]}, ensure_ascii=False))
+                return
+            if u.path == "/api/recheck":
+                try:
+                    self._send(200, json.dumps({"queue": svc.review_queue()}, ensure_ascii=False))
+                except ServiceError as e:
+                    self._send(200, json.dumps({"queue": [], "note": str(e)}, ensure_ascii=False))
                 return
             if u.path == "/api/domain":
                 m = g.domain_map()

@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS baselines (
   evkey TEXT PRIMARY KEY, sha TEXT, recorded REAL);
 CREATE TABLE IF NOT EXISTS review_pending (
   note_id TEXT, claim_idx INTEGER, evkey TEXT, old_sha TEXT, new_sha TEXT, since REAL,
+  new_evkey TEXT,  -- 2026-10-26：同来源最新证据 ID，确认时直接绑定（旧库由 __init__ ALTER 补列）
   PRIMARY KEY (note_id, claim_idx, new_sha));
 CREATE TABLE IF NOT EXISTS claim_bindings (
   note_id TEXT, claim_idx INTEGER, sha TEXT, confirmed_at REAL,
@@ -76,8 +77,12 @@ def _validate_backup_database(db):
         reference.executescript(SCHEMA)
         for table in BACKUP_TABLES:
             statement = "PRAGMA table_info(" + table + ")"
-            if db.execute(statement).fetchall() != reference.execute(statement).fetchall():
-                raise ValueError("backup table schema mismatch: " + table)
+            actual, expected = db.execute(statement).fetchall(), reference.execute(statement).fetchall()
+            if actual != expected:
+                # 2026-10-26 之前的 v2 归档：review_pending 无 new_evkey 列；恢复后由 __init__ 补列
+                legacy = [row for row in expected if row[1] != "new_evkey"]
+                if not (table == "review_pending" and actual == legacy):
+                    raise ValueError("backup table schema mismatch: " + table)
     finally:
         reference.close()
     return _table_counts(db)
@@ -92,12 +97,22 @@ def attach_if_present(searcher, graph_path):
 
     不存在则静默跳过（纯离线工作区不受影响）。返回是否挂接。
     """
-    path = os.path.join(os.path.dirname(os.path.abspath(graph_path)), "knowledge.db")
+    ws = os.path.dirname(os.path.abspath(graph_path))
+    path = os.path.join(ws, "knowledge.db")
     if not os.path.exists(path):
         return False
+    digests = None
+    store_db = os.path.join(ws, "store.db")
+    if os.path.exists(store_db):  # 依据已变的陈述在检索面标 stale（F4-02 / R06-02）
+        from .store import EvidenceStore
+        st = EvidenceStore(store_db)
+        try:
+            digests = st.review_digests()["current"]
+        finally:
+            st.close()
     kb = KnowledgeStore(path)
     try:
-        searcher.attach_knowledge(kb)
+        searcher.attach_knowledge(kb, current_digests=digests)
     finally:
         kb.close()
     return True
@@ -115,6 +130,10 @@ class KnowledgeStore:
         self._lock = threading.RLock()
         self.db = sqlite3.connect(db_path, timeout=30, check_same_thread=False)
         self.db.executescript(SCHEMA)
+        try:  # 2026-10-26：待复核项记录可绑定的新证据 ID（旧库原地补列；T15 引入 user_version 后改为迁移）
+            self.db.execute("ALTER TABLE review_pending ADD COLUMN new_evkey TEXT")
+        except sqlite3.OperationalError:
+            pass
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.commit()
         self._fail_stage = None
@@ -176,6 +195,9 @@ class KnowledgeStore:
             if claims is not None:
                 claims = self._check_claims(claims)
                 self.db.execute("DELETE FROM claims WHERE note_id=?", (note_id,))
+                # claims 重排后旧绑定/待复核按 idx 已无意义：清掉，避免错位绑定压制复核
+                self.db.execute("DELETE FROM claim_bindings WHERE note_id=?", (note_id,))
+                self.db.execute("DELETE FROM review_pending WHERE note_id=?", (note_id,))
                 for i, c in enumerate(claims):
                     self.db.execute("INSERT INTO claims VALUES (?,?,?,?,?,?,?)",
                                     (note_id, i, c["type"], c.get("statement", ""),
@@ -230,23 +252,24 @@ class KnowledgeStore:
 
     # ---------- R06：依赖失效复核 ----------
     @synchronized
-    def record_baseline(self, current):
-        """登记证据键基线摘要（扫描方提供，如 EvidenceStore 的 sha 映射）。"""
+    def record_baseline(self, current, overwrite=True):
+        """登记证据键基线摘要。overwrite=False 时只补缺（引用时的版本即基线，不被后续扫描推进）。"""
+        verb = "INSERT OR REPLACE" if overwrite else "INSERT OR IGNORE"
         with self.db:
             for key, sha in current.items():
-                self.db.execute("INSERT OR REPLACE INTO baselines VALUES (?,?,?)",
-                                (key, sha, time.time()))
+                self.db.execute(verb + " INTO baselines VALUES (?,?,?)", (key, sha, time.time()))
 
     @synchronized
-    def scan_dependencies(self, current):
+    def scan_dependencies(self, current, latest_keys=None):
         """当前摘要 vs 基线：仅受影响 claim 入待复核队列（幂等，主键去重）。
 
+        latest_keys: evkey → 同来源最新证据 ID（确认时可直接绑定）。
         点击/使用频率不参与（真实性只由确认绑定或修改/撤回改变）。
         """
+        latest_keys = latest_keys or {}
         with self.db:
             self.db.execute("BEGIN IMMEDIATE")
             old = {r[0]: r[1] for r in self.db.execute("SELECT evkey, sha FROM baselines")}
-            queue = []
             for note in self.db.execute(
                     "SELECT note_id FROM knowledge WHERE status='active'"):
                 note_id = note[0]
@@ -260,15 +283,22 @@ class KnowledgeStore:
                             if bound and bound[0] == current[evkey]:
                                 continue  # 已确认绑定当前版本
                             self.db.execute(
-                                "INSERT OR IGNORE INTO review_pending VALUES (?,?,?,?,?,?)",
-                                (note_id, idx, evkey, old[evkey], current[evkey], time.time()))
-            for r in self.db.execute(
-                    "SELECT note_id, claim_idx, evkey, old_sha, new_sha FROM review_pending"):
-                queue.append({"note_id": r[0], "claim_idx": r[1], "evidence": r[2],
-                              "old_sha": r[3], "new_sha": r[4],
-                              "actions": ["confirm(绑定新证据)", "amend(修改)", "withdraw(撤回)"]})
+                                "INSERT OR IGNORE INTO review_pending "
+                                "(note_id, claim_idx, evkey, old_sha, new_sha, since, new_evkey) VALUES (?,?,?,?,?,?,?)",
+                                (note_id, idx, evkey, old[evkey], current[evkey], time.time(),
+                                 latest_keys.get(evkey)))
             self.db.commit()
-            return queue
+            return self.review_queue()
+
+    def review_queue(self):
+        """待复核队列（含陈述原文与可绑定的新证据 ID）。"""
+        rows = self.db.execute(
+            "SELECT p.note_id, p.claim_idx, p.evkey, p.old_sha, p.new_sha, p.new_evkey, p.since, c.statement "
+            "FROM review_pending p LEFT JOIN claims c ON c.note_id=p.note_id AND c.idx=p.claim_idx "
+            "ORDER BY p.since, p.note_id, p.claim_idx").fetchall()
+        return [{"note_id": r[0], "claim_idx": r[1], "evidence": r[2], "old_sha": r[3], "new_sha": r[4],
+                 "new_evidence": r[5], "since": r[6], "statement": r[7],
+                 "actions": ["confirm(绑定新证据)", "amend(修改)", "withdraw(撤回)"]} for r in rows]
 
     @synchronized
     def confirm_review(self, note_id, claim_idx, new_evidence, new_sha):
@@ -471,9 +501,13 @@ class KnowledgeStore:
         return out
 
     def _claim_stale(self, note_id, claim, current):
+        """陈旧 = 待复核队列里有它，或已确认绑定的版本不是来源当前版本（点击/重建都不清除）。"""
+        idx = claim.get("idx", 0)
+        if self.db.execute("SELECT 1 FROM review_pending WHERE note_id=? AND claim_idx=? LIMIT 1",
+                           (note_id, idx)).fetchone():
+            return True
         bound = self.db.execute(
-            "SELECT sha FROM claim_bindings WHERE note_id=? AND claim_idx=?",
-            (note_id, claim.get("idx", 0))).fetchone()
+            "SELECT sha FROM claim_bindings WHERE note_id=? AND claim_idx=?", (note_id, idx)).fetchone()
         for ev in claim.get("evidence", []):
             if ev in current and bound and current[ev] != bound[0]:
                 return True

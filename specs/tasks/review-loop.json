@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "review-loop",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/review-loop.md",
+  "requirements": [
+    "R06",
+    "F4"
+  ],
+  "acceptance_cases": [
+    "AC-R06-01",
+    "AC-R06-02",
+    "AC-F4-02"
+  ],
+  "files": [
+    "domimap/knowledge.py",
+    "domimap/store.py",
+    "domimap/batch.py",
+    "domimap/search.py",
+    "domimap/service.py",
+    "domimap/__main__.py",
+    "domimap/ui.py",
+    "tests/test_review_loop.py",
+    "tests/test_ui_workbench.py",
+    "docs/known-defects.md",
+    "CHANGELOG.md",
+    "specs/tasks/review-loop.json",
+    "specs/tasks/review-loop.md"
+  ],
+  "test_files": [
+    "tests/test_review_loop.py",
+    "tests/test_ui_workbench.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_review_loop tests.test_m3_review tests.test_m3_r07 tests.test_knowledge_safety -v",
+    "make verify",
+    "python3 -B scripts/check_specs.py --task specs/tasks/review-loop.json --base e463316"
+  ],
+  "rollback": "revert 本片差异；knowledge.db 的 review_pending.new_evkey 列可保留（旧代码忽略）；review_pending/baselines 行为机器派生可清空。"
+}

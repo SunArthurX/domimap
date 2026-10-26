@@ -696,6 +696,10 @@ class Searcher:
             head += " [DDL]"
         if n["kind"] in ("Doc", "Knowledge"):
             head += " [type:%s]" % self._infer_doc_type(n["file"])
+        if n["kind"] == "Knowledge":
+            stale = [c for c in n["meta"].get("claims", []) if c.get("stale")]
+            if stale:  # 依据已变且未确认绑定：检索面如实标注（R06-02 / F4-02）
+                head += " [stale:%d 条陈述待复核]" % len(stale)
         if n["meta"].get("domain"):
             head += "  [域:%s%s]" % (n["meta"]["domain"], "/vote" if n["meta"].get("domain_by") else "")
         if n.get("time_note"):  # 时效可解释（F4）：纪元来源 + 衰减说明；有效期如实展示

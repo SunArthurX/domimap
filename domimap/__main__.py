@@ -10,6 +10,7 @@
   doc TEXT                   文档检索（与 MCP kg_doc_search 同参同观测）
   update -o DIR              工作区增量重建（manifest 未变时毫秒级 no-op）
   rebind LABEL PATH -o DIR   来源根移动后重绑物理路径（sid/节点 ID 不变，再 update）
+  recheck list|confirm       知识复核队列（依据变化的陈述；确认=绑定新证据）
   trust add|list|remove      可信上下文根登记（只有登记根的 AGENTS/SOUL 作为指令加载）
   context [--scope DIR]      查看当前生效的可信上下文与变更
   export-workspace WS DEST   整库导出（证据/代/图/来源登记/知识库；--include-queries 才带查询日志）
@@ -365,6 +366,28 @@ def cmd_context(args):
     if ctx["text"]:
         print()
         print(ctx["text"])
+
+
+def cmd_recheck(args):
+    """知识复核队列（R06 原义）：依据已变的陈述 → list 查看 / confirm 绑定新证据。"""
+    from domimap.service import AppService, ServiceError
+    svc = AppService(args.graph)
+    try:
+        if args.action == "list":
+            q = svc.review_queue()
+            if not q:
+                print("[recheck] 无待复核项"); return
+            for it in q:
+                print("[recheck] %s#%d  %s\n    依据 %s → %s  (%s → %s)" % (
+                    it["note_id"], it["claim_idx"], it.get("statement") or "", it["evidence"],
+                    it.get("new_evidence") or "?", (it["old_sha"] or "")[:12], (it["new_sha"] or "")[:12]))
+        else:
+            if not args.note_id or args.claim_idx is None:
+                print("用法：domimap recheck confirm NOTE_ID CLAIM_IDX -g 图"); sys.exit(2)
+            r = svc.confirm_review(args.note_id, args.claim_idx)
+            print("[recheck] 已确认 %s#%d → 绑定 %s" % (r["note_id"], r["claim_idx"], r["new_evidence"]))
+    except ServiceError as e:
+        print("recheck: %s" % e); sys.exit(4)
 
 
 def cmd_scenario(args):
@@ -790,6 +813,9 @@ def main():
     rs = sub.add_parser("restore-workspace", help="整库恢复到不存在的目标目录（逐成员校验，失败不留半成品）")
     rs.add_argument("archive"); rs.add_argument("target")
     rs.set_defaults(fn=cmd_restore_workspace)
+    rc = with_g(sub.add_parser("recheck", help="知识复核队列：list | confirm NOTE_ID CLAIM_IDX"))
+    rc.add_argument("action", choices=["list", "confirm"]); rc.add_argument("note_id", nargs="?")
+    rc.add_argument("claim_idx", nargs="?", type=int); rc.set_defaults(fn=cmd_recheck)
     tr = with_g(sub.add_parser("trust", help="可信上下文根：add LABEL PATH | list | remove LABEL"))
     tr.add_argument("action", choices=["add", "list", "remove"]); tr.add_argument("label", nargs="?")
     tr.add_argument("path", nargs="?"); tr.set_defaults(fn=cmd_trust)
