@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "connect-clients",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/connect-clients.md",
+  "requirements": [
+    "F1-C1",
+    "F1-C2",
+    "F1-C3",
+    "F1-C4"
+  ],
+  "acceptance_cases": [
+    "AC-F1-C1-02",
+    "AC-F1-C2-02",
+    "AC-F1-C3-02",
+    "AC-F1-C4-02"
+  ],
+  "files": [
+    "domimap/clients.py",
+    "domimap/__main__.py",
+    "tests/test_connect_clients.py",
+    "docs/clients.md",
+    "docs/capabilities.md",
+    "CHANGELOG.md",
+    "specs/tasks/connect-clients.json",
+    "specs/tasks/connect-clients.md"
+  ],
+  "test_files": [
+    "tests/test_connect_clients.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_connect_clients tests.test_clients_doc -v",
+    "make verify",
+    "python3 -B scripts/check_specs.py --task specs/tasks/connect-clients.json --base e58217d"
+  ],
+  "rollback": "删除 clients.py 与三个子命令；已写入的客户端条目用 disconnect 撤销或从 *.dm-backup-* 还原。"
+}

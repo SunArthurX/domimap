@@ -10,6 +10,8 @@
   doc TEXT                   文档检索（与 MCP kg_doc_search 同参同观测）
   update -o DIR              工作区增量重建（manifest 未变时毫秒级 no-op）
   rebind LABEL PATH -o DIR   来源根移动后重绑物理路径（sid/节点 ID 不变，再 update）
+  connect CLIENT -g FILE     注册到 claude|codex|zcode|dsh 原生配置（幂等/备份/--dry-run/--force）
+  disconnect CLIENT          受管撤销；clients 诊断四客户端接入状态
   note submit|amend|…        知识笔记写入口（与 UI/MCP 同一校验；amend 需 --expected-revision）
   kb export|import|backup|restore  知识库 Markdown 导出/显式导入（--preview 冲突预览）/备份/恢复
   recheck list|confirm       知识复核队列（依据变化的陈述；确认=绑定新证据）
@@ -449,6 +451,48 @@ def cmd_kb(args):
         print("kb %s: %s" % (args.action, e), file=sys.stderr); sys.exit(_svc_exit(e))
 
 
+def cmd_connect(args):
+    """F1：把 domimap serve 注册进客户端原生配置（幂等、写前备份、不覆盖手写条目）。"""
+    from domimap import clients
+    try:
+        r = clients.connect(args.client, args.graph, home=args.home, python=args.python,
+                            enable_write=args.enable_write, force=args.force, dry_run=args.dry_run)
+    except ValueError as e:
+        print("connect: %s" % e); sys.exit(2)
+    except FileNotFoundError as e:
+        print("connect: %s" % e); sys.exit(4)
+    except clients.ManagedConflict as e:
+        print("connect: %s" % e); sys.exit(5)
+    if r["action"] == "dry-run":
+        print("# %s → %s（未写入）\n%s" % (args.client, r["config"], r["snippet"])); return
+    print("[connect] %s %s → %s%s" % (args.client, r["action"], r["config"],
+                                      ("（备份 %s）" % r["backup"]) if r.get("backup") else ""))
+    print("[connect] 真实会话验收仍需在 %s 新会话中执行：发现 kg_* 工具 → 查询 → kg_read → 上下文生效；"
+          "完成后把记录登记到 AC-F1 案例（本命令不替代）。" % clients.CLIENTS[args.client]["product"])
+
+
+def cmd_disconnect(args):
+    from domimap import clients
+    try:
+        r = clients.disconnect(args.client, home=args.home, force=args.force)
+    except ValueError as e:
+        print("disconnect: %s" % e); sys.exit(2)
+    except clients.ManagedConflict as e:
+        print("disconnect: %s" % e); sys.exit(5)
+    print("[disconnect] %s %s（%s）" % (args.client, "已移除" if r["removed"] else "未登记，无事", r["config"]))
+
+
+def cmd_clients(args):
+    """四客户端接入诊断：配置是否存在/条目是否受管/图与解释器是否存在/真实会话验收状态。"""
+    from domimap import clients
+    for c in sorted(clients.CLIENTS):
+        st = clients.status(c, home=args.home)
+        print("[clients] %-6s %-28s %s" % (c, st["product"], st["config"]))
+        print("          present=%s managed=%s graph_exists=%s command_exists=%s template=%s" % (
+            st["present"], st["managed"], st["graph_exists"], st["command_exists"], st["template"]))
+        print("          实测版本：%s；%s" % (st["verified_version"], st["session_acceptance"]))
+
+
 def cmd_scenario(args):
     from domimap.graph import Graph, load_seeds
     from domimap.search import Searcher
@@ -872,6 +916,16 @@ def main():
     rs = sub.add_parser("restore-workspace", help="整库恢复到不存在的目标目录（逐成员校验，失败不留半成品）")
     rs.add_argument("archive"); rs.add_argument("target")
     rs.set_defaults(fn=cmd_restore_workspace)
+    cn = with_g(sub.add_parser("connect", help="注册到客户端原生配置：claude|codex|zcode|dsh（幂等、备份、不覆盖手写）"))
+    cn.add_argument("client"); cn.add_argument("--python", default=None, help="客户端拉起 serve 用的解释器（默认当前）")
+    cn.add_argument("--enable-write", action="store_true", help="同时启用 kg_feedback/kg_note 写工具")
+    cn.add_argument("--force", action="store_true"); cn.add_argument("--dry-run", action="store_true")
+    cn.add_argument("--home", default=None, help=argparse.SUPPRESS); cn.set_defaults(fn=cmd_connect)
+    dcn = sub.add_parser("disconnect", help="受管撤销客户端配置中的 domimap 条目")
+    dcn.add_argument("client"); dcn.add_argument("--force", action="store_true")
+    dcn.add_argument("--home", default=None, help=argparse.SUPPRESS); dcn.set_defaults(fn=cmd_disconnect)
+    cl = sub.add_parser("clients", help="四客户端接入诊断")
+    cl.add_argument("--home", default=None, help=argparse.SUPPRESS); cl.set_defaults(fn=cmd_clients)
     nt = with_g(sub.add_parser("note", help="知识笔记：submit|amend|withdraw|accept|get|history"))
     nt.add_argument("action", choices=["submit", "amend", "withdraw", "accept", "get", "history"])
     nt.add_argument("note_id", nargs="?"); nt.add_argument("--body"); nt.add_argument("--claims", help="JSON 数组")

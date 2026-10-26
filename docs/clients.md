@@ -11,10 +11,16 @@
 | ZCode (F1-C3) | ✅ 宿主存在 | ZCode.app 3.15.3；domimap 已注册 `~/.zcode/mcp.json`（标准 mcpServers） | 接口已验证、注册就绪 | **blocked**：需用户开新 ZCode 会话实测（发现→查询→读取）。所需最小输入：用户一次新会话操作记录 |
 | DSH Code Agent (F1-C4) | ✅ 产品已定位 | @deepseek-ai/dsh v0.1.2-alpha.1（deepseek-harness）；domimap 已注册 cordis.patch.yml | 全链配置实测通过（RPC/会话/任务/读回） | **blocked**：模型 402 余额不足。所需最小输入：minimax-cn 充值，或任一有余额的 OpenAI 兼容 key+baseUrl |
 
-修正记录：roadmap §5 曾写"ZCode/DSH 未唯一定位到本机可运行产品；本轮 PATH 未发现命令"。本次实测修正：ZCode 为本机桌面宿主 3.15.3；DSH 存在数据目录但程序本体未定位（维持 blocked）。结论以本文件实测为准，后续每次 F1 任务更新本表并注明日期。
+修正记录：roadmap §5 曾写"ZCode/DSH 未唯一定位到本机可运行产品；本轮 PATH 未发现命令"。2026-10-16（M0）实测修正：ZCode 为本机桌面宿主 3.15.3；DSH 当时仅见 ~/.dsh 数据目录、程序未定位。**其后已定位 DSH 为 @deepseek-ai/dsh v0.1.2-alpha.1（deepseek-harness），并按其 `~/.dsh/cordis.patch.yml` 的 `@deepseek-ai/dsh-mcp-client` 行完成全链配置（见上表）**；当前阻塞仅为模型余额。结论以本表为准，后续每次 F1 任务更新本表并注明日期。
 
 ## MCP SDK 选择（试验结论）
 
 - 官方 Python SDK：PyPI `mcp`，实测最新 2.3.0（2026-10-16），`requires_python >= 3.10`。
 - domimap 核心 Python 要求保持 `>=3.9`；**`mcp` 作为可选 extra**（`pip install domimap[mcp]`），仅 3.10+ 环境可装——不提升核心版本门槛。
 - 当前 stdlib 自研 MCP stdio 服务器继续可用（零依赖路径保留）；SDK 用于客户端侧兼容试验（scripts/mcp_sdk_spike.py），M2 迁移服务端时再评估是否切换。
+
+## 接入自动化（2026-10-26，connect-clients）
+
+`domimap connect <claude|codex|zcode|dsh> -g 图 [--python 解释器] [--enable-write] [--dry-run] [--force]` 按上表实测的**各自原生接口**写入配置：Claude `~/.claude.json`、ZCode `~/.zcode/mcp.json`（JSON `mcpServers.domimap`）；Codex `~/.codex/config.toml`（`[mcp_servers.domimap]` + `.env` 表）；DSH `~/.dsh/cordis.patch.yml`（`- insert:` 列表下 `- id: mcp-domimap`，`@deepseek-ai/dsh-mcp-client`，`serverName/transport/command/args/env`）。幂等（同条目 unchanged）、写前备份 `*.dm-backup-<ts>`、只增删 domimap 条目、非本工具写入的条目不覆盖/不删除（需 `--force`）；登记于 `~/.domimap/connect.json`。`domimap disconnect CLIENT` 受管撤销；`domimap clients` 诊断（配置/条目/图/解释器是否存在、模板版本、**真实会话验收状态如实为"未验收"**）。从源码检出运行时自动注入 `PYTHONPATH`。
+
+这只让配置动作可重复、可撤销；**AC-F1-C*-01/02 的真实新会话记录仍需在各客户端中执行并登记**，本工具不替代。
