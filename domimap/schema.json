@@ -184,6 +184,9 @@
   "kg_feedback",
   "kg_troubleshoot"
  ],
+ "mcp_write_tools": [
+  "kg_feedback"
+ ],
  "refusal_gates": [
   {
    "id": "generic-words-only",

@@ -21,7 +21,7 @@
   enrich -g FILE [--limit N] 可选 LLM 语义增强：Doc 材料生成 inference 草稿笔记
                              （--dry-run/--force/--model/--endpoint；key 走 GLM_API_KEY 等
                              环境变量，未配置退出码 6；产物标注 conf=LLM 不混入事实）
-  serve -g FILE              MCP stdio 服务器（kg_explore 等 6 工具）
+  serve -g FILE              MCP stdio 服务器（6 个只读 kg_* 工具；--enable-write 加 kg_feedback）
   ui -g FILE [--port N]      本地只读搜索/证据阅读页（默认 127.0.0.1:8765）
 """
 import argparse
@@ -215,7 +215,7 @@ def cmd_ui(args):
 
 def cmd_serve(args):
     from domimap.mcp import serve
-    serve(args.graph)
+    serve(args.graph, enable_write=args.enable_write)
 
 def cmd_read(args):
     """按证据 ID 读固化片段（源修改/删除后仍为旧版本，AC-R02-01 消费面）。"""
@@ -657,7 +657,10 @@ def main():
     i = with_g(sub.add_parser("impact")); i.add_argument("symbol"); i.add_argument("--depth", type=int, default=2)
     i.set_defaults(fn=cmd_impact)
     r = with_g(sub.add_parser("review")); r.add_argument("-o", "--out", default="out/review"); r.set_defaults(fn=cmd_review)
-    with_g(sub.add_parser("serve")).set_defaults(fn=cmd_serve)
+    sv = with_g(sub.add_parser("serve"))
+    sv.add_argument("--enable-write", action="store_true",
+                    help="启用写工具 kg_feedback（默认只读；经 MCP 转达的判定以 agent_relay 非权威来源记录）")
+    sv.set_defaults(fn=cmd_serve)
     u = with_g(sub.add_parser("ui")); u.add_argument("--host", default="127.0.0.1")
     u.add_argument("--port", type=int, default=8765); u.set_defaults(fn=cmd_ui)
     rd = sub.add_parser("read"); rd.add_argument("ev_id")

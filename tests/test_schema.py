@@ -65,6 +65,13 @@ class TestSchemaContract(unittest.TestCase):
         from domimap.mcp import TOOLS
         self.assertEqual(self.schema["mcp_tools"], [t["name"] for t in TOOLS])
 
+    def test_mcp_write_tools_declared_and_gated(self):
+        """写工具清单与 mcp.WRITE_TOOLS 一致，且默认只读服务不公布它们。"""
+        from domimap.mcp import WRITE_TOOLS, visible_tools
+        self.assertEqual(self.schema["mcp_write_tools"], sorted(WRITE_TOOLS))
+        self.assertTrue(set(self.schema["mcp_write_tools"]) <= set(self.schema["mcp_tools"]))
+        self.assertFalse(set(self.schema["mcp_write_tools"]) & {t["name"] for t in visible_tools(False)})
+
     def test_cli_outputs_valid_json(self):
         p = subprocess.run([sys.executable, "-B", "-m", "domimap", "schema"],
                            cwd=ROOT, capture_output=True, text=True)

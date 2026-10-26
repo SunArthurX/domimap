@@ -280,7 +280,7 @@ domimap/
 │   ├── search.py      # BM25 + 图检索 + 拒答门
 │   ├── embedding.py   # 可选本地嵌入索引（RRF 融合）
 │   ├── llm_enrich.py  # 可选 LLM 草稿笔记（conf=LLM，人工审定）
-│   ├── mcp.py         # MCP stdio 服务器（6 工具，热重载）
+│   ├── mcp.py         # MCP stdio 服务器（6 个只读工具；kg_feedback 须 --enable-write；热重载）
 │   ├── store.py       # 证据库（不可变 generation）
 │   ├── knowledge.py   # 知识库（笔记/主张/审定）
 │   └── ...

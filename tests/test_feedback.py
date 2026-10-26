@@ -447,11 +447,15 @@ class TestFeedbackCLIAndUI(unittest.TestCase):
             entry="mcp", text="MCP 反馈查询", params={"top_k": 6},
             version={"domimap": "t"}, status="ok", result={"candidates": []}
         )["event_id"]
-        srv = Server(self.gp)
+        closed = Server(self.gp).call("kg_feedback", {"event_id": ev, "relevance": "miss"})
+        self.assertTrue(closed["isError"], "默认只读服务必须拒绝写工具")
+        self.assertIn("write_disabled", closed["content"][0]["text"])
+        srv = Server(self.gp, enable_write=True)
         out = srv.call("kg_feedback", {"event_id": ev, "relevance": "miss",
                                        "reason": "没找到"})
         self.assertFalse(out["isError"])
         self.assertIn("recorded", out["content"][0]["text"])
+        self.assertIn("agent_relay", out["content"][0]["text"], "MCP 转达判定须以非权威来源落库")
         bad = srv.call("kg_feedback", {"event_id": ev, "relevance": "definitely"})
         self.assertTrue(bad["isError"], "枚举外的 relevance 必须被参数校验拒绝")
 

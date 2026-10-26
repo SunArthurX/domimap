@@ -22,7 +22,7 @@ RELEVANCE_VALUES = ("unknown", "hit", "partial", "miss", "not_applicable")
 TASK_OUTCOME_VALUES = ("unknown", "success", "failure", "correct_abstention",
                        "needs_clarification")
 SOURCE_VALUES = ("user_feedback", "human_annotation", "dev_gold", "rule_check",
-                 "ai_suggestion")
+                 "ai_suggestion", "agent_relay")  # agent_relay: MCP 转达，非权威
 AUTHORITATIVE_SOURCES = ("user_feedback", "human_annotation", "dev_gold")
 
 BUSY_TIMEOUT_MS = 5000

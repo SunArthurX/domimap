@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### 漂移纠正二期（2026-10-26 全项目漂移审计 → docs/superpowers/plans/2026-10-26-drift-analysis-and-priorities.md，T1–T15）
+
+- T1 spec-rehome-r15：R06 回归原义"依据变化→定位陈述→复核队列"（AC-R06-01/02）；检索反馈闭环五案例迁册为 R15「检索质量反馈与受控进化」（AC-R15-01..05，文本逐字不变、连续归位）。`check_specs.REQUIREMENTS` 显式需求集 21→22（精确相等守卫保留）；product.md/roadmap 同步；12 份历史任务 manifest 与守账测试改用新 ID；证据按新 case_id 真实重跑定稿。
+- T2 mcp-write-gate：MCP 写工具 `kg_feedback` 改为 `domimap serve --enable-write` 显式启用——默认服务 `tools/list` 只公布 6 个只读工具，未启用时调用返回 `isError` + `write_disabled`；经 MCP 转达的判定以新来源 `agent_relay`（∈ SOURCE_VALUES、∉ AUTHORITATIVE_SOURCES）落库，不进命中率/覆盖率/诊断队列口径，响应附 `source` 字段；`schema.json` 增 `mcp_write_tools` 并有契约测试。行为变化：此前任何 MCP 客户端可写入权威 `user_feedback`；现在人工确认须经 UI/CLI。
+
 ### 偏离纠正（drift audit 2026-10-26，C0–C7 已完成）
 
 - 偏离审查（out/drift-audit-2026-10-26/，16 项可复现探针）发现十项实质偏离（F01–F10）；纠正任务 C0–C7 已全部完成：C1 安全恢复（先校验后触碰/占用拒绝/安全副本）与删除派生清理+裁剪保护；C2 请求身份排除耗时、密钥并发唯一赢家、版本含知识代际与词表指纹、记录延迟上界；C3 反馈全 payload 幂等、同来源显式修订（expected_revision）、AI 不改变人工样本选用、replay 不污染用户口径、分来源命中率；C4 簇键含范围版本、partial 入队、再裁决移出、当前重测与历史复现分离、召回池实证、AI 状态机（原子额度/并发单调用/非法输出 invalid_response/簇级冷却/unavailable 不占额度）；C5 精确节点评分（同文件错误节点=miss、旧子串格式拒绝）、冻结 manifest、activated 完整 lineage 门槛、追溯链限定；C6 MCP kg_feedback 工具+CLI qsnapshot/qrestore/qdelete+UI /api/event；C7 旧样例独立裁决（fastjson gold 判无效、无实词 gold 如实排除）与冻结样本集 v3 重证——目标名次 15→4、5→1、零回归、回滚等价，新启用 imp:d914a167c7a25b8401fe（旧 imp:ccf1ee268b695abbf2cd 失效留档）。597 tests OK；make release-check 仍按原规范拒绝（M0 implementing、四竞品比较未执行）。

@@ -40,7 +40,7 @@ TOOLS = [
          "required": ["ev_id"], "additionalProperties": False}},
     {"name": "kg_feedback",
      "description": "提交查询反馈：用户看过 kg_explore 结果后，由用户明确告知判定（hit=找到/partial=部分找到/miss=没找到或结果有误）。"
-     "这是用户的判断经其代理转达，按 user_feedback 来源记录；修正同事件判定需携带当前修订号。",
+     "经代理转达的判定按 agent_relay（非权威）来源记录，不进命中率口径；人工确认请经 UI/CLI 提交。修正同事件判定需携带当前修订号。",
      "inputSchema": {"type": "object", "properties": {
          "event_id": {"type": "string", "minLength": 27, "maxLength": 27,
                       "description": "kg_explore 结果尾部的 query_id（qe:…）"},
@@ -61,13 +61,22 @@ TOOLS = [
          "required": ["symptom"], "additionalProperties": False}},
 ]
 
+# Write-capable tools are advertised and callable only when the server was started with
+# enable_write (CLI: `domimap serve --enable-write`). Default servers stay read-only (roadmap M3).
+WRITE_TOOLS = frozenset({"kg_feedback"})
+
+
+def visible_tools(enable_write):
+    """tools/list only publishes what this server instance will actually execute."""
+    return [t for t in TOOLS if enable_write or t["name"] not in WRITE_TOOLS]
+
 
 class InvalidParams(ValueError):
     """The public tool contract was violated; never include source data in errors."""
 
 
 def _validate_arguments(name, args):
-    """Validate the bounded subset of JSON Schema used by our six public tools."""
+    """Validate the bounded subset of JSON Schema used by our public tools."""
     spec = next((tool["inputSchema"] for tool in TOOLS if tool["name"] == name), None)
     if spec is None or not isinstance(args, dict):
         raise InvalidParams()
@@ -88,8 +97,9 @@ def _validate_arguments(name, args):
 
 
 class Server:
-    def __init__(self, graph_path):
+    def __init__(self, graph_path, enable_write=False):
         self.graph_path = graph_path
+        self.enable_write = bool(enable_write)
         self._mtime = None
         self._kb_mtime = None
         self._reload()
@@ -156,6 +166,9 @@ class Server:
         return self.call(name, args)["content"][0]["text"]
 
     def call(self, name, args):
+        if name in WRITE_TOOLS and not self.enable_write:
+            text = "错误: 写工具未启用（write_disabled）；以 `domimap serve --enable-write` 启动后可用"
+            return {"content": [{"type": "text", "text": text}], "isError": True}
         try:
             _validate_arguments(name, args)
             text = self._dispatch(name, args)
@@ -214,7 +227,7 @@ class Server:
                 r = store.submit(
                     args["event_id"], args["relevance"],
                     task_outcome=args.get("outcome", "unknown"),
-                    source="user_feedback", reason=args.get("reason"),
+                    source="agent_relay", reason=args.get("reason"),
                     expected_evidence=args.get("expected"),
                     idempotency_key=args.get("idempotency_key"),
                     expected_revision=args.get("expected_revision"))
@@ -222,6 +235,7 @@ class Server:
                 return _jf.dumps({"error": str(e)}, ensure_ascii=False)
             finally:
                 store.close()
+            r = dict(r, source="agent_relay")  # 让调用方看见其判定以非权威来源落库
             return _jf.dumps(r, ensure_ascii=False)
         if name == "kg_domain_map":
             m = self.g.domain_map()
@@ -288,7 +302,7 @@ def _response(srv, req):
                 or (type(rid) is float and math.isfinite(rid)))
     if (req.get("jsonrpc") != "2.0" or not isinstance(req.get("method"), str) or not valid_id):
         return _error(rid if valid_id else None, -32600, "invalid request")
-    # These tools are read-only. Notifications never need a reply or a tool execution.
+    # Write tools are gated in Server.call(); notifications never get a reply or a tool execution.
     if "id" not in req:
         return None
     params = req.get("params", {})
@@ -299,7 +313,7 @@ def _response(srv, req):
         result = {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}},
                   "serverInfo": {"name": "domimap", "version": __version__}}
     elif method == "tools/list":
-        result = {"tools": TOOLS}
+        result = {"tools": visible_tools(srv.enable_write)}
     elif method == "tools/call":
         result = srv.call(params.get("name"), params.get("arguments", {}))
     elif method == "ping":
@@ -313,8 +327,8 @@ def _reject_constant(value):
     raise ValueError("non-JSON numeric constant")
 
 
-def serve(graph_path):
-    srv = Server(graph_path)
+def serve(graph_path, enable_write=False):
+    srv = Server(graph_path, enable_write=enable_write)
     for line in _request_lines(sys.stdin):
         if line is None:
             response = _error(None, -32600, "request too large")
