@@ -19,7 +19,7 @@ SEEDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.jso
 
 
 class ServiceError(ValueError):
-    """入口可直接映射的有界错误：code ∈ invalid_params | not_found | unavailable。"""
+    """入口可直接映射的有界错误：code ∈ invalid_params | not_found | conflict | exists | unavailable | internal。"""
 
     def __init__(self, code, message):
         super().__init__(message)
@@ -223,6 +223,129 @@ class AppService:
                     "bound_sha": item["new_sha"]}
         finally:
             kb.close()
+
+    # ---------- 知识写入口（R05/R07）：CLI/MCP/UI 共用同一校验与错误映射 ----------
+    def _kb_rw(self):
+        from .knowledge import KnowledgeStore
+        return KnowledgeStore(os.path.join(self.ws, "knowledge.db"))  # 不存在则创建（首条笔记）
+
+    def _knowledge_op(self, fn):
+        from .knowledge import ConflictError
+        kb = self._kb_rw()
+        try:
+            try:
+                out = fn(kb)
+            except ConflictError as e:
+                raise ServiceError("conflict", str(e))
+            except (ValueError, KeyError) as e:
+                raise ServiceError("invalid_params", str(e))
+        finally:
+            kb.close()
+        self.refresh(force=True)
+        return out
+
+    @staticmethod
+    def _claims_arg(claims):
+        if claims is None or claims == "":
+            return []
+        if isinstance(claims, str):
+            try:
+                claims = json.loads(claims)
+            except ValueError:
+                raise ServiceError("invalid_params", "claims 须为 JSON 数组")
+        if not isinstance(claims, list):
+            raise ServiceError("invalid_params", "claims 须为数组")
+        return claims
+
+    def note_submit(self, body, claims=None, idempotency_key=None):
+        if not isinstance(body, str) or not body.strip():
+            raise ServiceError("invalid_params", "正文不能为空")
+        claims = self._claims_arg(claims)
+        return self._knowledge_op(lambda kb: kb.submit(body, claims=claims, idempotency_key=idempotency_key))
+
+    def note_amend(self, note_id, body, expected_revision, claims=None):
+        if not isinstance(body, str) or not body.strip():
+            raise ServiceError("invalid_params", "正文不能为空")
+        try:
+            expected_revision = int(expected_revision)
+        except (TypeError, ValueError):
+            raise ServiceError("invalid_params", "expected_revision 须为整数")
+        claims = self._claims_arg(claims) if claims is not None else None
+        return self._knowledge_op(lambda kb: kb.amend(note_id, body, expected_revision, claims=claims))
+
+    def note_withdraw(self, note_id):
+        return self._knowledge_op(lambda kb: kb.withdraw(note_id))
+
+    def note_accept(self, note_id, idx):
+        try:
+            idx = int(idx)
+        except (TypeError, ValueError):
+            raise ServiceError("invalid_params", "idx 须为整数")
+        return self._knowledge_op(lambda kb: kb.accept_claim(note_id, idx))
+
+    def note_get(self, note_id):
+        kb = self._kb()
+        try:
+            note = kb.get(note_id)
+        finally:
+            kb.close()
+        if note is None:
+            raise ServiceError("not_found", "无此笔记：%s" % note_id)
+        return note
+
+    def note_history(self, note_id):
+        kb = self._kb()
+        try:
+            hist = kb.history(note_id)
+        finally:
+            kb.close()
+        if not hist:
+            raise ServiceError("not_found", "无此笔记：%s" % note_id)
+        return hist
+
+    def kb_export(self, out_dir):
+        kb = self._kb()
+        try:
+            return kb.export_markdown(out_dir)
+        finally:
+            kb.close()
+
+    def kb_import(self, path, preview=False):
+        from .knowledge import ConflictError
+        kb = self._kb()
+        try:
+            try:
+                return kb.preview_import(path) if preview else kb.import_markdown(path)
+            except ConflictError as e:
+                raise ServiceError("conflict", str(e))
+            except (ValueError, KeyError, OSError) as e:
+                raise ServiceError("invalid_params", str(e))
+        finally:
+            kb.close()
+
+    def kb_backup(self, dest):
+        kb = self._kb()
+        try:
+            try:
+                return kb.backup(dest)
+            except FileExistsError as e:
+                raise ServiceError("exists", str(e))
+        finally:
+            kb.close()
+
+    @staticmethod
+    def kb_restore(archive, dest):
+        from .knowledge import KnowledgeStore
+        try:
+            k = KnowledgeStore.restore(archive, dest)
+        except FileExistsError as e:
+            raise ServiceError("exists", str(e))
+        except (ValueError, OSError) as e:
+            raise ServiceError("invalid_params", str(e))
+        try:
+            return {"path": dest, "notes": k.count()}
+        finally:
+            k.close()
 
     # ---------- 证据 ----------
     def evidence_for(self, node):

@@ -44,7 +44,7 @@ class TestQueryDiscipline(unittest.TestCase):
         names = {t["name"] for t in mcp.TOOLS}
         self.assertEqual(names, {"kg_explore", "kg_domain_map", "kg_impact",
                                  "kg_doc_search", "kg_read", "kg_troubleshoot",
-                                 "kg_feedback", "kg_context"})
+                                 "kg_feedback", "kg_note", "kg_context"})
 
 
 if __name__ == "__main__":

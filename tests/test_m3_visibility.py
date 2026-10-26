@@ -51,7 +51,9 @@ class TestKnowledgeVisibility(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             kb = KnowledgeStore(os.path.join(tmp, "kb.db"))
             seed_kb(kb)
-            kb.withdraw("note:x")  # 不存在也无妨
+            from domimap.knowledge import ConflictError
+            with self.assertRaises(ConflictError):
+                kb.withdraw("note:x")  # 2026-10-26 起：不存在的撤回不再静默成功（product#4 冲突感知）
             nid = kb.submit(body="撤回测试 marker-kn-w", claims=[{"type": "decision",
                                  "statement": "w", "evidence": [], "scope": "s"}],
                             idempotency_key="kw")["note_id"]

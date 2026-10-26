@@ -43,7 +43,7 @@ class TestMcpWriteGate(unittest.TestCase):
     def test_enable_write_lists_feedback_tool(self):
         names = self._names(mcp.Server(self.graph, enable_write=True))
         self.assertIn("kg_feedback", names)
-        self.assertEqual(len(names), 8)
+        self.assertEqual(len(names), 9)  # 7 只读 + kg_feedback + kg_note
 
     def test_disabled_write_call_is_explicit_error(self):
         srv = mcp.Server(self.graph)

@@ -35,7 +35,7 @@ domimap 的核心价值是让人和 Agent 在不同会话中，重新核对同�
 - 已经被旧版覆盖的出处记录无法自动恢复。历史 ID 只保留当前库实际存在的原始记录，不伪造丢失历史。
 - 证据 sha256 是最多 1 MiB 固化片段的摘要；超限仍显示 truncated。本轮没有把它包装成全文件内容版本，也未解决 PDF/DOCX 原始字节与解析后定位之间的全部对应关系。
 - 知识备份新增 `domimap.kbackup.v2`；旧 v1 兼容恢复，但没有内容摘要。备份必须使用新目录；恢复必须使用新目标路径，含孤立 WAL/SHM/journal 的目标也拒绝。原始归档不会被覆盖。恢复发布依赖同目录原子硬链接，不支持的文件系统应明确报错，不退回覆盖式复制。
-- 备份范围是 knowledge.db 的全部已知表，包含修订/审定/幂等/复核记录；不包含整个工作区的证据 blob、图和来源映射，不能因此宣称 R07 全部完成。 2026-10-26 起 `domimap export-workspace` 把证据库快照、blobs/、gens/、graph.json、coverage.json、各来源 manifest 与知识库（kbackup v2）打成一个带逐文件 sha256 的包；`restore-workspace` 逐成员校验后原子发布到新目录，active 代按新目录定位。查询日志默认不随包。Markdown/Obsidian 显式导入与冲突预览仍属 R07-02 待办。
+- 备份范围是 knowledge.db 的全部已知表，包含修订/审定/幂等/复核记录；不包含整个工作区的证据 blob、图和来源映射，不能因此宣称 R07 全部完成。 2026-10-26 起 `domimap export-workspace` 把证据库快照、blobs/、gens/、graph.json、coverage.json、各来源 manifest 与知识库（kbackup v2）打成一个带逐文件 sha256 的包；`restore-workspace` 逐成员校验后原子发布到新目录，active 代按新目录定位。查询日志默认不随包。Markdown 显式导入的冲突预览（`kb import --preview`）与导出页回灌防护已随 knowledge-entries（2026-10-26）落地；Obsidian 专用展示（wikilink）仍待。
 - MCP 默认公布六个只读工具和进程内文本 API（写工具 kg_feedback 须 `serve --enable-write` 显式启用，经 MCP 转达的判定以非权威 agent_relay 来源落库，2026-10-26 mcp-write-gate），工具结构增加范围约束。字符串/布尔值不再被当整数接受；未知参数拒绝。查询最长 4096 字符、top_k 1–50、深度 0–8、遍历节点预算 1–2000；单帧限 1 Mi 字符、字符串请求 ID 限 256 字符。声明的 inputSchema 与运行时同源校验。完整协议版本协商及客户端生命周期尚未迁移。
 
 ## 验证与状态真实性

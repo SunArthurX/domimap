@@ -10,6 +10,8 @@
   doc TEXT                   文档检索（与 MCP kg_doc_search 同参同观测）
   update -o DIR              工作区增量重建（manifest 未变时毫秒级 no-op）
   rebind LABEL PATH -o DIR   来源根移动后重绑物理路径（sid/节点 ID 不变，再 update）
+  note submit|amend|…        知识笔记写入口（与 UI/MCP 同一校验；amend 需 --expected-revision）
+  kb export|import|backup|restore  知识库 Markdown 导出/显式导入（--preview 冲突预览）/备份/恢复
   recheck list|confirm       知识复核队列（依据变化的陈述；确认=绑定新证据）
   trust add|list|remove      可信上下文根登记（只有登记根的 AGENTS/SOUL 作为指令加载）
   context [--scope DIR]      查看当前生效的可信上下文与变更
@@ -388,6 +390,62 @@ def cmd_recheck(args):
             print("[recheck] 已确认 %s#%d → 绑定 %s" % (r["note_id"], r["claim_idx"], r["new_evidence"]))
     except ServiceError as e:
         print("recheck: %s" % e); sys.exit(4)
+
+
+def _svc_exit(e):
+    """ServiceError → 退出码：invalid_params 2 / not_found·exists 4 / conflict 5 / unavailable 6（与 export/restore-workspace 一致）。"""
+    return {"invalid_params": 2, "not_found": 4, "exists": 4, "conflict": 5, "unavailable": 6}.get(e.code, 1)
+
+
+def cmd_note(args):
+    """知识笔记写入口（R05）：submit/amend/withdraw/accept/get/history，与 UI/MCP 同一校验。"""
+    import json as _j
+    from domimap.service import AppService, ServiceError
+    svc = AppService(args.graph)
+    try:
+        if args.action == "submit":
+            r = svc.note_submit(args.body, claims=args.claims, idempotency_key=args.idempotency_key)
+        elif args.action == "amend":
+            if args.expected_revision is None:
+                print("note amend 需要 --expected-revision（乐观并发）"); sys.exit(2)
+            r = svc.note_amend(args.note_id, args.body, args.expected_revision, claims=args.claims)
+        elif args.action == "withdraw":
+            r = svc.note_withdraw(args.note_id)
+        elif args.action == "accept":
+            if args.idx is None:
+                print("note accept 需要 --idx"); sys.exit(2)
+            r = svc.note_accept(args.note_id, args.idx)
+        elif args.action == "get":
+            r = svc.note_get(args.note_id)
+        else:
+            r = svc.note_history(args.note_id)
+    except ServiceError as e:
+        print("note %s: %s" % (args.action, e), file=sys.stderr); sys.exit(_svc_exit(e))
+    print(_j.dumps(r, ensure_ascii=False, indent=1))
+
+
+def cmd_kb(args):
+    """知识库维护（R07）：export DIR / import FILE [--preview] / backup DIR / restore ARCHIVE DEST。"""
+    import json as _j
+    from domimap.service import AppService, ServiceError
+    svc = AppService(args.graph)
+    try:
+        if args.action == "export":
+            paths = svc.kb_export(args.path)
+            print("[kb] 导出 %d 条笔记 → %s" % (len(paths), args.path))
+        elif args.action == "import":
+            r = svc.kb_import(args.path, preview=args.preview)
+            print(_j.dumps(r, ensure_ascii=False, indent=1))
+        elif args.action == "backup":
+            m = svc.kb_backup(args.path)
+            print("[kb] 备份 → %s（笔记 %d，sha256 %s）" % (args.path, m["notes"], m["sha256"][:12]))
+        else:
+            if not args.dest:
+                print("用法：domimap kb restore ARCHIVE DEST"); sys.exit(2)
+            r = svc.kb_restore(args.path, args.dest)
+            print("[kb] 恢复 → %s（笔记 %d）" % (r["path"], r["notes"]))
+    except ServiceError as e:
+        print("kb %s: %s" % (args.action, e), file=sys.stderr); sys.exit(_svc_exit(e))
 
 
 def cmd_scenario(args):
@@ -813,6 +871,16 @@ def main():
     rs = sub.add_parser("restore-workspace", help="整库恢复到不存在的目标目录（逐成员校验，失败不留半成品）")
     rs.add_argument("archive"); rs.add_argument("target")
     rs.set_defaults(fn=cmd_restore_workspace)
+    nt = with_g(sub.add_parser("note", help="知识笔记：submit|amend|withdraw|accept|get|history"))
+    nt.add_argument("action", choices=["submit", "amend", "withdraw", "accept", "get", "history"])
+    nt.add_argument("note_id", nargs="?"); nt.add_argument("--body"); nt.add_argument("--claims", help="JSON 数组")
+    nt.add_argument("--expected-revision", dest="expected_revision", type=int)
+    nt.add_argument("--idempotency-key", dest="idempotency_key"); nt.add_argument("--idx", type=int)
+    nt.set_defaults(fn=cmd_note)
+    kbp = with_g(sub.add_parser("kb", help="知识库维护：export DIR | import FILE [--preview] | backup DIR | restore ARCHIVE DEST"))
+    kbp.add_argument("action", choices=["export", "import", "backup", "restore"]); kbp.add_argument("path")
+    kbp.add_argument("dest", nargs="?"); kbp.add_argument("--preview", action="store_true")
+    kbp.set_defaults(fn=cmd_kb)
     rc = with_g(sub.add_parser("recheck", help="知识复核队列：list | confirm NOTE_ID CLAIM_IDX"))
     rc.add_argument("action", choices=["list", "confirm"]); rc.add_argument("note_id", nargs="?")
     rc.add_argument("claim_idx", nargs="?", type=int); rc.set_defaults(fn=cmd_recheck)

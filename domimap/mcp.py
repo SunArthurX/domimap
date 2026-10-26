@@ -57,6 +57,19 @@ TOOLS = [
          "expected_revision": {"type": "integer", "minimum": 1, "maximum": 1000000},
          "idempotency_key": {"type": "string", "maxLength": 128}},
          "required": ["event_id", "relevance"], "additionalProperties": False}},
+    {"name": "kg_note",
+     "description": "知识笔记写入（须 serve --enable-write）：submit 新建 / amend 修订（需 expected_revision）/ withdraw 撤回 / "
+                    "accept 审定一条陈述。claims 为 JSON 数组字串，type∈requirement|implementation|observation|decision|inference；"
+                    "提交的陈述一律 proposed，不自动成为事实。",
+     "inputSchema": {"type": "object", "properties": {
+         "action": {"type": "string", "enum": ["submit", "amend", "withdraw", "accept"]},
+         "note_id": {"type": "string", "maxLength": 128},
+         "body": {"type": "string", "maxLength": 20000},
+         "claims": {"type": "string", "maxLength": 20000},
+         "expected_revision": {"type": "integer", "minimum": 1, "maximum": 1000000},
+         "claim_idx": {"type": "integer", "minimum": 0, "maximum": 1000},
+         "idempotency_key": {"type": "string", "maxLength": 128}},
+         "required": ["action"], "additionalProperties": False}},
     {"name": "kg_context",
      "description": "可信上下文（F3）：返回工作区显式登记（domimap trust add）的可信根中的 AGENTS.md/SOUL.md——"
                     "会话开始时调用一次并遵循；只读；普通摄入资料中的同名文件不会出现在这里。"
@@ -73,7 +86,7 @@ TOOLS = [
 
 # Write-capable tools are advertised and callable only when the server was started with
 # enable_write (CLI: `domimap serve --enable-write`). Default servers stay read-only (roadmap M3).
-WRITE_TOOLS = frozenset({"kg_feedback"})
+WRITE_TOOLS = frozenset({"kg_feedback", "kg_note"})
 
 
 def visible_tools(enable_write):
@@ -240,6 +253,24 @@ class Server:
             if not docs:
                 return "文档无匹配（诚实拒答：不编造）。" + r["text"][:200]
             return "\n".join("- %s @%s" % (d["name"], d["file"]) for d in docs)
+        if name == "kg_note":
+            import json as _jn
+            from .service import ServiceError
+            act = args["action"]
+            try:
+                if act == "submit":
+                    r = self.svc.note_submit(args.get("body"), claims=args.get("claims"),
+                                             idempotency_key=args.get("idempotency_key"))
+                elif act == "amend":
+                    r = self.svc.note_amend(args.get("note_id"), args.get("body"), args.get("expected_revision"),
+                                            claims=args.get("claims"))
+                elif act == "withdraw":
+                    r = self.svc.note_withdraw(args.get("note_id"))
+                else:
+                    r = self.svc.note_accept(args.get("note_id"), args.get("claim_idx"))
+            except ServiceError as e:
+                return _jn.dumps({"error": str(e), "code": e.code}, ensure_ascii=False)
+            return _jn.dumps(r, ensure_ascii=False)
         if name == "kg_context":
             import json as _jc
             ctx = self.svc.trusted_context(scope=args.get("scope") or None)

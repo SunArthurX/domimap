@@ -87,6 +87,12 @@ def _service_of(rel):
             return p
     return ""
 
+def _is_knowledge_export(raw):
+    """导出页特征：front-matter 含 note_id 与 base_revision（只看前 2KB，避免对大文件解码）。"""
+    head = raw[:2048]
+    return head.startswith(b"---") and b"note_id:" in head and b"base_revision:" in head
+
+
 def _decode_text(raw):
     """与文本模式 open(encoding=...) 等价：utf-8 严格读，失败回退 gb18030 宽容读；统一换行。
 
@@ -118,6 +124,10 @@ def scan_repo(root, repo_label=None, capture=None):
                 raw = f.read()
         except OSError as e:
             R["coverage"]["skipped"].append({"file": rel, "reason": "读取失败：%s" % type(e).__name__})
+            continue
+        if _is_knowledge_export(raw):
+            # R07：知识导出页（note_id/base_revision front-matter）不回灌为独立证据/文档节点
+            R["coverage"]["skipped"].append({"file": rel, "reason": "知识导出页不回灌为独立证据（显式导入请用 kb import）"})
             continue
         if capture is not None:
             try:

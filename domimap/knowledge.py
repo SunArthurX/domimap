@@ -214,17 +214,26 @@ class KnowledgeStore:
 
     @synchronized
     def withdraw(self, note_id):
+        """撤回 active 笔记；不存在或已撤回 → ConflictError（不静默成功）。"""
         with self.db:
-            self.db.execute("UPDATE knowledge SET status='withdrawn', updated=? WHERE note_id=?",
-                            (time.time(), note_id))
+            cur = self.db.execute(
+                "UPDATE knowledge SET status='withdrawn', updated=? WHERE note_id=? AND status='active'",
+                (time.time(), note_id))
+            if cur.rowcount != 1:
+                raise ConflictError("知识不存在或已撤回: %s" % note_id)
             self.db.commit()
+        return {"note_id": note_id, "status": "withdrawn"}
 
     @synchronized
     def accept_claim(self, note_id, idx):
+        """审定一条陈述为 accepted（只改状态，不改类型：推断被接受仍是推断）。不存在 → ConflictError。"""
         with self.db:
-            self.db.execute("UPDATE claims SET state='accepted' WHERE note_id=? AND idx=?",
-                            (note_id, idx))
+            cur = self.db.execute("UPDATE claims SET state='accepted' WHERE note_id=? AND idx=?",
+                                  (note_id, idx))
+            if cur.rowcount != 1:
+                raise ConflictError("陈述不存在: %s#%s" % (note_id, idx))
             self.db.commit()
+        return {"note_id": note_id, "idx": idx, "state": "accepted"}
 
     @read_snapshot
     def get(self, note_id):
@@ -462,18 +471,45 @@ class KnowledgeStore:
             paths.append(p)
         return paths
 
-    @synchronized
-    def import_markdown(self, path):
-        """显式导入：base_revision=当前 → amend 新修订；过期 → ConflictError（防覆盖）。"""
-        text = open(path, encoding="utf-8").read()
+    @staticmethod
+    def _parse_export(text):
+        """解析导出页 front-matter（note_id/base_revision/status/claims）与正文。"""
         if not text.startswith("---"):
             raise ValueError("缺少 front-matter")
-        meta, _, body = text.split("---", 2)[1], None, text.split("---", 2)[2].lstrip("\n")
+        parts = text.split("---", 2)
+        if len(parts) < 3:
+            raise ValueError("front-matter 未闭合")
         fields = {}
-        for ln in meta.strip().split("\n"):
+        for ln in parts[1].strip().split("\n"):
             if ": " in ln:
                 k, _, v = ln.partition(": ")
                 fields[k.strip()] = v.strip()
+        if "note_id" not in fields or "base_revision" not in fields:
+            raise ValueError("不是知识导出页（缺 note_id/base_revision）")
+        return fields, parts[2].lstrip("\n")
+
+    @read_snapshot
+    def preview_import(self, path):
+        """导入前预览（R07-02 冲突可预览）：库内当前正文/修订 vs 文件 base_revision/正文；不写库。"""
+        with open(path, encoding="utf-8") as f:
+            fields, body = self._parse_export(f.read())
+        note_id, base = fields["note_id"], int(fields["base_revision"])
+        cur = self.db.execute("SELECT body, revision, status FROM knowledge WHERE note_id=?",
+                              (note_id,)).fetchone()
+        exists = bool(cur) and cur[2] == "active"
+        current_rev = cur[1] if cur else None
+        return {"note_id": note_id, "exists": exists, "status": cur[2] if cur else None,
+                "file_revision": base, "current_revision": current_rev,
+                "revisions_ahead": (current_rev - base) if current_rev is not None else None,
+                "conflict": (not exists) or current_rev != base,
+                "current_body": cur[0] if cur else None, "file_body": body,
+                "claims": json.loads(fields.get("claims", "[]"))}
+
+    @synchronized
+    def import_markdown(self, path):
+        """显式导入：base_revision=当前 → amend 新修订；过期 → ConflictError（防覆盖）。"""
+        with open(path, encoding="utf-8") as f:
+            fields, body = self._parse_export(f.read())
         note_id, base = fields["note_id"], int(fields["base_revision"])
         cur = self.db.execute("SELECT revision FROM knowledge WHERE note_id=? AND status='active'",
                               (note_id,)).fetchone()
