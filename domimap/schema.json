@@ -26,14 +26,14 @@
   },
   "Route": {
    "id_prefix": "route:",
-   "summary_zh": "HTTP 路由（method + path）",
+   "summary_zh": "HTTP 路由（ID 带服务限定：route:<service>:<METHOD> <path>）",
    "typical_prov": [
     "java"
    ]
   },
   "SqlStmt": {
    "id_prefix": "sql:",
-   "summary_zh": "单条 SQL 语句（MyBatis iface.id）",
+   "summary_zh": "单条 SQL 语句（ID 带服务限定：sql:<service>:<iface>.<id>）",
    "typical_prov": [
     "synth"
    ]

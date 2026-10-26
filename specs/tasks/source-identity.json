@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "source-identity",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/source-identity.md",
+  "requirements": [
+    "R01"
+  ],
+  "acceptance_cases": [
+    "AC-R01-01",
+    "AC-R01-02"
+  ],
+  "files": [
+    "domimap/batch.py",
+    "domimap/graph.py",
+    "domimap/store.py",
+    "domimap/mcp.py",
+    "domimap/ui.py",
+    "domimap/__main__.py",
+    "domimap/schema.json",
+    "tests/test_source_identity.py",
+    "tests/test_golden.py",
+    "docs/known-defects.md",
+    "docs/production-readiness.md",
+    "CHANGELOG.md",
+    "specs/tasks/source-identity.json",
+    "specs/tasks/source-identity.md"
+  ],
+  "test_files": [
+    "tests/test_source_identity.py",
+    "tests/test_golden.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_source_identity tests.test_golden tests.test_identity tests.test_capture_unification -v",
+    "make verify",
+    "python3 -B scripts/check_specs.py --task specs/tasks/source-identity.json --base 735c46d"
+  ],
+  "rollback": "revert 本片差异。数据：新建的工作区 manifest 多 label 键、节点 meta 多 sid（旧程序忽略）；Route/SqlStmt/Page 节点 ID 格式变化需重建图，依赖旧 ID 的冻结回放样本须重新裁决（code fingerprint 已使跨版本 run 不可比）。"
+}

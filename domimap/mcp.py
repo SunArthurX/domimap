@@ -146,20 +146,12 @@ class Server:
             pass
 
     def _ev_map(self):
-        """Only the shared store may resolve a file to a real, unambiguous evidence ID."""
+        """Only the shared store may resolve a node to a real evidence ID (by sid; rel for legacy graphs)."""
         if getattr(self, "_ev_map_cache", None) is not None:
             return self._ev_map_cache
-        out = {}
-        db = os.path.join(os.path.dirname(os.path.abspath(self.graph_path)), "store.db")
-        if os.path.exists(db):
-            from .store import EvidenceStore
-            store = EvidenceStore(db)
-            try:
-                out = store.evidence_map()
-            finally:
-                store.close()
-        self._ev_map_cache = out
-        return out
+        from .store import EvidenceResolver
+        self._ev_map_cache = EvidenceResolver.beside(self.graph_path)
+        return self._ev_map_cache
 
     def handle(self, name, args):
         """Compatibility text API; stdio uses call() to preserve the error flag."""
@@ -190,7 +182,7 @@ class Server:
             ev_map = self._ev_map()
             extra = []
             for n in r["seeds"]:
-                ev = ev_map.get(n["file"])
+                ev = ev_map.for_node(n)
                 if ev:
                     extra.append("  ev_id=%s  @%s" % (ev, n["file"]))
             out = r["text"]

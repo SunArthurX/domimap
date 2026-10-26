@@ -49,6 +49,11 @@ class Graph:
         return (self._radj if rev else self._adj).get(nid, [])
 
     # ---------- 构建 ----------
+    @staticmethod
+    def _sid(rec):
+        """记录级来源身份（build_many 戳入 label|rel）；旧记录无 sid 时为空（D11 兼容）。"""
+        return {"sid": rec["sid"]} if rec.get("sid") else {}
+
     def build_from_records(self, R, seeds):
         dom_of_service = {}
         for svc, info in R["services"].items():
@@ -56,7 +61,7 @@ class Graph:
         # DDL 表
         for t in R["tables"]:
             self.add_node("tbl:" + t["table"], "Table", t["table"], t["file"],
-                          {"cols": t["cols"]}, conf=t["conf"], prov=t["prov"])
+                          {"cols": t["cols"], **self._sid(t)}, conf=t["conf"], prov=t["prov"])
             for c in t["cols"]:
                 cid = self.add_node("col:%s.%s" % (t["table"], c), "Column", c, t["file"], {}, conf="EXTRACTED", prov="sql:ddl")
                 self.add_edge("tbl:" + t["table"], cid, "CONTAINS", "EXTRACTED", "sql:ddl")
@@ -64,7 +69,7 @@ class Graph:
         for c in R["classes"]:
             cid = self.add_node("cls:%s:%s" % (c["service"], c["fqn"]), "Class", c["name"], c["file"],
                                 {"rest": c["rest_controller"], "dubbo": c["dubbo_service"],
-                                 "comment": c.get("comment", "")},
+                                 "comment": c.get("comment", ""), **self._sid(c)},
                                 conf="EXTRACTED", prov=c["prov"])
             self.add_edge("svc:" + c["service"], cid, "CONTAINS", "EXTRACTED", "java")
         for m in R["methods"]:
@@ -72,7 +77,7 @@ class Graph:
                                                       m["name"], m.get("argc", -1)),
                                 "Method", m["name"], m["file"],
                                 {"line": m.get("line"), "cls": m.get("cls") or "",
-                                 "argc": m.get("argc", -1)},
+                                 "argc": m.get("argc", -1), **self._sid(m)},
                                 conf="EXTRACTED", prov=m["prov"])
             self.add_edge("svc:" + m["service"], mid, "CONTAINS", "EXTRACTED", "java")
         # 方法级调用（lite 正则合成；Method 节点 service 级命名，同名方法跨类共点的限制待 AST 引擎解决）
@@ -87,17 +92,19 @@ class Graph:
                     self.add_edge(src, dst, "CALLS", c["conf"], c["prov"])
         # Spring 路由
         for r in R["routes"]:
-            rid = self.add_node("route:%s %s" % (r["method"], r["path"]), "Route",
-                                "%s %s" % (r["method"], r["path"]), r["file"], {}, conf=r["conf"], prov=r["prov"])
+            # 路由/SQL/页面 ID 带服务限定（含仓标签前缀）：跨仓同路径/同 iface.id 不再合并（D11）
+            rid = self.add_node("route:%s:%s %s" % (r["service"], r["method"], r["path"]), "Route",
+                                "%s %s" % (r["method"], r["path"]), r["file"], self._sid(r),
+                                conf=r["conf"], prov=r["prov"])
             mid = "mth:%s:%s.%s#%s" % (r["service"], r.get("cls") or "-",
                                         r["java_method"], r.get("argc", -1))
             if mid in self.nodes:
                 self.add_edge(mid, rid, "HANDLES", r["conf"], r["prov"])
         # MyBatis：SQL 语句 + 接口方法桥 + 表/列读写
         for s in R["sqlstmts"]:
-            sid = self.add_node("sql:%s.%s" % (s["iface"], s["id"]), "SqlStmt",
+            sid = self.add_node("sql:%s:%s.%s" % (s["service"], s["iface"], s["id"]), "SqlStmt",
                                 "%s.%s" % (s["iface"], s["id"]), s["file"],
-                                {"verb": s["verb"], "sql": s["sql"]}, conf=s["conf"], prov=s["prov"])
+                                {"verb": s["verb"], "sql": s["sql"], **self._sid(s)}, conf=s["conf"], prov=s["prov"])
             for m in R["methods"]:  # DAO 接口方法（同名，重载逐版本桥接）
                 if m["service"] == s["service"] and m.get("cls") == s["iface"] and m["name"] == s["id"]:
                     mid = "mth:%s:%s.%s#%s" % (m["service"], m["cls"], m["name"], m.get("argc", -1))
@@ -154,8 +161,8 @@ class Graph:
         # 跨端连线：page 调用 → 后端 Route（URL 精确→前缀匹配，method 兼容）
         routes = [n for n in self.nodes.values() if n["kind"] == "Route"]
         for p in R["pages"]:
-            pid = self.add_node("page:%s" % p["url"], "Page", p["url"], p["file"], {"method": p["method"]},
-                                conf=p["conf"], prov=p["prov"])
+            pid = self.add_node("page:%s:%s" % (p["service"], p["url"]), "Page", p["url"], p["file"],
+                                {"method": p["method"], **self._sid(p)}, conf=p["conf"], prov=p["prov"])
             hit = None
             for rt in routes:
                 rp = rt["name"].split(" ", 1)[1]
@@ -177,7 +184,8 @@ class Graph:
                                 {"text": d["text"],
                                  "first_seen": d.get("content_era") or d.get("mtime") or 0.0,
                                  "era_source": "content" if d.get("content_era") else "mtime",
-                                 **{k: d[k] for k in ("valid_until", "superseded_by") if d.get(k)}},
+                                 **{k: d[k] for k in ("valid_until", "superseded_by") if d.get(k)},
+                                 **self._sid(d)},
                                 conf="EXTRACTED", prov="doc:ingest")
             hits = Counter()
             for tk in tokenize(d["text"]):
@@ -317,5 +325,5 @@ def build(repo_root, out_dir, seeds_path=None):
     root = os.path.abspath(repo_root)
     g, cov, _ = build_many([root], out_dir, force=True,
                            merged_name=os.path.basename(os.path.abspath(out_dir)) or "repo",
-                           labels={root: None})
+                           service_prefixes={root: None})
     return g, cov

@@ -68,6 +68,33 @@ def _label_of(root):
     return os.path.basename(os.path.abspath(root))
 
 
+def _unique_labels(roots):
+    """每个来源根一个稳定标签：默认目录名；同名时追加绝对路径摘要（仅冲突者），不让后写者覆盖身份（D11）。"""
+    base = {r: _label_of(r) for r in roots}
+    counts = {}
+    for l in base.values():
+        counts[l] = counts.get(l, 0) + 1
+    out = {}
+    for r, l in base.items():
+        if counts[l] > 1:
+            l = "%s~%s" % (l, hashlib.sha256(os.path.abspath(r).encode("utf-8")).hexdigest()[:6])
+        out[r] = l
+    return out
+
+
+RECORD_LISTS = ("classes", "methods", "routes", "rpc", "topics", "sqlstmts", "tables", "pages", "docs", "entities")
+
+
+def _stamp_sid(R, label):
+    """把来源身份 label|rel 戳到每条记录上，供图节点 meta.sid 与证据解析使用。"""
+    for key in RECORD_LISTS:
+        for rec in R.get(key, []):
+            rel = rec.get("file") or rec.get("path")
+            if rel:
+                rec["sid"] = label + "|" + rel
+    return R
+
+
 def _capture_into(store, label):
     """扫描回调：扫描器读到的同一份字节直接固化为证据，不再二次读盘（D10）。"""
     def capture(path, rel, raw):
@@ -97,46 +124,55 @@ def _store_healthy(out_dir):
     finally:
         store.close()
 
-def build_many(roots, out_dir, jobs=8, force=False, merged_name=None, labels=None):
+def build_many(roots, out_dir, jobs=8, force=False, merged_name=None, service_prefixes=None, labels=None):
     """多仓构建：合并全局图 + 每仓 manifest（供 update 增量）。所有 build 入口共用此证据契约。
 
-    labels: {root: service_prefix | None}。None = 该仓服务不加仓名前缀（单仓 build 的既有命名）；
-    缺省为仓目录名（多仓发现模式的既有命名）。策略写入 manifest.service_prefix，update 沿用。
+    labels: {root: label} 显式标签（update/rebind 自 manifest 读回，保证身份稳定）；缺省按目录名，
+    同名仓自动追加路径摘要（D11）。
+    service_prefixes: {root: prefix | None}。None = 该仓服务不加前缀（单仓 build 的既有命名）；
+    缺省为该仓标签（多仓发现模式的既有命名）。两者都写入 manifest，update 沿用。
     no-op 条件（D1 修复）：全部仓 manifest 未变 且 active generation 完整 且 seeds 摘要一致；
     图丢失/损坏/种子变化 → 重建，不误报 no-op。
     """
     from .store import EvidenceStore
     seeds = load_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
+    auto = _unique_labels(roots)
     labels = dict(labels or {})
+    service_prefixes = dict(service_prefixes or {})
+
+    def _lookup(table, root, default):
+        if root in table:
+            return table[root]
+        return table.get(os.path.abspath(root), default)
+
+    def label_of(root):
+        return _lookup(labels, root, auto[root])
 
     def prefix_of(root):
-        if root in labels:
-            return labels[root]
-        return labels.get(os.path.abspath(root), _label_of(root))
+        return _lookup(service_prefixes, root, label_of(root))
 
-    manifests = {}
     results = []
     for root in roots:
-        label = _label_of(root)
+        label = label_of(root)
         mpath = os.path.join(out_dir, label, "manifest.json")
         if not force and not repo_changed(root, mpath):
             results.append((label, "no-op"))
-            manifests[label] = mpath
             continue
-        manifests[label] = mpath
         results.append((label, "rebuild"))
-    dirty = [r for r, st in results if st == "rebuild"]
+    dirty = [r for r, (_, st) in zip(roots, results) if st == "rebuild"]
     if not dirty and not _store_healthy(out_dir):
         dirty = list(roots)  # D1：manifest 未变但 active 代丢失/损坏或 seeds 变化 → 全量重建
-        results = [(_label_of(r), "rebuild") for r in roots]
+        results = [(label_of(r), "rebuild") for r in roots]
     if not dirty:
         return None, None, results
     os.makedirs(out_dir, exist_ok=True)
     store = EvidenceStore(os.path.join(out_dir, "store.db"))
     try:
         def scan(root):
-            return lite_scan.scan_repo(root, repo_label=prefix_of(root),
-                                       capture=_capture_into(store, _label_of(root)))
+            label = label_of(root)
+            R = lite_scan.scan_repo(root, repo_label=prefix_of(root),
+                                    capture=_capture_into(store, label))
+            return _stamp_sid(R, label)
         Rs = {}
         with ThreadPoolExecutor(max_workers=jobs) as ex:
             for root, R in zip(dirty, ex.map(scan, dirty)):
@@ -147,7 +183,7 @@ def build_many(roots, out_dir, jobs=8, force=False, merged_name=None, labels=Non
                   "coverage": {"files_scanned": 0, "skipped": []}}
         # 已有 no-op 仓复用上次 records？MVP：全量重扫（秒级），只写变更仓 manifest
         for root in roots:
-            label = _label_of(root)
+            label = label_of(root)
             R = Rs.get(root) or scan(root)
             for k in ("classes", "methods", "routes", "rpc", "topics", "sqlstmts", "tables", "pages", "docs", "entities", "calls"):
                 merged[k].extend(R[k])
@@ -158,7 +194,7 @@ def build_many(roots, out_dir, jobs=8, force=False, merged_name=None, labels=Non
             os.makedirs(mdir, exist_ok=True)
             with open(os.path.join(mdir, "manifest.json"), "w", encoding="utf-8") as f:
                 from . import __version__ as _v
-                json.dump({"root": os.path.abspath(root), "tool_version": _v,
+                json.dump({"root": os.path.abspath(root), "label": label, "tool_version": _v,
                            "service_prefix": prefix_of(root),
                            "files": repo_signature(root)}, f, ensure_ascii=False)
         g = Graph()
@@ -170,22 +206,53 @@ def build_many(roots, out_dir, jobs=8, force=False, merged_name=None, labels=Non
         json.dump(merged["coverage"], f, ensure_ascii=False, indent=1)
     return g, merged["coverage"], results
 
-def update(out_dir, jobs=8):
-    """按 manifest 增量：no-op 仓跳过，变更仓重建合并图；服务命名策略沿用 manifest 记录。"""
-    roots, labels = [], {}
+def _read_manifests(out_dir):
+    """工作区登记的来源：label → manifest 内容（manifest 即持久化的来源登记）。"""
+    found = {}
     for name in sorted(os.listdir(out_dir)):
         mp = os.path.join(out_dir, name, "manifest.json")
-        if os.path.exists(mp):
-            try:
-                with open(mp, encoding="utf-8") as f:
-                    d = json.load(f)
-                root = d["root"]
-            except (OSError, json.JSONDecodeError, KeyError):
-                continue
-            roots.append(root)
-            # 旧 manifest 无 service_prefix：沿用多仓发现模式的仓名前缀（既有行为）
-            labels[root] = d["service_prefix"] if "service_prefix" in d else _label_of(root)
+        if not os.path.exists(mp):
+            continue
+        try:
+            with open(mp, encoding="utf-8") as f:
+                d = json.load(f)
+            d["root"]
+        except (OSError, json.JSONDecodeError, KeyError):
+            continue
+        found[name] = d
+    return found
+
+
+def update(out_dir, jobs=8):
+    """按 manifest 增量：no-op 仓跳过，变更仓重建合并图；标签与服务命名策略沿用 manifest 记录。"""
+    roots, labels, prefixes = [], {}, {}
+    for name, d in _read_manifests(out_dir).items():
+        root = d["root"]
+        roots.append(root)
+        labels[root] = d.get("label", name)
+        # 旧 manifest 无 service_prefix：沿用多仓发现模式的仓名前缀（既有行为）
+        prefixes[root] = d["service_prefix"] if "service_prefix" in d else labels[root]
     if not roots:
         return None, None, []
     return build_many(roots, out_dir, jobs=jobs, merged_name=os.path.basename(os.path.abspath(out_dir)),
-                      labels=labels)
+                      service_prefixes=prefixes, labels=labels)
+
+
+def rebind(out_dir, label, new_root):
+    """来源根移动后的显式重绑（AC-R01-02）：只改物理路径，逻辑身份（label → sid → 节点 ID）不变。"""
+    mp = os.path.join(out_dir, label, "manifest.json")
+    if not os.path.exists(mp):
+        raise KeyError("未登记的来源标签：%s" % label)
+    new_root = os.path.abspath(new_root)
+    if not os.path.isdir(new_root):
+        raise FileNotFoundError("新路径不存在或不是目录：%s" % new_root)
+    with open(mp, encoding="utf-8") as f:
+        d = json.load(f)
+    old = d.get("root")
+    d["root"] = new_root
+    d.setdefault("label", label)
+    tmp = mp + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(d, f, ensure_ascii=False)
+    os.replace(tmp, mp)
+    return {"label": label, "old_root": old, "root": new_root}

@@ -7,6 +7,7 @@
                              （--merge 单仓直出到 -o 目录；--discover 把参数视为工作区根，
                              自动发现子仓合并建图，并生成证据库 store.db 与增量清单）
   update -o DIR              工作区增量重建（manifest 未变时毫秒级 no-op）
+  rebind LABEL PATH -o DIR   来源根移动后重绑物理路径（sid/节点 ID 不变，再 update）
   query "文本" -g FILE        混合检索（词法种子+一跳图扩展；诚实拒答时退出码 3）
   domain -g FILE             领域地图（含跨域共享表）
   impact <符号> -g FILE      影响面（反向依赖）
@@ -245,6 +246,18 @@ def cmd_update(args):
                sum(1 for _, st in results if st == "rebuild"), len(results)))
     else:
         print("[update] 全部 no-op（毫秒级校验，无变更）")
+
+def cmd_rebind(args):
+    """来源根移动后的显式重绑（AC-R01-02）：改物理路径，逻辑身份不变；随后 update 增量校验。"""
+    from domimap.batch import rebind
+    try:
+        info = rebind(args.out, args.label, args.path)
+    except KeyError as e:
+        print("rebind: %s（工作区 %s 下无该 manifest）" % (e.args[0], args.out)); sys.exit(4)
+    except FileNotFoundError as e:
+        print("rebind: %s" % e); sys.exit(4)
+    print("[rebind] %s: %s → %s（运行 `domimap update -o %s` 校验增量）" %
+          (info["label"], info["old_root"], info["root"], args.out))
 
 def cmd_scenario(args):
     from domimap.graph import Graph, load_seeds
@@ -657,6 +670,9 @@ def main():
     i = with_g(sub.add_parser("impact")); i.add_argument("symbol"); i.add_argument("--depth", type=int, default=2)
     i.set_defaults(fn=cmd_impact)
     r = with_g(sub.add_parser("review")); r.add_argument("-o", "--out", default="out/review"); r.set_defaults(fn=cmd_review)
+    rb = sub.add_parser("rebind", help="来源根移动后重绑物理路径（逻辑身份不变）")
+    rb.add_argument("label"); rb.add_argument("path"); rb.add_argument("-o", "--out", default="out")
+    rb.set_defaults(fn=cmd_rebind)
     sv = with_g(sub.add_parser("serve"))
     sv.add_argument("--enable-write", action="store_true",
                     help="启用写工具 kg_feedback（默认只读；经 MCP 转达的判定以 agent_relay 非权威来源记录）")

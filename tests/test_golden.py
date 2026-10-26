@@ -37,16 +37,16 @@ class TestSpringRoute(unittest.TestCase):
         routes = find(g, "Route")
         self.assertTrue(any("POST /trade/price" == n["name"] for n in routes), [n["name"] for n in routes])
         self.assertTrue(any("GET /item/list" == n["name"] for n in routes))
-        self.assertTrue(has_edge(g, "mth:order-service:OrderController.changePrice#1", "HANDLES", "route:POST /trade/price"))
+        self.assertTrue(has_edge(g, "mth:order-service:OrderController.changePrice#1", "HANDLES", "route:order-service:POST /trade/price"))
 
 class TestMyBatis(unittest.TestCase):
     def test_sqlstmt_and_table_bridge(self):
         g = G()
         self.assertTrue(find(g, "SqlStmt", "OrderMapper.updatePrice"))
-        self.assertTrue(has_edge(g, "mth:order-service:OrderMapper.updatePrice#2", "CALLS_SQL", "sql:OrderMapper.updatePrice"))
-        self.assertTrue(has_edge(g, "sql:OrderMapper.updatePrice", "WRITES", "tbl:t_order"),
+        self.assertTrue(has_edge(g, "mth:order-service:OrderMapper.updatePrice#2", "CALLS_SQL", "sql:order-service:OrderMapper.updatePrice"))
+        self.assertTrue(has_edge(g, "sql:order-service:OrderMapper.updatePrice", "WRITES", "tbl:t_order"),
                         "mapper UPDATE 应产出 WRITES 边")
-        self.assertTrue(has_edge(g, "sql:OrderMapper.selectById", "READS", "tbl:t_order"))
+        self.assertTrue(has_edge(g, "sql:order-service:OrderMapper.selectById", "READS", "tbl:t_order"))
 
 class TestRocketMQ(unittest.TestCase):
     def test_pub_sub_edges(self):
@@ -67,7 +67,7 @@ class TestCrossEnd(unittest.TestCase):
     def test_page_to_route(self):
         g = G()
         self.assertTrue(find(g, "Page", "/trade/price"))
-        self.assertTrue(has_edge(g, "page:/trade/price", "ROUTES_TO", "route:POST /trade/price"))
+        self.assertTrue(has_edge(g, "page:pages:/trade/price", "ROUTES_TO", "route:order-service:POST /trade/price"))
 
 class TestDomain(unittest.TestCase):
     def test_service_domain_and_shared(self):

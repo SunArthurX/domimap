@@ -1079,17 +1079,9 @@ def _page_stats(graph_path, g):
 
 
 def _evidence_map(graph_path):
-    """Use the shared evidence service; ambiguous relative paths have no guessed link."""
-    db = os.path.join(os.path.dirname(os.path.abspath(graph_path)), "store.db")
-    out = {}
-    if not os.path.exists(db):
-        return out
-    from .store import EvidenceStore
-    store = EvidenceStore(db)
-    try:
-        return store.evidence_map()
-    finally:
-        store.close()
+    """Use the shared evidence service: resolve by source identity (sid), by unique rel only for legacy graphs."""
+    from .store import EvidenceResolver
+    return EvidenceResolver.beside(graph_path)
 
 
 def render_page(graph_path, g):
@@ -1247,7 +1239,7 @@ def make_server(graph_path, host="127.0.0.1", port=0):
                             "file": n["file"], "conf": n.get("conf", "")}
                     if n.get("meta", {}).get("domain"):
                         item["domain"] = n["meta"]["domain"]
-                    ev_id = ev_by_rel.get(n["file"])
+                    ev_id = ev_by_rel.for_node(n)
                     if ev_id:
                         item["ev"] = ev_id  # 候选可直读固化证据（AC-F2-01 可打开完整证据）
                     seeds_out.append(item)
@@ -1399,11 +1391,11 @@ def make_server(graph_path, host="127.0.0.1", port=0):
                         self._send(404, json.dumps({"available": False,
                                                     "reason": "图中无此节点"}, ensure_ascii=False))
                         return
-                    ev = ev_by_rel.get(n["file"]) or ""
+                    ev = ev_by_rel.for_node(n) or ""
                     if not ev:
                         self._send(404, json.dumps(
                             {"available": False,
-                             "reason": "该来源无固化证据（证据仅在 --discover 建图时固化）"},
+                             "reason": "该来源无固化证据（请重新 build 以固化）"},
                             ensure_ascii=False))
                         return
                 # 先校验参数（400），再查证据库存在性（404）：参数错误不应被库缺失掩盖

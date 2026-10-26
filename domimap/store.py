@@ -172,6 +172,13 @@ class EvidenceStore:
         return {rel: next(iter(sources.values())) for rel, sources in by_rel.items()
                 if len(sources) == 1}
 
+    @_synchronized
+    def evidence_by_sid(self):
+        """sid → 当前指针指向的 ev_id（来源身份直达，不经相对路径猜测）。"""
+        prefix = "source_evidence:"
+        return {k[len(prefix):]: v for k, v in self.db.execute(
+            "SELECT key, value FROM meta WHERE key LIKE ?", (prefix + "%",))}
+
     # ---------- generation 发布 ----------
     @_synchronized
     def publish_graph(self, g, extra_meta=None):
@@ -254,3 +261,37 @@ class EvidenceStore:
     @_synchronized
     def close(self):
         self.db.close()
+
+
+class EvidenceResolver:
+    """Resolve a graph node to its evidence ID.
+
+    Prefers the node's source identity (meta.sid, stamped at build time); falls back to the
+    unique-relative-path map only for legacy graphs built before nodes carried sids (D11).
+    """
+
+    def __init__(self, store=None):
+        self.by_sid = store.evidence_by_sid() if store else {}
+        self.by_rel = store.evidence_map() if store else {}
+
+    @classmethod
+    def beside(cls, graph_path):
+        """Open the store next to graph_path if present; otherwise an empty resolver."""
+        db = os.path.join(os.path.dirname(os.path.abspath(graph_path)), "store.db")
+        if not os.path.exists(db):
+            return cls(None)
+        store = EvidenceStore(db)
+        try:
+            return cls(store)
+        finally:
+            store.close()
+
+    def for_node(self, node):
+        sid = (node.get("meta") or {}).get("sid")
+        if sid and sid in self.by_sid:
+            return self.by_sid[sid]
+        return self.by_rel.get(node.get("file"))
+
+    def get(self, rel):
+        """Legacy rel lookup (kept for callers that only have a path)."""
+        return self.by_rel.get(rel)

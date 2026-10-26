@@ -51,7 +51,7 @@ domimap 的核心价值是让人和 Agent 在不同会话中，重新核对同�
 | 优先级 | 可执行切片 | 验收出口 |
 |---|---|---|
 | P0 ✅ 2026-10-26 capture-unification | 来源捕获统一：让 scan/build 与证据使用同份捕获字节；普通单仓 build 也遵循证据契约 | 扫描与再次读取之间换源不能产生图/证据不同版本；所有 build 入口返回 ID 前可读 |
-| P0 | workspace/repo/source 身份贯穿节点与结果，避免 basename 身份及仅 rel 映射 | 同 basename 的两个仓/同路径文档/同路由不串接，根重绑持久化 |
+| P0 ✅ 2026-10-26 source-identity | workspace/repo/source 身份贯穿节点与结果，避免 basename 身份及仅 rel 映射 | 同 basename 的两个仓/同路径文档/同路由不串接，根重绑持久化 |
 | P0 | 将 graph.json 兼容文件、coverage、manifest 与 generation 的发布统一 | 关键阶段退出、两构建者、丢图/坏图后读取只见完整一致代 |
 | P0 | 整库导出恢复，将固定证据和来源映射与知识事务一起纳入 | 空目录恢复后历史引用、修订、审定、scope 均可检索和读取 |
 | P1 | 公共应用服务统一查询、coverage、context、time 和热更新 | CLI/MCP/UI 同请求同序同错误；WAL 中新增笔记能被长驻客户端发现 |
