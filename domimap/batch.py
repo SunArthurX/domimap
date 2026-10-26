@@ -1,8 +1,9 @@
 """batch — 多仓发现、并行批量构建、跨仓合并图、仓级增量更新。
 
-增量策略（MVP，仓级粒度）：manifest 记录每个文件的 (mtime_ns, size) 签名；
-update 时 stat 重扫比对——签名不变即 no-op（毫秒级），变化则整仓重建（实测 0.1-1s/仓）。
-文件级增量待 graphify AST 引擎切换后按内容哈希做。
+增量策略（仓级粒度）：manifest 记录每个文件的内容 sha256（D12：mtime/size 不是内容版本，
+cp -p / touch -r 后的同尺寸改写也能识别）；update 重算哈希比对——不变即 no-op，变化则整仓重建。
+派生产物（graph.json/coverage.json/manifest.json）一律 tmp+fsync+rename 原子落盘；
+兼容副本 graph.json 的内容哈希须等于 active 代，否则视为不健康并重发布。
 """
 import hashlib
 import json
@@ -31,13 +32,14 @@ def discover_roots(base):
     return roots
 
 def repo_signature(root):
+    """文件 → 内容 sha256（与扫描期 capture 回调计算的签名同源同集合）。"""
     sig = {}
     for path, rel in lite_scan._walk(root):
         try:
-            st = os.stat(path)
+            with open(path, "rb") as f:
+                sig[rel] = hashlib.sha256(f.read()).hexdigest()
         except OSError:
             continue
-        sig[rel] = [st.st_mtime_ns, st.st_size]
     return sig
 
 def repo_changed(root, manifest_path):
@@ -95,20 +97,33 @@ def _stamp_sid(R, label):
     return R
 
 
-def _capture_into(store, label):
-    """扫描回调：扫描器读到的同一份字节直接固化为证据，不再二次读盘（D10）。"""
+def _atomic_write(path, data):
+    """tmp → fsync → rename → 目录 fsync：读者只会看到完整的旧文件或完整的新文件（D12）。"""
+    from .storage import sync_directory
+    tmp = path + ".tmp"
+    with open(tmp, "wb") as f:
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+    sync_directory(os.path.dirname(os.path.abspath(path)))
+
+
+def _capture_into(store, label, signature):
+    """扫描回调：同一份字节既固化为证据（D10），也产出 manifest 的内容签名（D12），不再二次读盘。"""
     def capture(path, rel, raw):
+        signature[rel] = hashlib.sha256(raw).hexdigest()
         store.capture_source(label, label + "|" + rel, path, rel, raw=raw)
     return capture
 
 
 def publish_generation(store, g, out_dir):
-    """发布协议：不可变代 → seeds 摘要 → 指针切换成功后复制 graph.json（兼容旧 CLI）。"""
-    import shutil as _sh
+    """发布协议：不可变代 → seeds 摘要 → 指针切换成功后原子落盘 graph.json 兼容副本（字节等于该代）。"""
     rec = store.publish_graph(g)
     store.set_seeds_digest(_seeds_digest(os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "seeds.json")))
-    _sh.copyfile(rec["path"], os.path.join(out_dir, "graph.json"))
+    with open(rec["path"], "rb") as f:
+        _atomic_write(os.path.join(out_dir, "graph.json"), f.read())
     return rec
 
 def _store_healthy(out_dir):
@@ -118,9 +133,17 @@ def _store_healthy(out_dir):
         return False
     store = EvidenceStore(db)
     try:
-        ok = store.active_generation() is not None and store.seeds_digest() == _seeds_digest(
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
-        return ok
+        active = store.active_generation()
+        if active is None or store.seeds_digest() != _seeds_digest(
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json")):
+            return False
+        # 兼容副本是所有入口实际读取的文件：缺失/截断/篡改都不是"无变更"（D1 残留、D12）
+        compat = os.path.join(out_dir, "graph.json")
+        try:
+            with open(compat, "rb") as f:
+                return hashlib.sha256(f.read()).hexdigest() == active["sha256"]
+        except OSError:
+            return False
     finally:
         store.close()
 
@@ -168,10 +191,13 @@ def build_many(roots, out_dir, jobs=8, force=False, merged_name=None, service_pr
     os.makedirs(out_dir, exist_ok=True)
     store = EvidenceStore(os.path.join(out_dir, "store.db"))
     try:
+        signatures = {}
+
         def scan(root):
             label = label_of(root)
+            sig = signatures.setdefault(root, {})
             R = lite_scan.scan_repo(root, repo_label=prefix_of(root),
-                                    capture=_capture_into(store, label))
+                                    capture=_capture_into(store, label, sig))
             return _stamp_sid(R, label)
         Rs = {}
         with ThreadPoolExecutor(max_workers=jobs) as ex:
@@ -192,18 +218,19 @@ def build_many(roots, out_dir, jobs=8, force=False, merged_name=None, service_pr
             merged["coverage"]["skipped"].extend(R["coverage"]["skipped"])
             mdir = os.path.join(out_dir, label)
             os.makedirs(mdir, exist_ok=True)
-            with open(os.path.join(mdir, "manifest.json"), "w", encoding="utf-8") as f:
-                from . import __version__ as _v
-                json.dump({"root": os.path.abspath(root), "label": label, "tool_version": _v,
-                           "service_prefix": prefix_of(root),
-                           "files": repo_signature(root)}, f, ensure_ascii=False)
+            from . import __version__ as _v
+            manifest = {"root": os.path.abspath(root), "label": label, "tool_version": _v,
+                        "service_prefix": prefix_of(root),
+                        "files": signatures.get(root) or repo_signature(root)}
+            _atomic_write(os.path.join(mdir, "manifest.json"),
+                          json.dumps(manifest, ensure_ascii=False).encode("utf-8"))
         g = Graph()
         g.build_from_records(merged, seeds)
         publish_generation(store, g, out_dir)
     finally:
         store.close()
-    with open(os.path.join(out_dir, "coverage.json"), "w", encoding="utf-8") as f:
-        json.dump(merged["coverage"], f, ensure_ascii=False, indent=1)
+    _atomic_write(os.path.join(out_dir, "coverage.json"),
+                  json.dumps(merged["coverage"], ensure_ascii=False, indent=1).encode("utf-8"))
     return g, merged["coverage"], results
 
 def _read_manifests(out_dir):

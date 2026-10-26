@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "id": "atomic-publish",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/atomic-publish.md",
+  "requirements": [
+    "R03"
+  ],
+  "acceptance_cases": [
+    "AC-R03-01",
+    "AC-R03-02"
+  ],
+  "files": [
+    "domimap/batch.py",
+    "tests/test_atomic_publish.py",
+    "docs/known-defects.md",
+    "docs/production-readiness.md",
+    "CHANGELOG.md",
+    "specs/tasks/atomic-publish.json",
+    "specs/tasks/atomic-publish.md"
+  ],
+  "test_files": [
+    "tests/test_atomic_publish.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_atomic_publish tests.test_evidence_store tests.test_recovery_coverage -v",
+    "make verify",
+    "python3 -B scripts/check_specs.py --task specs/tasks/atomic-publish.json --base a9535c7"
+  ],
+  "rollback": "revert batch.py 差异；新 manifest 的 files 为 sha 字符串，旧版本 repo_changed 比对不等→整仓重建（无数据损失）。"
+}
