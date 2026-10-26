@@ -236,17 +236,27 @@ class EvidenceStore:
         rec = self.db.execute(
             "SELECT gen_id,path,sha256,nodes,edges,status FROM generations WHERE gen_id=?",
             (int(row[0]),)).fetchone()
-        if not rec or rec[5] != "complete" or not os.path.exists(rec[1]):
+        if not rec or rec[5] != "complete":
+            return None
+        path = self._gen_path(rec[1])
+        if path is None:
             return None
         try:
-            with open(rec[1], "rb") as f:
+            with open(path, "rb") as f:
                 raw = f.read()
             if hashlib.sha256(raw).hexdigest() != rec[2] or not json.loads(raw).get("nodes"):
                 return None
         except Exception:
             return None
-        return {"gen_id": rec[0], "path": rec[1], "sha256": rec[2],
+        return {"gen_id": rec[0], "path": path, "sha256": rec[2],
                 "nodes": rec[3], "edges": rec[4]}
+
+    def _gen_path(self, recorded):
+        """代文件按发布时绝对路径定位；工作区被移动/恢复到别处时退回到本库旁的 gens/ 同名文件。"""
+        if os.path.exists(recorded):
+            return recorded
+        local = os.path.join(self.gens, os.path.basename(recorded))
+        return local if os.path.exists(local) else None
 
     @_synchronized
     def seeds_digest(self):

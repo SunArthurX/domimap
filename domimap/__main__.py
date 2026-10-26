@@ -8,6 +8,8 @@
                              自动发现子仓合并建图，并生成证据库 store.db 与增量清单）
   update -o DIR              工作区增量重建（manifest 未变时毫秒级 no-op）
   rebind LABEL PATH -o DIR   来源根移动后重绑物理路径（sid/节点 ID 不变，再 update）
+  export-workspace WS DEST   整库导出（证据/代/图/来源登记/知识库；--include-queries 才带查询日志）
+  restore-workspace ARCHIVE TARGET  整库恢复到新目录（校验失败不留半成品）
   query "文本" -g FILE        混合检索（词法种子+一跳图扩展；诚实拒答时退出码 3）
   domain -g FILE             领域地图（含跨域共享表）
   impact <符号> -g FILE      影响面（反向依赖）
@@ -258,6 +260,33 @@ def cmd_rebind(args):
         print("rebind: %s" % e); sys.exit(4)
     print("[rebind] %s: %s → %s（运行 `domimap update -o %s` 校验增量）" %
           (info["label"], info["old_root"], info["root"], args.out))
+
+def cmd_export_workspace(args):
+    """整库导出（R07）：证据库+blob+代+图+来源登记+知识库 → 可校验目录；查询日志默认不随包。"""
+    from domimap.workspace import export_workspace
+    try:
+        m = export_workspace(args.workspace, args.dest, include_queries=args.include_queries)
+    except (FileExistsError, FileNotFoundError) as e:
+        print("export-workspace: %s" % e); sys.exit(4)
+    print("[export] %s → %s  文件=%d 来源=%d 证据=%d 知识库=%s%s" % (
+        args.workspace, args.dest, len(m["files"]), m["components"]["sources"], m["counts"]["evidence"],
+        "是" if m["components"]["knowledge"] else "无",
+        "  ⚠ 含查询日志，勿公开发布" if m.get("contains_query_log") else ""))
+
+
+def cmd_restore_workspace(args):
+    """整库恢复到不存在的目标目录：逐成员校验（路径/链接/sha）后原子发布；失败不留半成品。"""
+    from domimap.workspace import restore_workspace
+    try:
+        r = restore_workspace(args.archive, args.target)
+    except FileExistsError as e:
+        print("restore-workspace: %s" % e); sys.exit(4)
+    except ValueError as e:
+        print("restore-workspace: 校验失败——%s" % e); sys.exit(5)
+    print("[restore] %s → %s  文件=%d 节点=%d 证据=%d 知识=%s" % (
+        args.archive, args.target, r["files"], r["nodes"], r["evidence"],
+        ("%d 条笔记" % r["knowledge"]["notes"]) if r["knowledge"] else "无"))
+
 
 def cmd_scenario(args):
     from domimap.graph import Graph, load_seeds
@@ -670,6 +699,13 @@ def main():
     i = with_g(sub.add_parser("impact")); i.add_argument("symbol"); i.add_argument("--depth", type=int, default=2)
     i.set_defaults(fn=cmd_impact)
     r = with_g(sub.add_parser("review")); r.add_argument("-o", "--out", default="out/review"); r.set_defaults(fn=cmd_review)
+    ex = sub.add_parser("export-workspace", help="整库导出为可校验目录（证据/代/图/来源登记/知识库）")
+    ex.add_argument("workspace", help="含 graph.json 的工作区目录"); ex.add_argument("dest")
+    ex.add_argument("--include-queries", action="store_true", help="同时导出 queries.db（含查询日志，勿公开）")
+    ex.set_defaults(fn=cmd_export_workspace)
+    rs = sub.add_parser("restore-workspace", help="整库恢复到不存在的目标目录（逐成员校验，失败不留半成品）")
+    rs.add_argument("archive"); rs.add_argument("target")
+    rs.set_defaults(fn=cmd_restore_workspace)
     rb = sub.add_parser("rebind", help="来源根移动后重绑物理路径（逻辑身份不变）")
     rb.add_argument("label"); rb.add_argument("path"); rb.add_argument("-o", "--out", default="out")
     rb.set_defaults(fn=cmd_rebind)

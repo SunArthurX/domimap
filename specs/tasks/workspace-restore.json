@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "workspace-restore",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/workspace-restore.md",
+  "requirements": [
+    "R07"
+  ],
+  "acceptance_cases": [
+    "AC-R07-01",
+    "AC-R07-03"
+  ],
+  "files": [
+    "domimap/workspace.py",
+    "domimap/store.py",
+    "domimap/__main__.py",
+    "tests/test_workspace_restore.py",
+    "docs/known-defects.md",
+    "docs/production-readiness.md",
+    "CHANGELOG.md",
+    "specs/tasks/workspace-restore.json",
+    "specs/tasks/workspace-restore.md"
+  ],
+  "test_files": [
+    "tests/test_workspace_restore.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_workspace_restore tests.test_knowledge_safety tests.test_evidence_store -v",
+    "make verify",
+    "python3 -B scripts/check_specs.py --task specs/tasks/workspace-restore.json --base 557d9c8"
+  ],
+  "rollback": "删除 workspace.py 与两个 CLI 子命令；store._gen_path 回退为仅绝对路径（已恢复到别处的工作区将无法定位 active 代，需重建）。"
+}
