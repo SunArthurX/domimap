@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "id": "trusted-context",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/trusted-context.md",
+  "requirements": [
+    "F3"
+  ],
+  "acceptance_cases": [
+    "AC-F3-01"
+  ],
+  "files": [
+    "domimap/context.py",
+    "domimap/store.py",
+    "domimap/service.py",
+    "domimap/mcp.py",
+    "domimap/__main__.py",
+    "domimap/ui.py",
+    "domimap/schema.json",
+    "tests/test_trusted_context.py",
+    "tests/test_m2_context_time.py",
+    "tests/test_mcp_write_gate.py",
+    "tests/test_mcp_desc.py",
+    "tests/test_production_boundaries.py",
+    "README.md",
+    "README.zh-CN.md",
+    "docs/capabilities.md",
+    "docs/production-readiness.md",
+    "CHANGELOG.md",
+    "specs/tasks/trusted-context.json",
+    "specs/tasks/trusted-context.md"
+  ],
+  "test_files": [
+    "tests/test_trusted_context.py",
+    "tests/test_m2_context_time.py",
+    "tests/test_mcp_write_gate.py",
+    "tests/test_mcp_desc.py",
+    "tests/test_production_boundaries.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_trusted_context tests.test_m2_context_time tests.test_mcp_write_gate tests.test_schema -v",
+    "make verify",
+    "python3 -B scripts/check_specs.py --task specs/tasks/trusted-context.json --base dd530f6"
+  ],
+  "rollback": "revert 本片差异；store.db meta 中 trusted_root:/context_sha: 键可直接删除。"
+}

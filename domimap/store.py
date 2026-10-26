@@ -179,6 +179,48 @@ class EvidenceStore:
         return {k[len(prefix):]: v for k, v in self.db.execute(
             "SELECT key, value FROM meta WHERE key LIKE ?", (prefix + "%",))}
 
+    # ---------- 工作区元数据：可信上下文根与规则文件指纹（F3） ----------
+    @_synchronized
+    def meta_get(self, key):
+        row = self.db.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+        return row[0] if row else None
+
+    @_synchronized
+    def meta_set(self, key, value):
+        with self.db:
+            self.db.execute("INSERT OR REPLACE INTO meta VALUES (?,?)", (key, value))
+
+    @_synchronized
+    def meta_delete(self, key):
+        with self.db:
+            self.db.execute("DELETE FROM meta WHERE key=?", (key,))
+
+    @_synchronized
+    def register_trusted_root(self, label, path):
+        """显式登记可信上下文根（AGENTS.md/SOUL.md 只从这里读）。路径须为现存目录；按 realpath 持久化。"""
+        if not label or "/" in label or label.startswith("."):
+            raise ValueError("非法标签：%r" % (label,))
+        real = os.path.realpath(path)
+        if not os.path.isdir(real):
+            raise FileNotFoundError("可信根不存在或不是目录：%s" % path)
+        rec = {"label": label, "path": real, "registered_at": time.time()}
+        with self.db:
+            self.db.execute("INSERT OR REPLACE INTO meta VALUES (?,?)",
+                            ("trusted_root:" + label, json.dumps(rec, ensure_ascii=False)))
+        return rec
+
+    @_synchronized
+    def remove_trusted_root(self, label):
+        with self.db:
+            cur = self.db.execute("DELETE FROM meta WHERE key=?", ("trusted_root:" + label,))
+            self.db.execute("DELETE FROM meta WHERE key LIKE ?", ("context_sha:" + label + "/%",))
+        return cur.rowcount > 0
+
+    @_synchronized
+    def trusted_roots(self):
+        rows = self.db.execute("SELECT value FROM meta WHERE key LIKE 'trusted_root:%' ORDER BY key").fetchall()
+        return [json.loads(r[0]) for r in rows]
+
     # ---------- generation 发布 ----------
     @_synchronized
     def publish_graph(self, g, extra_meta=None):

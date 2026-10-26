@@ -10,6 +10,8 @@
   doc TEXT                   文档检索（与 MCP kg_doc_search 同参同观测）
   update -o DIR              工作区增量重建（manifest 未变时毫秒级 no-op）
   rebind LABEL PATH -o DIR   来源根移动后重绑物理路径（sid/节点 ID 不变，再 update）
+  trust add|list|remove      可信上下文根登记（只有登记根的 AGENTS/SOUL 作为指令加载）
+  context [--scope DIR]      查看当前生效的可信上下文与变更
   export-workspace WS DEST   整库导出（证据/代/图/来源登记/知识库；--include-queries 才带查询日志）
   restore-workspace ARCHIVE TARGET  整库恢复到新目录（校验失败不留半成品）
   query "文本" -g FILE        混合检索（词法种子+一跳图扩展；诚实拒答时退出码 3）
@@ -26,7 +28,7 @@
   enrich -g FILE [--limit N] 可选 LLM 语义增强：Doc 材料生成 inference 草稿笔记
                              （--dry-run/--force/--model/--endpoint；key 走 GLM_API_KEY 等
                              环境变量，未配置退出码 6；产物标注 conf=LLM 不混入事实）
-  serve -g FILE              MCP stdio 服务器（6 个只读 kg_* 工具；--enable-write 加 kg_feedback）
+  serve -g FILE              MCP stdio 服务器（7 个只读 kg_* 工具含 kg_context；--enable-write 加 kg_feedback）
   ui -g FILE [--port N]      本地只读搜索/证据阅读页（默认 127.0.0.1:8765）
 """
 import argparse
@@ -297,6 +299,72 @@ def cmd_restore_workspace(args):
     print("[restore] %s → %s  文件=%d 节点=%d 证据=%d 知识=%s" % (
         args.archive, args.target, r["files"], r["nodes"], r["evidence"],
         ("%d 条笔记" % r["knowledge"]["notes"]) if r["knowledge"] else "无"))
+
+
+def cmd_trust(args):
+    """可信上下文根登记（F3）：只有这里登记的目录，其 AGENTS.md/SOUL.md 才会被当作指令加载。"""
+    from domimap.store import EvidenceStore
+    db = os.path.join(os.path.dirname(os.path.abspath(args.graph)), "store.db")
+    if not os.path.exists(db):
+        print("无证据库（先 build 工作区）：%s" % db); sys.exit(4)
+    store = EvidenceStore(db)
+    try:
+        if args.action == "add":
+            if not args.label or not args.path:
+                print("用法：domimap trust add LABEL PATH -g 图"); sys.exit(2)
+            try:
+                rec = store.register_trusted_root(args.label, args.path)
+            except (ValueError, FileNotFoundError) as e:
+                print("trust add: %s" % e); sys.exit(4)
+            from domimap.context import load_context
+            out = load_context(rec["path"], trusted=[rec["path"]])
+            print("[trust] 已登记 %s → %s（规则文件 %d：%s）" % (
+                rec["label"], rec["path"], len(out["items"]),
+                ", ".join(i["path"] for i in out["items"]) or "无"))
+        elif args.action == "remove":
+            if not args.label:
+                print("用法：domimap trust remove LABEL -g 图"); sys.exit(2)
+            ok = store.remove_trusted_root(args.label)
+            print("[trust] 已移除 %s" % args.label if ok else "[trust] 未登记：%s" % args.label)
+            if not ok:
+                sys.exit(4)
+        else:
+            roots = store.trusted_roots()
+            if not roots:
+                print("[trust] 无登记的可信根（domimap trust add LABEL PATH -g 图）"); return
+            from domimap.context import load_context
+            for r in roots:
+                try:
+                    out = load_context(r["path"], trusted=[r["path"]])
+                    files = ", ".join(i["path"] for i in out["items"]) or "无规则文件"
+                except PermissionError as e:
+                    files = "不可读：%s" % e
+                print("[trust] %-16s %s  (%s)" % (r["label"], r["path"], files))
+    finally:
+        store.close()
+
+
+def cmd_context(args):
+    """查看当前生效的可信上下文（CLI 人工检索也能看到 F3 状态）。"""
+    from domimap.service import AppService, ServiceError
+    svc = AppService(args.graph)
+    try:
+        ctx = svc.trusted_context(scope=args.scope)
+    except ServiceError as e:
+        print("context: %s" % e); sys.exit(2)
+    if ctx.get("note"):
+        print(ctx["note"]); return
+    print("[context] 可信根：%s  范围：%s" % (", ".join(r["label"] for r in ctx["roots"]), ctx["scope"] or "/"))
+    for i in ctx["items"]:
+        print("  %s %s/%s  sha256 %s  %dB" % ("*" if i.get("effective") else " ", i["root"], i["path"],
+                                              i["sha256"][:12], i["size"]))
+    if ctx["changed"]:
+        print("  变更（自上次加载）：%s" % ", ".join(ctx["changed"]))
+    if ctx["truncated"]:
+        print("  预算超限，已丢弃：%s" % ", ".join(ctx["dropped"]))
+    if ctx["text"]:
+        print()
+        print(ctx["text"])
 
 
 def cmd_scenario(args):
@@ -722,6 +790,12 @@ def main():
     rs = sub.add_parser("restore-workspace", help="整库恢复到不存在的目标目录（逐成员校验，失败不留半成品）")
     rs.add_argument("archive"); rs.add_argument("target")
     rs.set_defaults(fn=cmd_restore_workspace)
+    tr = with_g(sub.add_parser("trust", help="可信上下文根：add LABEL PATH | list | remove LABEL"))
+    tr.add_argument("action", choices=["add", "list", "remove"]); tr.add_argument("label", nargs="?")
+    tr.add_argument("path", nargs="?"); tr.set_defaults(fn=cmd_trust)
+    cx = with_g(sub.add_parser("context", help="查看当前生效的 AGENTS.md/SOUL.md 可信上下文"))
+    cx.add_argument("--scope", default=None, help="任务所在根内相对目录（嵌套规则取最具体一层）")
+    cx.set_defaults(fn=cmd_context)
     rb = sub.add_parser("rebind", help="来源根移动后重绑物理路径（逻辑身份不变）")
     rb.add_argument("label"); rb.add_argument("path"); rb.add_argument("-o", "--out", default="out")
     rb.set_defaults(fn=cmd_rebind)

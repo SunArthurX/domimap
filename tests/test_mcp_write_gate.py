@@ -37,13 +37,13 @@ class TestMcpWriteGate(unittest.TestCase):
 
     def test_default_server_lists_only_six_read_tools(self):
         names = self._names(mcp.Server(self.graph))
-        self.assertEqual(len(names), 6, names)
+        self.assertEqual(len(names), 7, names)  # 6 检索/读取 + kg_context（F3）
         self.assertNotIn("kg_feedback", names)
 
     def test_enable_write_lists_feedback_tool(self):
         names = self._names(mcp.Server(self.graph, enable_write=True))
         self.assertIn("kg_feedback", names)
-        self.assertEqual(len(names), 7)
+        self.assertEqual(len(names), 8)
 
     def test_disabled_write_call_is_explicit_error(self):
         srv = mcp.Server(self.graph)
@@ -69,7 +69,7 @@ class TestMcpWriteGate(unittest.TestCase):
     def test_visible_tools_helper_matches_server_contract(self):
         self.assertEqual({t["name"] for t in mcp.visible_tools(False)},
                          {"kg_explore", "kg_domain_map", "kg_impact",
-                          "kg_doc_search", "kg_read", "kg_troubleshoot"})
+                          "kg_doc_search", "kg_read", "kg_troubleshoot", "kg_context"})
         self.assertEqual(len(mcp.visible_tools(True)), len(mcp.TOOLS))
 
 

@@ -281,7 +281,7 @@ domimap/
 │   ├── search.py      # BM25 + graph search + refusal gates
 │   ├── embedding.py   # Optional local embedding index (RRF fusion)
 │   ├── llm_enrich.py  # Optional LLM draft notes (conf=LLM, human-reviewed)
-│   ├── mcp.py         # MCP stdio server (6 read-only tools; kg_feedback behind --enable-write; hot reload)
+│   ├── mcp.py         # MCP stdio server (7 read-only tools incl. kg_context; kg_feedback behind --enable-write; hot reload)
 │   ├── store.py       # Evidence store (immutable generations)
 │   ├── knowledge.py   # Knowledge base (notes/claims/review)
 │   └── ...

@@ -211,7 +211,7 @@ class TestProtocolBoundary(Workspace):
         self.assertIn("error", result[0])
         self.assertEqual(result[1]["id"], 7)
         # 默认 stdio 服务只公布 6 个只读工具；kg_feedback 须 --enable-write（roadmap M3 写能力分离）
-        self.assertEqual(len(result[1]["result"]["tools"]), 6)
+        self.assertEqual(len(result[1]["result"]["tools"]), 7)
 
     def test_tool_errors_are_marked_and_integer_budgets_are_enforced(self):
         cases = [("kg_explore", {"query": "version", "top_k": True}),

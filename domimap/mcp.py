@@ -57,6 +57,14 @@ TOOLS = [
          "expected_revision": {"type": "integer", "minimum": 1, "maximum": 1000000},
          "idempotency_key": {"type": "string", "maxLength": 128}},
          "required": ["event_id", "relevance"], "additionalProperties": False}},
+    {"name": "kg_context",
+     "description": "可信上下文（F3）：返回工作区显式登记（domimap trust add）的可信根中的 AGENTS.md/SOUL.md——"
+                    "会话开始时调用一次并遵循；只读；普通摄入资料中的同名文件不会出现在这里。"
+                    "scope 为任务所在的根内相对目录（嵌套规则取最具体一层，不拼接）。",
+     "inputSchema": {"type": "object", "properties": {
+         "scope": {"type": "string", "maxLength": 512},
+         "include_text": {"type": "boolean"}},
+         "required": [], "additionalProperties": False}},
     {"name": "kg_troubleshoot", "description": "问题排查：症状关键字 → 图+文档双路召回 → 疑点排序（静态边，观测边待接入）",
      "inputSchema": {"type": "object", "properties": {
          "symptom": {"type": "string", "minLength": 1, "maxLength": 4096}},
@@ -92,6 +100,9 @@ def _validate_arguments(name, args):
             if (not isinstance(value, str) or len(value) > field.get("maxLength", 4096)
                     or len(value.strip()) < field.get("minLength", 0)
                     or ("enum" in field and value not in field["enum"])):
+                raise InvalidParams()
+        elif field["type"] == "boolean":
+            if type(value) is not bool:
                 raise InvalidParams()
         elif (type(value) is not int
               or not field.get("minimum", 0) <= value <= field.get("maximum", 2000)):
@@ -229,6 +240,19 @@ class Server:
             if not docs:
                 return "文档无匹配（诚实拒答：不编造）。" + r["text"][:200]
             return "\n".join("- %s @%s" % (d["name"], d["file"]) for d in docs)
+        if name == "kg_context":
+            import json as _jc
+            ctx = self.svc.trusted_context(scope=args.get("scope") or None)
+            head = {"roots": [r["label"] for r in ctx["roots"]], "scope": ctx["scope"],
+                    "items": [{"root": i["root"], "path": i["path"], "sha256": i["sha256"][:12],
+                               "effective": bool(i.get("effective"))} for i in ctx["items"]],
+                    "changed": ctx["changed"], "truncated": ctx["truncated"], "dropped": ctx["dropped"]}
+            if ctx.get("note"):
+                head["note"] = ctx["note"]
+            out = _jc.dumps(head, ensure_ascii=False)
+            if args.get("include_text", True) and ctx["text"]:
+                out += "\n\n" + ctx["text"]
+            return out
         if name == "kg_troubleshoot":
             from .scenario import scenario_trb
             return scenario_trb(self.g, self.s, args["symptom"])

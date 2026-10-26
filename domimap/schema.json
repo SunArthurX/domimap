@@ -182,6 +182,7 @@
   "kg_doc_search",
   "kg_read",
   "kg_feedback",
+  "kg_context",
   "kg_troubleshoot"
  ],
  "mcp_write_tools": [

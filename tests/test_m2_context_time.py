@@ -19,7 +19,7 @@ class TestF3Context(unittest.TestCase):
         open(os.path.join(self.trusted, "nested", "SOUL.md"), "w").write("# nested persona")
 
     def test_load_with_hash_and_scope(self):
-        out = load_context(self.trusted)
+        out = load_context(self.trusted, trusted=[self.trusted])  # 信任必须显式（2026-10-26 起不再自信任）
         items = out["items"]
         self.assertEqual([os.path.basename(i["path"]) for i in items], ["AGENTS.md", "SOUL.md"])
         self.assertFalse(out["truncated"])
@@ -33,7 +33,7 @@ class TestF3Context(unittest.TestCase):
 
     def test_budget_truncation_explicit(self):
         open(os.path.join(self.trusted, "big.md"), "w").write("x" * 100)
-        out = load_context(self.trusted, budget=30)
+        out = load_context(self.trusted, trusted=[self.trusted], budget=30)
         self.assertTrue(out["truncated"], "超预算必须显式标记，不得静默截断")
         self.assertTrue(out["items"] or out["dropped"])
 

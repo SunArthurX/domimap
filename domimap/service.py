@@ -138,6 +138,52 @@ class AppService:
     def domain_map(self):
         return self.g.domain_map()
 
+    # ---------- 可信上下文（F3） ----------
+    def trusted_context(self, scope=None, budget=None):
+        """从登记的可信根加载 AGENTS.md/SOUL.md；返回 items/text/changed/truncated/dropped/roots。
+
+        changed：相对上次加载（store meta 记录每个规则文件 sha）内容变化或新增的文件；本次加载即视为已读。
+        普通扫描摄入的同名文件永不进入这里——只有 `domimap trust add` 登记过的根才读。
+        """
+        from . import context as _ctx
+        from .store import EvidenceStore
+        budget = budget or _ctx.DEFAULT_BUDGET
+        db = os.path.join(self.ws, "store.db")
+        if not os.path.exists(db):
+            return {"roots": [], "items": [], "text": "", "changed": [], "truncated": False, "dropped": [],
+                    "scope": scope or "", "note": "无证据库（先 build 工作区）"}
+        store = EvidenceStore(db)
+        try:
+            roots = store.trusted_roots()
+            if not roots:
+                return {"roots": [], "items": [], "text": "", "changed": [], "truncated": False, "dropped": [],
+                        "scope": scope or "", "note": "未登记可信根（domimap trust add LABEL PATH）"}
+            items, blocks, changed, dropped, truncated = [], [], [], [], False
+            allowed = [r["path"] for r in roots]
+            per_root = max(1, budget // len(roots))
+            for r in roots:
+                if not os.path.isdir(r["path"]):
+                    dropped.append("%s/ (missing root)" % r["label"])
+                    continue
+                try:
+                    out = _ctx.load_context(r["path"], trusted=allowed, budget=per_root, scope=scope)
+                except PermissionError as e:
+                    raise ServiceError("invalid_params", str(e))
+                truncated = truncated or out["truncated"]
+                dropped += ["%s/%s" % (r["label"], d) for d in out["dropped"]]
+                for i in out["items"]:
+                    key = "context_sha:%s/%s" % (r["label"], i["path"])
+                    prev = store.meta_get(key)
+                    if prev != i["sha256"]:
+                        changed.append("%s/%s" % (r["label"], i["path"]))
+                        store.meta_set(key, i["sha256"])
+                    items.append(dict(i, root=r["label"]))
+                blocks.append(_ctx.render(out["items"], label=r["label"]))
+            return {"roots": roots, "items": items, "text": "\n".join(b for b in blocks if b),
+                    "changed": changed, "truncated": truncated, "dropped": dropped, "scope": scope or ""}
+        finally:
+            store.close()
+
     # ---------- 证据 ----------
     def evidence_for(self, node):
         return self.resolver.for_node(node)

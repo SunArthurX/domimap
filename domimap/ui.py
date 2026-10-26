@@ -411,7 +411,7 @@ const WORKFLOWS = [
  args:"导出 Markdown 勾选清单，人审结论写回 reviewed/ 双通道",
  cmd:g=>"domimap review -g "+g+" -o out/review"},
 
-{id:"serve", zi:"M", name:"MCP 客户端接入", mode:"cli", purpose:"stdio 服务器：6 个只读 kg_* 工具（--enable-write 加 kg_feedback）",
+{id:"serve", zi:"M", name:"MCP 客户端接入", mode:"cli", purpose:"stdio 服务器：7 个只读 kg_* 工具含 kg_context（--enable-write 加 kg_feedback）",
  nodes:[{id:"cli",t:"客户端",s:"Claude Code / Codex / ZCode",k:"input",c:0,r:0},
         {id:"sv",t:"MCP 服务",s:"domimap serve（stdio）",k:"term",c:1,r:0},
         {id:"tools",t:"6 工具",s:"explore/domain_map/impact/doc_search/read/troubleshoot",k:"proc",c:2,r:0},
