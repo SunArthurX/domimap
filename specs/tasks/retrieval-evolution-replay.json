@@ -4,11 +4,11 @@
   "state": "verified",
   "spec": "specs/tasks/retrieval-evolution-replay.md",
   "requirements": [
-    "R06",
+    "R15",
     "R13"
   ],
   "acceptance_cases": [
-    "AC-R06-07"
+    "AC-R15-05"
   ],
   "files": [
     ".gitignore",

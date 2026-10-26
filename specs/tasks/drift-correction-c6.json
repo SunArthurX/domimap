@@ -4,12 +4,12 @@
   "state": "verified",
   "spec": "specs/tasks/drift-correction-c6.md",
   "requirements": [
-    "R06",
+    "R15",
     "F2",
     "R08"
   ],
   "acceptance_cases": [
-    "AC-R06-04"
+    "AC-R15-02"
   ],
   "files": [
     ".gitignore",

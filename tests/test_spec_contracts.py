@@ -143,6 +143,19 @@ class TestSpecContracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Broken document link"):
             specs.check_links(self.root)
 
+    def test_r06_keeps_original_scope_and_r15_hosts_retrieval_feedback(self):
+        """R06 原义=知识依赖失效→复核队列（2 案例）；检索反馈闭环独立为 R15（5 案例，文本逐字迁移）。"""
+        req = json.loads((ROOT / "specs/requirements.json").read_text(encoding="utf-8"))
+        by_id = {r["id"]: r for r in req["requirements"]}
+        self.assertEqual(by_id["R06"]["cases"], ["AC-R06-01", "AC-R06-02"])
+        self.assertEqual(by_id["R15"]["cases"], ["AC-R15-0%d" % i for i in range(1, 6)])
+        acc = {c["id"]: c for c in json.loads(
+            (ROOT / "specs/acceptance.json").read_text(encoding="utf-8"))["cases"]}
+        self.assertTrue(all(acc[c]["requirement"] == "R15" for c in by_id["R15"]["cases"]))
+        self.assertFalse({"AC-R06-0%d" % i for i in range(3, 8)} & set(acc))
+        ids = list(acc)
+        self.assertEqual(ids.index("AC-R15-05") - ids.index("AC-R15-01"), 4, "R15 案例应连续归位")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

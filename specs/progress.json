@@ -187,41 +187,44 @@
       ],
       "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
     },
-    "AC-R06-03": {
+    "AC-R15-01": {
       "state": "verified",
       "evidence": [
-        "out/verification/AC-R06-03.json"
+        "out/verification/AC-R15-01.json"
       ],
       "historical_evidence": [
+        "out/verification/AC-R06-03.json",
         "out/verification/rerun-2026-10-26-p3/cases/AC-R06-03.json",
         "out/verification/rerun-2026-10-26-p2/cases/AC-R06-03.json"
       ]
     },
-    "AC-R06-04": {
+    "AC-R15-02": {
       "state": "verified",
       "evidence": [
-        "out/verification/AC-R06-04.json"
+        "out/verification/AC-R15-02.json"
       ],
       "historical_evidence": [
         "out/verification/rerun-2026-10-26-p3/cases/AC-R06-04.json",
         "out/verification/AC-R06-04.json"
       ]
     },
-    "AC-R06-05": {
+    "AC-R15-03": {
       "state": "verified",
       "evidence": [
-        "out/verification/AC-R06-05.json"
+        "out/verification/AC-R15-03.json"
       ],
       "historical_evidence": [
         "out/verification/AC-R06-05.json"
       ]
     },
-    "AC-R06-06": {
+    "AC-R15-04": {
       "state": "verified",
       "evidence": [
-        "out/verification/AC-R06-06.json"
+        "out/verification/AC-R15-04.json"
       ],
-      "historical_evidence": []
+      "historical_evidence": [
+        "out/verification/AC-R06-06.json"
+      ]
     },
     "AC-R07-01": {
       "state": "implementing",
@@ -358,12 +361,14 @@
       ],
       "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
     },
-    "AC-R06-07": {
+    "AC-R15-05": {
       "state": "verified",
       "evidence": [
-        "out/verification/AC-R06-07.json"
+        "out/verification/AC-R15-05.json"
       ],
-      "historical_evidence": []
+      "historical_evidence": [
+        "out/verification/AC-R06-07.json"
+      ]
     }
   },
   "documentation_tasks": {

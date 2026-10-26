@@ -19,7 +19,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 STATES = {"planned", "implementing", "verified", "blocked"}
 DEPENDENCIES = {"M0": [], "M1": ["M0"], "M2": ["M1"], "M3": ["M2"], "M4": ["M2"], "M5": ["M3", "M4"]}
-REQUIREMENTS = {"R%02d" % i for i in range(1, 15)} | {"F1-C%d" % i for i in range(1, 5)} | {"F2", "F3", "F4"}
+# Explicit user requirements. R01–R14/F1–F4 from the 2026-10-16 spec; R15 added 2026-10-26 by user
+# decision (spec-rehome-r15) so the retrieval-feedback loop stops borrowing R06's identity.
+REQUIREMENTS = {"R%02d" % i for i in range(1, 16)} | {"F1-C%d" % i for i in range(1, 5)} | {"F2", "F3", "F4"}
 
 
 def local_path(root, name):

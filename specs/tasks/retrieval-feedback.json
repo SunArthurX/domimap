@@ -5,12 +5,12 @@
   "spec": "specs/tasks/retrieval-feedback.md",
   "requirements": [
     "R01",
-    "R06",
+    "R15",
     "R13",
     "F2"
   ],
   "acceptance_cases": [
-    "AC-R06-04"
+    "AC-R15-02"
   ],
   "files": [
     ".gitignore",
@@ -102,5 +102,5 @@
     "make verify",
     "python3 -B scripts/check_specs.py --task specs/tasks/retrieval-feedback.json --base HEAD"
   ],
-  "rollback": "删除 domimap/feedback.py 与 tests/test_feedback.py；revert __main__.py/ui.py 本片差异；registry 移除 AC-R06-04；feedback 表可 DROP，事件与备份不受影响"
+  "rollback": "删除 domimap/feedback.py 与 tests/test_feedback.py；revert __main__.py/ui.py 本片差异；registry 移除 AC-R15-02；feedback 表可 DROP，事件与备份不受影响"
 }

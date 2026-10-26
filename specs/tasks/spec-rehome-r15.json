@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "id": "spec-rehome-r15",
+  "kind": "spec-change",
+  "state": "verified",
+  "spec": "specs/tasks/spec-rehome-r15.md",
+  "requirements": [
+    "R13"
+  ],
+  "acceptance_cases": [
+    "AC-R13-01"
+  ],
+  "files": [
+    "specs/product.md",
+    "specs/requirements.json",
+    "specs/acceptance.json",
+    "scripts/check_specs.py",
+    "docs/roadmap.md",
+    "tests/test_spec_contracts.py",
+    "specs/tasks/spec-rehome-r15.json",
+    "specs/tasks/spec-rehome-r15.md",
+    "tests/test_drift_correction.py",
+    "tests/test_feedback.py",
+    "tests/test_observation.py",
+    "tests/test_diagnosis.py",
+    "tests/test_identifier_ranking.py",
+    "specs/tasks/drift-correction-c1.json",
+    "specs/tasks/drift-correction-c2.json",
+    "specs/tasks/drift-correction-c3.json",
+    "specs/tasks/drift-correction-c4.json",
+    "specs/tasks/drift-correction-c5.json",
+    "specs/tasks/drift-correction-c6.json",
+    "specs/tasks/drift-correction-c7.json",
+    "specs/tasks/retrieval-diagnosis.json",
+    "specs/tasks/retrieval-evolution-pilot.json",
+    "specs/tasks/retrieval-evolution-replay.json",
+    "specs/tasks/retrieval-feedback.json",
+    "specs/tasks/retrieval-observation.json"
+  ],
+  "test_files": [
+    "tests/test_spec_contracts.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_spec_contracts -v",
+    "make spec-check",
+    "python3 -B scripts/check_specs.py --task specs/tasks/spec-rehome-r15.json --base b868a42"
+  ],
+  "rollback": "反向重命名 AC-R15-0N→AC-R06-0(N+2)、删除 R15 条目、恢复 R06 cases 为 7 条；证据文件 out/verification/AC-R15-*.json 删除，progress 指回 AC-R06-0N.json；无代码/数据迁移。"
+}

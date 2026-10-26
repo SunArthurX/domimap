@@ -5,12 +5,12 @@
   "spec": "specs/tasks/retrieval-diagnosis.md",
   "requirements": [
     "R01",
-    "R06",
+    "R15",
     "R08",
     "R13"
   ],
   "acceptance_cases": [
-    "AC-R06-05"
+    "AC-R15-03"
   ],
   "files": [
     ".gitignore",
@@ -102,5 +102,5 @@
     "make verify",
     "python3 -B scripts/check_specs.py --task specs/tasks/retrieval-diagnosis.json --base HEAD"
   ],
-  "rollback": "删除 domimap/diagnosis.py 与 tests/test_diagnosis.py；revert __main__.py/ui.py 本片差异；registry 移除 AC-R06-05；三张诊断表可 DROP，事件与反馈不受影响"
+  "rollback": "删除 domimap/diagnosis.py 与 tests/test_diagnosis.py；revert __main__.py/ui.py 本片差异；registry 移除 AC-R15-03；三张诊断表可 DROP，事件与反馈不受影响"
 }

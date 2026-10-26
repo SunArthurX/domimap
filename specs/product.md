@@ -10,7 +10,7 @@ The four explicit capabilities remain mandatory: Claude/Codex/ZCode/DSH integrat
 
 ## Normative requirements
 
-The complete requirement registry is [requirements.json](requirements.json); executable acceptance descriptions are [acceptance.json](acceptance.json), and current completion state is [progress.json](progress.json). R01–R12 and F1–F4 retain the scope of the [roadmap](../docs/roadmap.md). R13 makes development traceable; R14 makes the comparison requirement a final gate.
+The complete requirement registry is [requirements.json](requirements.json); executable acceptance descriptions are [acceptance.json](acceptance.json), and current completion state is [progress.json](progress.json). R01–R12 and F1–F4 retain the scope of the [roadmap](../docs/roadmap.md). R13 makes development traceable; R14 makes the comparison requirement a final gate. R15 (retrieval-quality feedback and controlled evolution: query observation, feedback, diagnosis, frozen-sample replay, activation gate) was added on 2026-10-26 by explicit user decision; it does not change R06, which keeps its original meaning of knowledge-claim dependency invalidation and human review.
 
 1. Identity and scope are not inferred from display names, local absolute paths or branch names alone. Separate logical identity, source content version and applicability.
 2. An externally returned evidence ID is backed by a readable immutable excerpt before publication. Current source cannot impersonate unavailable history.

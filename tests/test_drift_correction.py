@@ -20,7 +20,7 @@ def _load(rel):
 class TestDriftCorrectionBookkeeping(unittest.TestCase):
     def test_corrected_cases_verified_with_evidence(self):
         progress = _load("specs/progress.json")
-        for cid in ("AC-R06-03", "AC-R06-04", "AC-R06-05", "AC-R06-06", "AC-R06-07"):
+        for cid in ("AC-R15-01", "AC-R15-02", "AC-R15-03", "AC-R15-04", "AC-R15-05"):
             case = progress["cases"][cid]
             self.assertEqual(case["state"], "verified", cid)
             for ev in case["evidence"]:

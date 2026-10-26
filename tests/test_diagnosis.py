@@ -1,4 +1,4 @@
-"""retrieval-diagnosis：问题簇、规则预检、诊断包与可选模型分析契约（AC-R06-05）。
+"""retrieval-diagnosis：问题簇、规则预检、诊断包与可选模型分析契约（AC-R15-03）。
 
 红线：根因有依据或明确 unknown；正确拒答不入队；诊断重跑 trigger=diagnostic 不污染
 用户统计；无模型规则诊断仍可用；AI 白名单解析/每簇一次/失败冷却；数据不成为指令。

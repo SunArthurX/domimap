@@ -6,12 +6,12 @@
   "requirements": [
     "R01",
     "R04",
-    "R06",
+    "R15",
     "R13",
     "F2"
   ],
   "acceptance_cases": [
-    "AC-R06-03"
+    "AC-R15-01"
   ],
   "files": [
     ".gitignore",
@@ -103,5 +103,5 @@
     "make verify",
     "python3 -B scripts/check_specs.py --task specs/tasks/retrieval-observation.json --base HEAD"
   ],
-  "rollback": "删除 domimap/observation.py 与 tests/test_observation.py；revert search.py/__main__.py/mcp.py/ui.py 本片差异；registry 三文件移除 AC-R06-03；数据回滚=删除工作区 queries.db/queries.key"
+  "rollback": "删除 domimap/observation.py 与 tests/test_observation.py；revert search.py/__main__.py/mcp.py/ui.py 本片差异；registry 三文件移除 AC-R15-01；数据回滚=删除工作区 queries.db/queries.key"
 }

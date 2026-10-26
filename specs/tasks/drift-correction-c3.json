@@ -5,11 +5,11 @@
   "spec": "specs/tasks/drift-correction-c3.md",
   "requirements": [
     "R01",
-    "R06",
+    "R15",
     "F2"
   ],
   "acceptance_cases": [
-    "AC-R06-04"
+    "AC-R15-02"
   ],
   "files": [
     ".gitignore",

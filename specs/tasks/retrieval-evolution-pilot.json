@@ -5,11 +5,11 @@
   "spec": "specs/tasks/retrieval-evolution-pilot.md",
   "requirements": [
     "R04",
-    "R06",
+    "R15",
     "R13"
   ],
   "acceptance_cases": [
-    "AC-R06-06"
+    "AC-R15-04"
   ],
   "files": [
     ".gitignore",

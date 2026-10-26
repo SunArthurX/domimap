@@ -1,4 +1,4 @@
-"""retrieval-feedback：反馈修订、统计口径、删除恢复与导出契约（AC-R06-04）。
+"""retrieval-feedback：反馈修订、统计口径、删除恢复与导出契约（AC-R15-02）。
 
 口径红线：有候选不算 hit；unknown 不算 miss；partial 不折算；来源分列不合并；
 AI 意见不覆盖人源；重复去重；删除需先备份且恢复完整。

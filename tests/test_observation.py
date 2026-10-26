@@ -1,4 +1,4 @@
-"""retrieval-observation：查询可观测性契约（AC-R06-03）。
+"""retrieval-observation：查询可观测性契约（AC-R15-01）。
 
 - 结构化拒答原因码与 search.py 拒答分支一一对应，判定与文案不变。
 - 记录 fail-open：任何记录异常 → recording_failed，查询结果/排序/拒答/exit code 不变。

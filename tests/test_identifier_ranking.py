@@ -74,7 +74,7 @@ class TestBoostScopeOriginalOnly(unittest.TestCase):
 
     seeds 域扩展词与类名撞名（商品→Item）不构成用户表达的"定义性同一"，不得以 ×3
     加成计分（真实语料实证：含"审核"实词的 docx 曾被 generic Item/Product 类压到
-    第 15 名，修复后回到 top_k——真实语料回放见 out/dev-ws 与 AC-R06-06 证据；
+    第 15 名，修复后回到 top_k——真实语料回放见 out/dev-ws 与 AC-R15-04 证据；
     此处钉住机制语义与端到端不回归）。
     """
 
