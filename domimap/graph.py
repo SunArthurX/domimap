@@ -182,8 +182,10 @@ class Graph:
             did = self.add_node("doc:%s:%s" % (d.get("service", "(root)"), d["path"]), "Doc",
                                 os.path.basename(d["path"]), d["path"],
                                 {"text": d["text"],
-                                 "first_seen": d.get("content_era") or d.get("mtime") or 0.0,
-                                 "era_source": "content" if d.get("content_era") else "mtime",
+                                 # 纪元：正文自述日期 > 内容首次收录（复制/touch 不刷新）> 文件 mtime（仅旧记录）
+                                 "first_seen": d.get("content_era") or d.get("content_first_seen") or d.get("mtime") or 0.0,
+                                 "era_source": ("content" if d.get("content_era")
+                                                else "store" if d.get("content_first_seen") else "mtime"),
                                  **{k: d[k] for k in ("valid_until", "superseded_by") if d.get(k)},
                                  **self._sid(d)},
                                 conf="EXTRACTED", prov="doc:ingest")

@@ -361,24 +361,26 @@ class Searcher:
         for t in matched:
             cand |= self.index.get(t, set())
         scored = []
+        import calendar as _cal
+        import time as _t
+        clock = as_of if as_of is not None else _t.time()  # 资格判定的时钟：默认当前，as_of 挪表
         for nid in cand:
             n = self._node(nid)
             if domain and n["meta"].get("domain") != domain:
                 continue
-            if as_of is not None:
-                m = n["meta"]
-                if m.get("superseded_by"):
-                    continue  # 已被替代：默认排除（历史查询经显式参数，M3 复核接入）
-                vu = m.get("valid_until")
-                if vu:
-                    import time as _t
-                    try:
-                        if _t.mktime(_t.strptime(vu[:10], "%Y-%m-%d")) < as_of:
-                            continue  # 过期资料不具资格
-                    except ValueError:
-                        pass  # 日期非法：不猜，保持资格并记未知
-                if m.get("first_seen", 0) > as_of:
-                    continue  # 晚于 as_of 的资料不参与
+            m = n["meta"]
+            # 资格先于排序（product#7）：被替代/已过期的资料默认不具资格；历史范围经 as_of 查询（F4）
+            if m.get("superseded_by"):
+                continue
+            vu = m.get("valid_until")
+            if vu:
+                try:
+                    if _cal.timegm(_t.strptime(vu[:10], "%Y-%m-%d")) < clock:
+                        continue  # 过期资料不具资格
+                except ValueError:
+                    pass  # 日期非法：不猜，保持资格并记未知
+            if as_of is not None and m.get("first_seen", 0) > as_of:
+                continue  # 晚于 as_of 的资料不参与
             s = self._score(qt, nid, name_tokens=qt_orig,
                             weak_tokens=weak_tokens) * cov * cov
             if s > 0:
@@ -523,7 +525,7 @@ class Searcher:
                         scored = fused
                         embed_info = {"backend": self.emb_store.get("backend"),
                                       "sem_top": len(sem_pairs)}
-        # 时新意图：查询含时间词时按 first_seen 近因加权（文件 mtime 为资格事实）
+        # 时新意图：查询含时间词时按 first_seen 近因加权（first_seen=正文纪元 > 内容首次收录 > mtime，仅作用排序）
         import re as _re0
         fresh_query = bool(_re0.search(r"最新|最近|更新|变更|changelog|change", text, _re0.I))
         if fresh_query:
@@ -696,6 +698,11 @@ class Searcher:
             head += " [type:%s]" % self._infer_doc_type(n["file"])
         if n["meta"].get("domain"):
             head += "  [域:%s%s]" % (n["meta"]["domain"], "/vote" if n["meta"].get("domain_by") else "")
+        if n.get("time_note"):  # 时效可解释（F4）：纪元来源 + 衰减说明；有效期如实展示
+            head += "  [time:%s%s]" % (n["time_note"],
+                                      (" era=" + n["meta"]["era_source"]) if n["meta"].get("era_source") else "")
+        if n["meta"].get("valid_until"):
+            head += "  [valid_until:%s]" % n["meta"]["valid_until"]
         return head + "\n    @" + n["file"]
 
     @staticmethod

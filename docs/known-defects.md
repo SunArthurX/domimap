@@ -10,7 +10,7 @@
 | D4 | 同名实体合并：Method/Class 节点按 service 级命名，跨类同名方法/类合并为一个节点（如 OrderController.changePrice 与 OrderPriceService.changePrice） | 查看 `out/mini/graph.json` 中 `mth:order-service.changePrice` 只有一个 | 影响面/调用链粒度失真 | **closed-by m1-identity-sources（cls/mth/doc ID 限定；重载/字段别名精度仍属 M1.2）** |
 | ~~D5~~ 已关闭(m1-evidence-generations)：证据定位不足——EvidenceStore 内容寻址 blob+locator+sha256，源改/删后旧 ID 仍读旧片段（回归同上） | build 后修改夹具源文件再查询 | 无法核验历史证据 | M1.3（AC-R02-01） |
 | D6 | 无部署映射推定：RPC/领域关系基于词面，不区分版本/环境 | — | 关系可能不适用 | M1.1（AC-R01-01） |
-| D7 | 时间维度缺失：无 as_of/时效/替代元数据，"最近"即默认最新 | — | 旧规范可能压过现行 | M2/M3（AC-F4-01/02） |
+| D7 | 时间维度缺失：无 as_of/时效/替代元数据，"最近"即默认最新 | — | 旧规范可能压过现行 | **AC-F4-01 侧 closed-by time-policy（2026-10-26）**：valid_until/superseded_by 资格门槛默认执行（此前只在 as_of 分支）；as_of 经 CLI `--as-of`/MCP `as_of`/UI `&as_of=` 三入口可达且同语义；time_note+era_source+valid_until 在文本与 UI 展示；无正文日期的文档纪元取内容首次收录（复制/touch 不刷新）；front-matter 不再污染正文纪元。回归 tests.test_time_policy。AC-F4-02 版本复核接线属 T11 |
 
 修复后请在对应行标注 closed-by 任务 ID 与回归测试名，并保留本行历史。
 

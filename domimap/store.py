@@ -101,7 +101,7 @@ class EvidenceStore:
                 (ev_id, sid, json.dumps(locator, ensure_ascii=False), sha, now))
             self.db.execute("INSERT OR REPLACE INTO meta VALUES (?,?)",
                             ("source_evidence:" + sid, ev_id))
-        return {"sid": sid, "sha256": sha, "ev_id": ev_id}
+        return {"sid": sid, "sha256": sha, "ev_id": ev_id, "first_seen": first_seen}
 
     @_synchronized
     def list_sources(self):

@@ -20,7 +20,9 @@ TOOLS = [
          "query": {"type": "string", "minLength": 1, "maxLength": 4096,
                    "description": "自然语言或符号名（支持中文；建议先原文直查）"},
          "domain": {"type": "string", "maxLength": 256, "description": "可选：限定领域（如 订单域/商品域）"},
-         "top_k": {"type": "integer", "minimum": 1, "maximum": 50, "default": 6}},
+         "top_k": {"type": "integer", "minimum": 1, "maximum": 50, "default": 6},
+         "as_of": {"type": "integer", "minimum": 946684800, "maximum": 4102444800,
+                   "description": "历史范围查询：epoch 秒（UTC）；资格按该时刻判定，默认按当前时间"}},
          "required": ["query"], "additionalProperties": False}},
     {"name": "kg_domain_map", "description": "领域地图：域→服务/表/主题/文档 聚合 + 跨域共享表（改动高风险点）",
      "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False}},
@@ -150,7 +152,8 @@ class Server:
     def _dispatch(self, name, args):
         self._fresh()
         if name == "kg_explore":
-            r, obs = self.svc.query(args["query"], "mcp", top_k=args.get("top_k"), domain=args.get("domain"))
+            r, obs = self.svc.query(args["query"], "mcp", top_k=args.get("top_k"), domain=args.get("domain"),
+                                    as_of=args.get("as_of"))
             ev_map = self._ev_map()
             extra = []
             for n in r["seeds"]:

@@ -145,17 +145,21 @@ def scan_repo(root, repo_label=None, capture=None):
             _scan_sql(R, path, rel, text)
         elif ext in DOC_EXT:
             meta = {}
+            body = text
             if text.startswith("---"):  # front-matter：valid_until/superseded_by（F4 时间资格）
-                for ln in text.split("---")[1].split("\n")[:12]:
+                parts = text.split("---", 2)
+                for ln in parts[1].split("\n")[:12] if len(parts) > 1 else []:
                     if ":" in ln:
                         k, _, v = ln.partition(":")
                         if k.strip() in ("valid_until", "superseded_by"):
                             meta[k.strip()] = v.strip()
+                if len(parts) > 2:
+                    body = parts[2]  # 纪元只看正文：元数据里的有效期不是写作日期
             try:
                 mt = os.stat(path).st_mtime
             except OSError:
                 mt = 0.0
-            era = _content_era(text)
+            era = _content_era(body)
             R["docs"].append({"path": rel, "text": text[:200000], "service": svc,
                               "mtime": mt, "content_era": era, **meta})
         elif ext in (".docx", ".pdf"):

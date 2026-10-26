@@ -30,7 +30,8 @@ class TestQueryDiscipline(unittest.TestCase):
     def test_tool_schema_unchanged(self):
         tool = self._kg_explore()
         spec = tool["inputSchema"]
-        self.assertEqual(sorted(spec["properties"]), ["domain", "query", "top_k"])
+        # as_of（F4 历史范围，可选）2026-10-26 加入；默认行为与评测宿主调用不变（必填仍只有 query）
+        self.assertEqual(sorted(spec["properties"]), ["as_of", "domain", "query", "top_k"])
         self.assertEqual(tool.get("required", spec.get("required")), ["query"])
 
     def test_host_prompt_and_spec_in_sync(self):

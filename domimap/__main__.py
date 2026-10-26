@@ -6,6 +6,7 @@
   build <repo...> -o DIR     扫描仓库 → 统一图 graph.json + coverage.json
                              （--merge 单仓直出到 -o 目录；--discover 把参数视为工作区根，
                              自动发现子仓合并建图，并生成证据库 store.db 与增量清单）
+  query TEXT --as-of DATE    历史范围查询（资格按该时刻判定；默认按当前时间排除过期/被替代资料）
   doc TEXT                   文档检索（与 MCP kg_doc_search 同参同观测）
   update -o DIR              工作区增量重建（manifest 未变时毫秒级 no-op）
   rebind LABEL PATH -o DIR   来源根移动后重绑物理路径（sid/节点 ID 不变，再 update）
@@ -140,14 +141,18 @@ def cmd_embed(args):
 def cmd_query(args):
     from domimap.service import AppService
     svc = AppService(args.graph)  # 与 MCP/UI 同一装配与默认参数（product#6）
-    overrides = {"top_k": args.top, "domain": args.domain}
+    overrides = {"top_k": args.top, "domain": args.domain, "as_of": getattr(args, "as_of", None)}
     for flag in ("semantic", "rerank", "embed"):
         if getattr(args, flag, False):
             overrides[flag] = True
     if getattr(args, "rerank_pool", None):
         overrides["rerank_pool"] = args.rerank_pool
     from domimap.observation import observation_enabled
-    r, obs = svc.query(args.text, "cli", **overrides)
+    from domimap.service import ServiceError
+    try:
+        r, obs = svc.query(args.text, "cli", **overrides)
+    except ServiceError as e:
+        print("query: %s" % e, file=sys.stderr); sys.exit(2)
     if getattr(args, "json", False):
         import json as _j
         print(_j.dumps({"seeds": [{"id": n["id"], "kind": n["kind"], "name": n["name"],
@@ -691,6 +696,8 @@ def main():
     sc = with_g(sub.add_parser("scenario")); sc.add_argument("kind", choices=["req", "trb"])
     sc.add_argument("text"); sc.set_defaults(fn=cmd_scenario)
     q = with_g(sub.add_parser("query")); q.add_argument("text"); q.add_argument("--top", type=int, default=6)
+    q.add_argument("--as-of", dest="as_of", default=None,
+                   help="历史范围查询：YYYY-MM-DD 或 epoch 秒；资格按该时刻判定（F4）")
     q.add_argument("--semantic", action="store_true",
                    help="低覆盖率回退启用 LLM 语义桥（需 GLM_API_KEY 等；默认关）")
     q.add_argument("--rerank", action="store_true",

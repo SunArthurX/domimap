@@ -26,6 +26,28 @@ class ServiceError(ValueError):
         self.code = code
 
 
+AS_OF_MAX = 4102444800  # 2100-01-01：超出视为非法而不是静默接受
+
+
+def parse_as_of(value):
+    """as_of 统一解析（三入口同语义）：None/"" → None；epoch 秒（数值）或 'YYYY-MM-DD'（UTC 零点）。"""
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        raise ServiceError("invalid_params", "as_of 须为 epoch 秒或 YYYY-MM-DD")
+    if isinstance(value, (int, float)):
+        v = float(value)
+        if 0 <= v <= AS_OF_MAX and v >= 946684800:  # 2000-01-01 起：更早的数值几乎总是单位或字段错误
+            return v
+        raise ServiceError("invalid_params", "as_of 超出范围（2000-01-01 ~ 2100-01-01 的 epoch 秒）")
+    import calendar
+    import time as _t
+    try:
+        return float(calendar.timegm(_t.strptime(str(value).strip(), "%Y-%m-%d")))
+    except ValueError:
+        raise ServiceError("invalid_params", "as_of 须为 epoch 秒或 YYYY-MM-DD")
+
+
 class AppService:
     def __init__(self, graph_path):
         self.graph_path = os.path.abspath(graph_path)
@@ -78,6 +100,10 @@ class AppService:
             raise ServiceError("invalid_params", "空查询")
         params = dict(QUERY_DEFAULTS)
         params.update({k: v for k, v in overrides.items() if v is not None or k == "domain"})
+        if "as_of" in params:
+            params["as_of"] = parse_as_of(params["as_of"])
+        if "top_k" in params and not (isinstance(params["top_k"], int) and 1 <= params["top_k"] <= 50):
+            raise ServiceError("invalid_params", "top_k 须为 1-50 的整数")
         params["seeds"] = self.seeds
         return run_query(self.graph_path, self.s, text, entry, params)
 

@@ -87,13 +87,19 @@ def _unique_labels(roots):
 RECORD_LISTS = ("classes", "methods", "routes", "rpc", "topics", "sqlstmts", "tables", "pages", "docs", "entities")
 
 
-def _stamp_sid(R, label):
-    """把来源身份 label|rel 戳到每条记录上，供图节点 meta.sid 与证据解析使用。"""
+def _stamp_sid(R, label, first_seen=None):
+    """把来源身份 label|rel 戳到每条记录上，供图节点 meta.sid 与证据解析使用；
+    文档记录另带内容首次收录时间（content_first_seen），供无正文纪元时作为资格/时效依据（F4）。"""
     for key in RECORD_LISTS:
         for rec in R.get(key, []):
             rel = rec.get("file") or rec.get("path")
             if rel:
                 rec["sid"] = label + "|" + rel
+    if first_seen:
+        for d in R.get("docs", []):
+            fs = first_seen.get(d.get("path"))
+            if fs:
+                d["content_first_seen"] = fs
     return R
 
 
@@ -109,11 +115,16 @@ def _atomic_write(path, data):
     sync_directory(os.path.dirname(os.path.abspath(path)))
 
 
-def _capture_into(store, label, signature):
-    """扫描回调：同一份字节既固化为证据（D10），也产出 manifest 的内容签名（D12），不再二次读盘。"""
+def _capture_into(store, label, signature, first_seen=None):
+    """扫描回调：同一份字节既固化为证据（D10），也产出 manifest 的内容签名（D12），不再二次读盘。
+
+    first_seen[rel] 记录该内容的首次收录时间（store 按内容 sha 取 min）：复制/touch 不刷新（F4）。
+    """
     def capture(path, rel, raw):
         signature[rel] = hashlib.sha256(raw).hexdigest()
-        store.capture_source(label, label + "|" + rel, path, rel, raw=raw)
+        rec = store.capture_source(label, label + "|" + rel, path, rel, raw=raw)
+        if first_seen is not None:
+            first_seen[rel] = rec["first_seen"]
     return capture
 
 
@@ -196,9 +207,10 @@ def build_many(roots, out_dir, jobs=8, force=False, merged_name=None, service_pr
         def scan(root):
             label = label_of(root)
             sig = signatures.setdefault(root, {})
+            seen = {}
             R = lite_scan.scan_repo(root, repo_label=prefix_of(root),
-                                    capture=_capture_into(store, label, sig))
-            return _stamp_sid(R, label)
+                                    capture=_capture_into(store, label, sig, seen))
+            return _stamp_sid(R, label, seen)
         Rs = {}
         with ThreadPoolExecutor(max_workers=jobs) as ex:
             for root, R in zip(dirty, ex.map(scan, dirty)):

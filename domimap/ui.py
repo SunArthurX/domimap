@@ -1227,8 +1227,15 @@ def make_server(graph_path, host="127.0.0.1", port=0):
                 if not q.strip():
                     self._send(400, json.dumps({"error": "空查询"}, ensure_ascii=False))
                     return
+                as_of = (qs.get("as_of") or [None])[0]
+                top_k = (qs.get("top_k") or [None])[0]
                 try:
-                    r, obs = svc.query(q, "ui", domain=dom)
+                    if top_k is not None:
+                        top_k = int(top_k)
+                    r, obs = svc.query(q, "ui", domain=dom, as_of=as_of, top_k=top_k)
+                except ValueError:
+                    self._send(400, json.dumps({"error": "top_k 须为整数", "code": "invalid_params"}, ensure_ascii=False))
+                    return
                 except ServiceError as e:
                     self._send(400, json.dumps({"error": str(e), "code": e.code}, ensure_ascii=False))
                     return
@@ -1241,6 +1248,12 @@ def make_server(graph_path, host="127.0.0.1", port=0):
                 for n in r["seeds"]:
                     item = {"id": n["id"], "kind": n["kind"], "name": n["name"],
                             "file": n["file"], "conf": n.get("conf", "")}
+                    if n.get("time_note"):  # 时效可解释（F4）
+                        item["time_note"] = n["time_note"]
+                        if n.get("meta", {}).get("era_source"):
+                            item["era_source"] = n["meta"]["era_source"]
+                    if n.get("meta", {}).get("valid_until"):
+                        item["valid_until"] = n["meta"]["valid_until"]
                     if n.get("meta", {}).get("domain"):
                         item["domain"] = n["meta"]["domain"]
                     ev_id = ev_by_rel.for_node(n)

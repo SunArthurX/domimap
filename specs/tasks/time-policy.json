@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "time-policy",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/time-policy.md",
+  "requirements": [
+    "F4"
+  ],
+  "acceptance_cases": [
+    "AC-F4-01"
+  ],
+  "files": [
+    "domimap/search.py",
+    "domimap/service.py",
+    "domimap/lite_scan.py",
+    "domimap/store.py",
+    "domimap/batch.py",
+    "domimap/graph.py",
+    "domimap/mcp.py",
+    "domimap/ui.py",
+    "domimap/__main__.py",
+    "tests/test_time_policy.py",
+    "tests/test_mcp_desc.py",
+    "tests/test_ui_workbench.py",
+    "docs/known-defects.md",
+    "docs/production-readiness.md",
+    "CHANGELOG.md",
+    "specs/tasks/time-policy.json",
+    "specs/tasks/time-policy.md"
+  ],
+  "test_files": [
+    "tests/test_time_policy.py",
+    "tests/test_mcp_desc.py",
+    "tests/test_ui_workbench.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_time_policy tests.test_m2_f4 tests.test_age_decay_intent tests.test_m2_context_time -v",
+    "make verify",
+    "python3 -B scripts/check_specs.py --task specs/tasks/time-policy.json --base 7b18edb"
+  ],
+  "rollback": "revert 本片差异；图需重建以回到 mtime 纪元（节点 meta.era_source）。"
+}
