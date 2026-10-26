@@ -1,60 +1,210 @@
 {
-  "schema_version": 1,
-  "name": "domimap-knowledge-graph",
-  "description": "Machine-readable schema of the domimap knowledge graph: node/edge kinds, confidence and provenance semantics, MCP tools, refusal gates. Human reference: docs/knowledge-graph.md (kept in sync by tests/test_schema.py).",
-  "node_kinds": {
-    "Service":  {"id_prefix": "svc:",   "summary_zh": "服务（仓库/模块聚合的部署单元）", "typical_prov": ["java"]},
-    "Class":    {"id_prefix": "cls:",   "summary_zh": "Java 类/接口（FQN 级）",          "typical_prov": ["java"]},
-    "Method":   {"id_prefix": "mth:",   "summary_zh": "方法（服务内签名级；同名共享为已知取舍）", "typical_prov": ["java"]},
-    "Route":    {"id_prefix": "route:", "summary_zh": "HTTP 路由（method + path）",       "typical_prov": ["java"]},
-    "SqlStmt":  {"id_prefix": "sql:",   "summary_zh": "单条 SQL 语句（MyBatis iface.id）", "typical_prov": ["synth"]},
-    "Table":    {"id_prefix": "tbl:",   "summary_zh": "数据库表（DDL 与 mapper 双来源）",  "typical_prov": ["sql", "synth"]},
-    "Column":   {"id_prefix": "col:",   "summary_zh": "表列（仅 DDL 来源）",               "typical_prov": ["sql"]},
-    "Topic":    {"id_prefix": "topic:", "summary_zh": "MQ 主题",                           "typical_prov": ["java"]},
-    "Doc":      {"id_prefix": "doc:",   "summary_zh": "文档（md/html/pdf*/docx*；可带 valid_until/superseded_by）", "typical_prov": ["doc"]},
-    "Page":     {"id_prefix": null,     "summary_zh": "前端页面（TS/JS/Vue 扫描）",        "typical_prov": ["synth"]},
-    "Domain":   {"id_prefix": null,     "summary_zh": "领域（seeds.json 种子打标）",       "typical_prov": ["core"]},
-    "Knowledge":{"id_prefix": null,     "summary_zh": "人工/LLM 知识笔记（运行时挂接；LLM 笔记 conf=LLM 且审定前不作事实）", "typical_prov": ["kb"]}
+ "schema_version": 1,
+ "name": "domimap-knowledge-graph",
+ "description": "Machine-readable schema of the domimap knowledge graph: node/edge kinds, confidence and provenance semantics, MCP tools, refusal gates. Human reference: docs/knowledge-graph.md (kept in sync by tests/test_schema.py).",
+ "node_kinds": {
+  "Service": {
+   "id_prefix": "svc:",
+   "summary_zh": "服务（仓库/模块聚合的部署单元）",
+   "typical_prov": [
+    "java"
+   ]
   },
-  "edge_kinds": {
-    "CONTAINS":    {"propagates_impact": false, "summary_zh": "结构包含（svc→cls/mth、tbl→col）"},
-    "CALLS":       {"propagates_impact": true,  "summary_zh": "方法调用"},
-    "HANDLES":     {"propagates_impact": true,  "summary_zh": "方法处理路由"},
-    "CALLS_SQL":   {"propagates_impact": true,  "summary_zh": "方法执行 SQL 语句"},
-    "MAPS_TO":     {"propagates_impact": true,  "summary_zh": "实体映射到表（JPA/实体注解路径）"},
-    "READS":       {"propagates_impact": true,  "summary_zh": "语句读取表（SELECT）"},
-    "WRITES":      {"propagates_impact": true,  "summary_zh": "语句写入表（INSERT/UPDATE/DELETE）"},
-    "PUBLISHES":   {"propagates_impact": true,  "summary_zh": "MQ 生产"},
-    "SUBSCRIBES":  {"propagates_impact": true,  "summary_zh": "MQ 消费"},
-    "RPC":         {"propagates_impact": true,  "summary_zh": "服务间调用"},
-    "ROUTES_TO":   {"propagates_impact": true,  "summary_zh": "前端路由指向后端（跨端追踪）"},
-    "MENTIONS":    {"propagates_impact": false, "summary_zh": "文档词法提及（conf=AMBIGUOUS，仅导航）"},
-    "BELONGS_TO":  {"propagates_impact": false, "summary_zh": "归属关系（仅导航）"}
+  "Class": {
+   "id_prefix": "cls:",
+   "summary_zh": "Java 类/接口（FQN 级）",
+   "typical_prov": [
+    "java"
+   ]
   },
-  "confidence_levels": ["EXTRACTED", "INFERRED", "AMBIGUOUS"],
-  "confidence_semantics_zh": {
-    "EXTRACTED": "语法/结构直接提取",
-    "INFERRED": "启发式推断（如调用图）",
-    "AMBIGUOUS": "词法级线索，仅作导航",
-    "HUMAN": "人工知识笔记",
-    "LLM": "LLM 生成的草稿笔记（审定前不作事实）"
+  "Method": {
+   "id_prefix": "mth:",
+   "summary_zh": "方法（服务内签名级；同名共享为已知取舍）",
+   "typical_prov": [
+    "java"
+   ]
   },
-  "provenance_domains": ["core", "java", "sql", "synth", "doc", "kb", "seed", "vote"],
-  "provenance_semantics_zh": {
-    "core": "核心结构合成", "java": "Java 源解析", "sql": "SQL DDL 解析",
-    "synth": "框架合成（MyBatis/跨端等）", "doc": "文档摄入/词法", "kb": "知识库笔记",
-    "seed": "领域种子词表打标", "vote": "领域投票聚合"
+  "Route": {
+   "id_prefix": "route:",
+   "summary_zh": "HTTP 路由（method + path）",
+   "typical_prov": [
+    "java"
+   ]
   },
-  "mcp_tools": ["kg_explore", "kg_domain_map", "kg_impact", "kg_doc_search", "kg_read", "kg_troubleshoot"],
-  "refusal_gates": [
-    {"id": "generic-words-only",       "summary_zh": "仅命中通用词（无实质概念）→ 拒答"},
-    {"id": "latin-identifier-absent",  "summary_zh": "≥4 字符拉丁标识符全部缺席 → 拒答"},
-    {"id": "exact-identifier-missing", "summary_zh": "精确标识符不存在 → 拒答且不猜近名"},
-    {"id": "coverage-below-min",       "summary_zh": "词法覆盖率低于 min_cov(默认30%) → 拒答并给建议"}
-  ],
-  "evidence": {
-    "ev_id_format": "ev:[0-9a-f]{20}",
-    "immutable_generations": true,
-    "summary_zh": "证据为内容寻址固化片段；源修改/删除后按 ev_id 仍读建图时版本"
+  "SqlStmt": {
+   "id_prefix": "sql:",
+   "summary_zh": "单条 SQL 语句（MyBatis iface.id）",
+   "typical_prov": [
+    "synth"
+   ]
+  },
+  "Table": {
+   "id_prefix": "tbl:",
+   "summary_zh": "数据库表（DDL 与 mapper 双来源）",
+   "typical_prov": [
+    "sql",
+    "synth"
+   ]
+  },
+  "Column": {
+   "id_prefix": "col:",
+   "summary_zh": "表列（仅 DDL 来源）",
+   "typical_prov": [
+    "sql"
+   ]
+  },
+  "Topic": {
+   "id_prefix": "topic:",
+   "summary_zh": "MQ 主题",
+   "typical_prov": [
+    "java"
+   ]
+  },
+  "Doc": {
+   "id_prefix": "doc:",
+   "summary_zh": "文档（md/html/pdf*/docx*；可带 valid_until/superseded_by）",
+   "typical_prov": [
+    "doc"
+   ]
+  },
+  "Page": {
+   "id_prefix": null,
+   "summary_zh": "前端页面（TS/JS/Vue 扫描）",
+   "typical_prov": [
+    "synth"
+   ]
+  },
+  "Domain": {
+   "id_prefix": null,
+   "summary_zh": "领域（seeds.json 种子打标）",
+   "typical_prov": [
+    "core"
+   ]
+  },
+  "Knowledge": {
+   "id_prefix": null,
+   "summary_zh": "人工/LLM 知识笔记（运行时挂接；LLM 笔记 conf=LLM 且审定前不作事实）",
+   "typical_prov": [
+    "kb"
+   ]
   }
+ },
+ "edge_kinds": {
+  "CONTAINS": {
+   "propagates_impact": false,
+   "summary_zh": "结构包含（svc→cls/mth、tbl→col）"
+  },
+  "CALLS": {
+   "propagates_impact": true,
+   "summary_zh": "方法调用"
+  },
+  "HANDLES": {
+   "propagates_impact": true,
+   "summary_zh": "方法处理路由"
+  },
+  "CALLS_SQL": {
+   "propagates_impact": true,
+   "summary_zh": "方法执行 SQL 语句"
+  },
+  "MAPS_TO": {
+   "propagates_impact": true,
+   "summary_zh": "实体映射到表（JPA/实体注解路径）"
+  },
+  "READS": {
+   "propagates_impact": true,
+   "summary_zh": "语句读取表（SELECT）"
+  },
+  "WRITES": {
+   "propagates_impact": true,
+   "summary_zh": "语句写入表（INSERT/UPDATE/DELETE）"
+  },
+  "PUBLISHES": {
+   "propagates_impact": true,
+   "summary_zh": "MQ 生产"
+  },
+  "SUBSCRIBES": {
+   "propagates_impact": true,
+   "summary_zh": "MQ 消费"
+  },
+  "RPC": {
+   "propagates_impact": true,
+   "summary_zh": "服务间调用"
+  },
+  "ROUTES_TO": {
+   "propagates_impact": true,
+   "summary_zh": "前端路由指向后端（跨端追踪）"
+  },
+  "MENTIONS": {
+   "propagates_impact": false,
+   "summary_zh": "文档词法提及（conf=AMBIGUOUS，仅导航）"
+  },
+  "BELONGS_TO": {
+   "propagates_impact": false,
+   "summary_zh": "归属关系（仅导航）"
+  }
+ },
+ "confidence_levels": [
+  "EXTRACTED",
+  "INFERRED",
+  "AMBIGUOUS"
+ ],
+ "confidence_semantics_zh": {
+  "EXTRACTED": "语法/结构直接提取",
+  "INFERRED": "启发式推断（如调用图）",
+  "AMBIGUOUS": "词法级线索，仅作导航",
+  "HUMAN": "人工知识笔记",
+  "LLM": "LLM 生成的草稿笔记（审定前不作事实）"
+ },
+ "provenance_domains": [
+  "core",
+  "java",
+  "sql",
+  "synth",
+  "doc",
+  "kb",
+  "seed",
+  "vote"
+ ],
+ "provenance_semantics_zh": {
+  "core": "核心结构合成",
+  "java": "Java 源解析",
+  "sql": "SQL DDL 解析",
+  "synth": "框架合成（MyBatis/跨端等）",
+  "doc": "文档摄入/词法",
+  "kb": "知识库笔记",
+  "seed": "领域种子词表打标",
+  "vote": "领域投票聚合"
+ },
+ "mcp_tools": [
+  "kg_explore",
+  "kg_domain_map",
+  "kg_impact",
+  "kg_doc_search",
+  "kg_read",
+  "kg_feedback",
+  "kg_troubleshoot"
+ ],
+ "refusal_gates": [
+  {
+   "id": "generic-words-only",
+   "summary_zh": "仅命中通用词（无实质概念）→ 拒答"
+  },
+  {
+   "id": "latin-identifier-absent",
+   "summary_zh": "≥4 字符拉丁标识符全部缺席 → 拒答"
+  },
+  {
+   "id": "exact-identifier-missing",
+   "summary_zh": "精确标识符不存在 → 拒答且不猜近名"
+  },
+  {
+   "id": "coverage-below-min",
+   "summary_zh": "词法覆盖率低于 min_cov(默认30%) → 拒答并给建议"
+  }
+ ],
+ "evidence": {
+  "ev_id_format": "ev:[0-9a-f]{20}",
+  "immutable_generations": true,
+  "summary_zh": "证据为内容寻址固化片段；源修改/删除后按 ev_id 仍读建图时版本"
+ }
 }

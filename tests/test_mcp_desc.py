@@ -42,7 +42,8 @@ class TestQueryDiscipline(unittest.TestCase):
     def test_other_tools_untouched(self):
         names = {t["name"] for t in mcp.TOOLS}
         self.assertEqual(names, {"kg_explore", "kg_domain_map", "kg_impact",
-                                 "kg_doc_search", "kg_read", "kg_troubleshoot"})
+                                 "kg_doc_search", "kg_read", "kg_troubleshoot",
+                                 "kg_feedback"})
 
 
 if __name__ == "__main__":

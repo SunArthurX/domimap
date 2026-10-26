@@ -16,8 +16,16 @@ IDX_SCHEMA = "domimap.idx.v2"  # v2：索引层长文档分段（product-doc-chu
 GENERIC_UNITS = {"规则", "配置", "定义", "说明", "位置", "处理", "服务", "管理",
                  "查询", "入口", "系统", "信息", "文档", "地址", "内容", "支持"}
 # 名称精确匹配加权：查询标识符与节点 name 完全相等（定义性同一）×3——干净集实测
-# tbl 节点仅凭 op_operator 得 0.53 分被通用词堆叠的 DTO（1.29）压出 top50
+# tbl 节点仅凭 op_operator 得 0.53 分被通用词堆叠的 DTO（1.29）压出 top50。
+# 限定（retrieval-identifier-boost-scope）：只对原始查询的标识符生效——seeds 域扩展
+# 词与类名撞名（商品→Item）不构成用户表达的"定义性同一"，曾把含原实词的文档压到
+# top_k 外（真实语料 rank 15 实证）。
 IDENTIFIER_NAME_BOOST = 3.0
+# seeds 域扩展词的计分权重（retrieval-identifier-boost-scope 候选 2）：原始查询词是
+# 用户表达的证据；扩展词只是词法桥（召回通道）。同权竞争曾让扩展英文词凭内容堆分
+# 把含原始中文实词的文档压出 top_k（真实语料 rank 15/12 双目标实证）。0.35≈1/3：
+# 3 个扩展命中 ≈ 1 个原始词命中；覆盖率门/拒答判定不受此权重影响。
+EXPANSION_TOKEN_WEIGHT = 0.35
 BM25_K = 1.2
 BM25_B = 0.75
 DECAY_FLOOR = 0.05
@@ -182,7 +190,7 @@ class Searcher:
         self.avgdl = max(1.0, self._dl_sum / max(1, self.N))
         self.df = Counter({t: len(s) for t, s in self.index.items()})
 
-    def _score(self, qtokens, nid):
+    def _score(self, qtokens, nid, name_tokens=None, weak_tokens=None):
         d = self.docs.get(nid, Counter())
         if not d:
             return 0.0
@@ -198,8 +206,12 @@ class Searcher:
             if tf:
                 idf = math.log(1 + (self.N - self.df.get(qt, 0) + 0.5)
                                / (self.df.get(qt, 0) + 0.5))
-                s += idf * tf * (BM25_K + 1) / (tf + BM25_K * norm)
-        return s * (IDENTIFIER_NAME_BOOST if self._name_exact_hit(qtokens, nid) else 1.0) \
+                weight = (EXPANSION_TOKEN_WEIGHT
+                          if weak_tokens and qt in weak_tokens else 1.0)
+                s += weight * idf * tf * (BM25_K + 1) / (tf + BM25_K * norm)
+        return s * (IDENTIFIER_NAME_BOOST
+                    if self._name_exact_hit(name_tokens if name_tokens is not None
+                                            else qtokens, nid) else 1.0) \
             * (DOC_TYPE_PRIOR if self._doc_type_hint(nid) else 1.0) \
             * (DDL_SEMANTIC_BOOST if self._ddl_semantic_hit(qtokens, nid) else 1.0)
 
@@ -283,9 +295,11 @@ class Searcher:
                             for n in list(self.g.nodes.values())[:200000] + list(self.extra.values()))
                 and not any(_o.lower() in t for t in self.df)):
             return {"seeds": [], "expanded": [],
-                    "text": "（诚实拒答：标识符 %s 在图中不存在。）" % _o, "refused": True}
+                    "text": "（诚实拒答：标识符 %s 在图中不存在。）" % _o, "refused": True,
+                    "refusal_reason": "identifier_absent"}
         """seeds（领域种子词表）提供时启用查询期领域扩展：命中域的关键词拼入检索，
         解决纯中文查询与 latin 词面节点的词法鸿沟（与 scenario_req 同一公共语义）。"""
+        weak_tokens = set()
         if seeds:
             from .scenario import classify
             doms = [d for d in classify(text, seeds)]
@@ -298,18 +312,23 @@ class Searcher:
                     ext.extend(en)   # 中英词法桥：域无关查询同义词
             if ext:
                 text = text + " " + " ".join(ext)
+                # 扩展词降权集：仅扩展拼入、原始查询未出现的 token（原始词全权）
+                weak_tokens = set(tokenize(text)) - set(tokenize(_o))
         # 原始查询单元（先于 seeds 域扩展计算）：语义桥触发门用——seeds 拼入的英文域词
         # 会把覆盖率抬高，掩盖中文查询与英文内容之间的真实词法鸿沟（pub A/B 实测发现）
         orig_units = self._units(_o)
+        qt_orig = tokenize(_o)  # 名称精确加成的合法标识符来源（不含扩展词）
         qt = tokenize(text)
         qset = set(qt)
         if not qset:
-            return {"seeds": [], "expanded": [], "text": "空查询。", "refused": True}
+            return {"seeds": [], "expanded": [], "text": "空查询。", "refused": True,
+                    "refusal_reason": "empty_query"}
         # 词覆盖率门（graphify #1602 思想）+ 语言感知：按"查询单元"计（latin 词 + CJK 二元组），
         # 纯代码仓无中文语料时中文单元不计分母；命中需至少一个强单元（≥2 字符）。
         units = self._units(text)
         if not units:
-            return {"seeds": [], "expanded": [], "text": "空查询。", "refused": True}
+            return {"seeds": [], "expanded": [], "text": "空查询。", "refused": True,
+                    "refusal_reason": "empty_query"}
         graph_has_cjk = any(any(ord(c) > 0x2E7F for c in t) for t in self.df)
         def is_cjk(t):
             return any(ord(c) > 0x2E7F for c in t)
@@ -322,7 +341,8 @@ class Searcher:
         if matched and matched <= GENERIC_UNITS:
             return {"seeds": [], "expanded": [],
                     "text": "（诚实拒答：查询的实质词在图中均不存在，仅命中通用词。）",
-                    "refused": True}
+                    "refused": True, "refusal_reason": "generic_only",
+                    "cov": round(cov, 4), "min_cov": min_cov}
         # 负例守门②：含 ≥4 字符拉丁标识符且全部缺席 → 拒答（原守门仅覆盖纯标识符查询，
         # "近名标识符+中文词"曾绕过并产生幻觉命中）
         import re as _reI
@@ -335,7 +355,8 @@ class Searcher:
         if _idents and _all_absent:
             return {"seeds": [], "expanded": [],
                     "text": "（诚实拒答：标识符 %s 在图中不存在。）" % ", ".join(_idents[:3]),
-                    "refused": True}
+                    "refused": True, "refusal_reason": "identifier_absent",
+                    "cov": round(cov, 4), "min_cov": min_cov}
         cand = set()
         for t in matched:
             cand |= self.index.get(t, set())
@@ -358,7 +379,8 @@ class Searcher:
                         pass  # 日期非法：不猜，保持资格并记未知
                 if m.get("first_seen", 0) > as_of:
                     continue  # 晚于 as_of 的资料不参与
-            s = self._score(qt, nid) * cov * cov
+            s = self._score(qt, nid, name_tokens=qt_orig,
+                            weak_tokens=weak_tokens) * cov * cov
             if s > 0:
                 scored.append((s, nid))
         scored.sort(reverse=True)
@@ -416,7 +438,9 @@ class Searcher:
                     for nid in cand:
                         if not _sem_eligible(nid):
                             continue
-                        s_sem = self._score(list(qset | sem_units), nid) * cov * cov
+                        s_sem = self._score(list(qset | sem_units), nid,
+                                            name_tokens=qt_orig,
+                                            weak_tokens=weak_tokens) * cov * cov
                         if s_sem > 0:
                             scored.append((s_sem, nid))
                     scored.sort(reverse=True)
@@ -441,15 +465,35 @@ class Searcher:
                     cov = len(ext_matched) / len(ext_tokens | denom) if (ext_tokens | denom) else 0
                     scored = []
                     for nid in cand:
-                        s2_ = self._score(list(qset | ext_matched | sem_units), nid) * cov * cov
+                        s2_ = self._score(list(qset | ext_matched | sem_units), nid,
+                                          name_tokens=qt_orig) * cov * cov
                         if s2_ > 0:
                             scored.append((s2_, nid))
                     scored.sort(reverse=True)
                     strong = True
             if cov < min_cov or not scored or not strong:
-                return {"seeds": [], "expanded": [],
-                        "text": "（诚实拒答：查询词覆盖率 %.0f%%，不足 %d%% 阈值。已查 %d 节点；建议换关键词/先 build。）" % (cov * 100, min_cov * 100, self.N),
-                        "refused": True}
+                # 拒答原因按真实触发条件分化：三条件各自语义不同，统一说"覆盖率不足"
+                # 会在覆盖率达标但域过滤筛空时自相矛盾并误导排障方向
+                if cov < min_cov:
+                    text = ("（诚实拒答：查询词覆盖率 %.0f%%，不足 %d%% 阈值。已查 %d 节点；"
+                            "建议换关键词/先 build。）" % (cov * 100, min_cov * 100, self.N))
+                    reason = "coverage_below_min"
+                elif not scored:
+                    if domain:
+                        text = ("（诚实拒答：覆盖率 %.0f%% 达标，但域过滤「%s」后无候选。已查 %d 节点；"
+                                "检查领域值（领域地图可查可用域）或去掉域过滤。）"
+                                % (cov * 100, domain, self.N))
+                        reason = "domain_filter_empty"
+                    else:
+                        text = ("（诚实拒答：覆盖率 %.0f%% 达标，但无强命中候选。已查 %d 节点；"
+                                "建议换关键词/先 build。）" % (cov * 100, self.N))
+                        reason = "no_strong_candidate"
+                else:
+                    text = ("（诚实拒答：查询无实质词强信号（仅通用词不构成依据），不猜。已查 %d 节点。）"
+                            % (self.N,))
+                    reason = "no_strong_candidate"
+                return {"seeds": [], "expanded": [], "text": text, "refused": True,
+                        "refusal_reason": reason, "cov": round(cov, 4), "min_cov": min_cov}
         # 嵌入语义融合（可选默认关；拒答守门已过——负例结构性安全）：RRF 融合 BM25 序与
         # 语义序，融合后的序与分值替换 scored 进入时新加权/重排/三路融合（下游零变化）。
         # 索引缺失/后端缺失/任何失败 → BM25 原序继续。

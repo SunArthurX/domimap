@@ -10,8 +10,13 @@
 import hashlib
 import json
 import os
+import re
 import sqlite3
+import tempfile
+import threading
 import time
+
+from .storage import synchronized as _synchronized, sync_directory as _sync_directory
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sources (
@@ -39,13 +44,15 @@ class EvidenceStore:
         self.gens = os.path.join(self.dir, "gens")
         os.makedirs(self.blobs, exist_ok=True)
         os.makedirs(self.gens, exist_ok=True)
-        # 多 Agent 会话并发（R10）：跨线程共用连接，写入由 BEGIN EXCLUSIVE 串行化
+        # BEGIN only serializes separate connections; this lock also protects shared instances.
+        self._lock = threading.RLock()
         self.db = sqlite3.connect(db_path, timeout=30, check_same_thread=False)
         self.db.executescript(SCHEMA)
         self.db.commit()
         self._fail_stage = None  # 测试注入口
 
     # ---------- 来源捕获（字节即哈希，内容寻址不可变） ----------
+    @_synchronized
     def capture_source(self, repo, sid, abs_path, rel):
         with open(abs_path, "rb") as f:
             raw = f.read(BLOB_LIMIT + 1)
@@ -53,13 +60,29 @@ class EvidenceStore:
         raw = raw[:BLOB_LIMIT]
         sha = hashlib.sha256(raw).hexdigest()
         blob = os.path.join(self.blobs, sha)
+        if os.path.islink(blob):
+            raise ValueError("evidence blob is a symlink")
+        if os.path.exists(blob):
+            with open(blob, "rb") as f:
+                if f.read(BLOB_LIMIT + 1) != raw:
+                    raise ValueError("existing evidence blob failed integrity check")
         if not os.path.exists(blob):
-            tmp = blob + ".tmp"
-            with open(tmp, "wb") as f:
-                f.write(raw)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp, blob)
+            # Content may be shared across sources and concurrent processes. Never share tmp names.
+            fd, tmp = tempfile.mkstemp(prefix=".capture-", dir=self.blobs)
+            try:
+                with os.fdopen(fd, "wb") as f:
+                    f.write(raw)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp, blob)
+                _sync_directory(self.blobs)
+            finally:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+        locator = {"rel": rel, "truncated": truncated}
+        identity = json.dumps([sid, sha, locator], ensure_ascii=False, sort_keys=True,
+                              separators=(",", ":")).encode("utf-8")
+        ev_id = "ev:" + hashlib.sha256(identity).hexdigest()
         now = time.time()
         with self.db:
             self.db.execute(
@@ -71,40 +94,84 @@ class EvidenceStore:
                 "INSERT INTO sources VALUES (?,?,?,?,?,?) ON CONFLICT(sid) DO UPDATE SET "
                 "rel=excluded.rel, sha256=excluded.sha256, size=excluded.size",
                 (sid, repo, rel, sha, len(raw), first_seen))
-        ev_id = "ev:" + sha[:20]
-        try:
-            text = raw.decode("utf-8", errors="replace")
-        except Exception:
-            text = ""
-        self.db.execute(
-            "INSERT OR REPLACE INTO evidence VALUES (?,?,?,?,?)",
-            (ev_id, sid, json.dumps({"rel": rel, "truncated": truncated}, ensure_ascii=False),
-             sha, time.time()))
-        self.db.commit()
+            self.db.execute(
+                "INSERT INTO evidence VALUES (?,?,?,?,?) ON CONFLICT(ev_id) DO NOTHING",
+                (ev_id, sid, json.dumps(locator, ensure_ascii=False), sha, now))
+            self.db.execute("INSERT OR REPLACE INTO meta VALUES (?,?)",
+                            ("source_evidence:" + sid, ev_id))
         return {"sid": sid, "sha256": sha, "ev_id": ev_id}
 
+    @_synchronized
     def list_sources(self):
         return [{"sid": r[0], "repo": r[1], "rel": r[2], "sha256": r[3]}
                 for r in self.db.execute("SELECT sid,repo,rel,sha256 FROM sources")]
 
-    def evidence_for_source(self, sid):
+    @_synchronized
+    def read_evidence(self, ev_id):
+        """Read exactly this immutable record, including legacy content-only IDs.
+
+        None means unknown ID. Missing/corrupt artifacts are explicit unavailable results;
+        they never redirect to a newer capture or the live source file.
+        """
         row = self.db.execute(
-            "SELECT ev_id,locator,blob_sha FROM evidence WHERE sid=? ORDER BY captured_at DESC LIMIT 1",
-            (sid,)).fetchone()
+            "SELECT sid,locator,blob_sha FROM evidence WHERE ev_id=?", (ev_id,)).fetchone()
         if not row:
             return None
-        ev_id, locator, blob_sha = row
+        sid, locator, blob_sha = row
+        unavailable = {"ev_id": ev_id, "sid": sid, "available": False}
+        if not isinstance(blob_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", blob_sha):
+            return dict(unavailable, reason="invalid_blob_hash")
         path = os.path.join(self.blobs, blob_sha)
-        if not os.path.exists(path):
-            return {"ev_id": ev_id, "sid": sid, "available": False,
-                    "reason": "blob 缺失（异常状态，非源删除）"}
-        with open(path, "rb") as f:
-            raw = f.read()
+        if os.path.islink(path):
+            return dict(unavailable, reason="blob_symlink")
+        try:
+            with open(path, "rb") as f:
+                raw = f.read(BLOB_LIMIT + 1)
+        except OSError:
+            return dict(unavailable, reason="blob_unavailable")
+        if len(raw) > BLOB_LIMIT or hashlib.sha256(raw).hexdigest() != blob_sha:
+            return dict(unavailable, reason="blob_integrity_mismatch")
+        try:
+            locator = json.loads(locator)
+            if not isinstance(locator, dict):
+                raise ValueError("invalid locator")
+        except (ValueError, TypeError):
+            return dict(unavailable, reason="invalid_locator")
         return {"ev_id": ev_id, "sid": sid, "available": True,
-                "locator": json.loads(locator), "sha256": blob_sha,
+                "locator": locator, "sha256": blob_sha,
                 "text": raw.decode("utf-8", errors="replace")}
 
+    @_synchronized
+    def evidence_for_source(self, sid):
+        """Explicit latest-source lookup, distinct from an immutable ID read."""
+        row = self.db.execute(
+            "SELECT e.ev_id FROM evidence e JOIN sources s ON s.sid=e.sid AND s.sha256=e.blob_sha "
+            "LEFT JOIN meta m ON m.key='source_evidence:' || s.sid "
+            "WHERE e.sid=? AND (m.value IS NULL OR e.ev_id=m.value) "
+            "ORDER BY e.captured_at DESC,e.rowid DESC LIMIT 1", (sid,)).fetchone()
+        return self.read_evidence(row[0]) if row else None
+
+    @_synchronized
+    def evidence_map(self):
+        """Legacy graph file -> actual ID, only when that path identifies one source.
+
+        Graphs without source IDs cannot safely disambiguate equal relative paths.
+        Omit those links rather than letting the last captured repository win.
+        """
+        rows = self.db.execute(
+            "SELECT s.rel,e.sid,e.ev_id FROM evidence e "
+            "JOIN sources s ON s.sid=e.sid AND s.sha256=e.blob_sha "
+            "LEFT JOIN meta m ON m.key='source_evidence:' || s.sid "
+            "WHERE m.value IS NULL OR e.ev_id=m.value "
+            "ORDER BY e.captured_at DESC,e.rowid DESC")
+        by_rel = {}
+        for rel, sid, ev_id in rows:
+            by_rel.setdefault(rel, {}).setdefault(sid, ev_id)
+        return {rel: next(iter(sources.values())) for rel, sources in by_rel.items()
+                if len(sources) == 1}
+
     # ---------- generation 发布 ----------
+    @_synchronized
     def publish_graph(self, g, extra_meta=None):
         """按协议发布一代图；返回 gen 记录。失败（含注入）不切换 active。"""
         payload = {"nodes": list(g.nodes.values()), "edges": g.edges,
@@ -130,13 +197,15 @@ class EvidenceStore:
             if self._fail_stage == "before-rename":
                 raise RuntimeError("injected: before rename")
             os.replace(tmp, final)
+            _sync_directory(self.gens)
             if self._fail_stage == "validate":
                 raise RuntimeError("injected: validation failure")
             with open(final, encoding="utf-8") as f:
                 check = json.load(f)
             if not check["nodes"]:
                 raise RuntimeError("generation 无节点，拒绝发布")
-            sha = hashlib.sha256(open(final, "rb").read()).hexdigest()
+            with open(final, "rb") as f:
+                sha = hashlib.sha256(f.read()).hexdigest()
             if self._fail_stage == "before-tx":
                 raise RuntimeError("injected: before transaction")
             self.db.execute("INSERT INTO generations VALUES (?,?,?,?,?,?,?)",
@@ -149,6 +218,7 @@ class EvidenceStore:
             raise
         return {"gen_id": gen_id, "path": final, "sha256": sha}
 
+    @_synchronized
     def active_generation(self):
         """active 指针对应的完整代记录；文件不存在/损坏返回 None（调用方据此重建，不误报 no-op）。"""
         row = self.db.execute("SELECT value FROM meta WHERE key='active'").fetchone()
@@ -160,21 +230,25 @@ class EvidenceStore:
         if not rec or rec[5] != "complete" or not os.path.exists(rec[1]):
             return None
         try:
-            with open(rec[1], encoding="utf-8") as f:
-                if not json.load(f).get("nodes"):
-                    return None
+            with open(rec[1], "rb") as f:
+                raw = f.read()
+            if hashlib.sha256(raw).hexdigest() != rec[2] or not json.loads(raw).get("nodes"):
+                return None
         except Exception:
             return None
         return {"gen_id": rec[0], "path": rec[1], "sha256": rec[2],
                 "nodes": rec[3], "edges": rec[4]}
 
+    @_synchronized
     def seeds_digest(self):
         row = self.db.execute("SELECT value FROM meta WHERE key='seeds_sha256'").fetchone()
         return row[0] if row else None
 
+    @_synchronized
     def set_seeds_digest(self, digest):
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO meta VALUES ('seeds_sha256', ?)", (digest,))
 
+    @_synchronized
     def close(self):
         self.db.close()

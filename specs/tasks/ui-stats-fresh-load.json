@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "id": "ui-stats-fresh-load",
+  "state": "verified",
+  "spec": "specs/tasks/ui-stats-fresh-load.md",
+  "requirements": [
+    "R01",
+    "F2"
+  ],
+  "acceptance_cases": [
+    "AC-F2-01"
+  ],
+  "files": [
+    "CHANGELOG.md",
+    "domimap/ui.py",
+    "tests/test_ui_stats_fresh.py",
+    "domimap/search.py",
+    "tests/test_refusal_reason.py",
+    "domimap/store.py",
+    "domimap/mcp.py",
+    "domimap/__main__.py",
+    "domimap/knowledge.py",
+    "domimap/storage.py",
+    "tests/test_production_boundaries.py",
+    "tests/test_knowledge_safety.py",
+    "tests/test_ui_workbench.py",
+    "tests/test_release_gate.py",
+    "docs/production-readiness.md",
+    "docs/architecture.md",
+    "docs/known-defects.md",
+    ".gitignore",
+    "specs/progress.json",
+    "specs/tasks/product-ui-workbench.json",
+    "specs/tasks/product-ui-workbench.md",
+    "specs/tasks/production-boundaries.json",
+    "specs/tasks/production-boundaries.md",
+    "specs/tasks/search-refusal-reason.json",
+    "specs/tasks/search-refusal-reason.md"
+  ],
+  "test_files": [
+    "tests/test_ui_stats_fresh.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_ui_stats_fresh tests.test_ui_workbench tests.test_refusal_reason -v",
+    "make verify"
+  ],
+  "rollback": "revert domimap/ui.py 本任务差异 + 删除 tests/test_ui_stats_fresh.py；无数据迁移"
+}

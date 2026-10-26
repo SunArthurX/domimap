@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "product-ui-workbench",
+  "state": "verified",
+  "spec": "specs/tasks/product-ui-workbench.md",
+  "requirements": [
+    "F2",
+    "R08"
+  ],
+  "acceptance_cases": [
+    "AC-F2-01",
+    "AC-R08-02"
+  ],
+  "files": [
+    "CHANGELOG.md",
+    "domimap/ui.py",
+    "tests/test_ui_workbench.py"
+  ],
+  "test_files": [
+    "tests/test_ui_workbench.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_ui_workbench tests.test_m4_security tests.test_m2_shared -v",
+    "make verify"
+  ],
+  "rollback": "revert domimap/ui.py 单文件 + 删除 tests/test_ui_workbench.py；无数据迁移"
+}

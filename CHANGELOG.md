@@ -4,6 +4,35 @@
 
 ## [Unreleased]
 
+### 偏离纠正（drift audit 2026-10-26，C0–C7 已完成）
+
+- 偏离审查（out/drift-audit-2026-10-26/，16 项可复现探针）发现十项实质偏离（F01–F10）；纠正任务 C0–C7 已全部完成：C1 安全恢复（先校验后触碰/占用拒绝/安全副本）与删除派生清理+裁剪保护；C2 请求身份排除耗时、密钥并发唯一赢家、版本含知识代际与词表指纹、记录延迟上界；C3 反馈全 payload 幂等、同来源显式修订（expected_revision）、AI 不改变人工样本选用、replay 不污染用户口径、分来源命中率；C4 簇键含范围版本、partial 入队、再裁决移出、当前重测与历史复现分离、召回池实证、AI 状态机（原子额度/并发单调用/非法输出 invalid_response/簇级冷却/unavailable 不占额度）；C5 精确节点评分（同文件错误节点=miss、旧子串格式拒绝）、冻结 manifest、activated 完整 lineage 门槛、追溯链限定；C6 MCP kg_feedback 工具+CLI qsnapshot/qrestore/qdelete+UI /api/event；C7 旧样例独立裁决（fastjson gold 判无效、无实词 gold 如实排除）与冻结样本集 v3 重证——目标名次 15→4、5→1、零回归、回滚等价，新启用 imp:d914a167c7a25b8401fe（旧 imp:ccf1ee268b695abbf2cd 失效留档）。597 tests OK；make release-check 仍按原规范拒绝（M0 implementing、四竞品比较未执行）。
+
+### 已实现
+
+### 已实现（原型演进，其中闭环相关条目按上段纠正中范围理解）
+
+- 闭环追溯与改进启用记录（retrieval-evolution-replay，2026-10-26）：`queries.db` 新增 improvements 表——启用（activated）必须有回放依据（三 run 样本集一致且 candidate 对 baseline 判定 improved，否则拒绝登记）；`domimap evolution` 输出簇→用户事件→反馈修订→诊断（含 rank 证据）→回放 run 链→启用决定的完整追溯视图（--record-improvement 登记 activated/rejected/rolled_back）；问题簇积压按未诊断优先+影响面排序。真实数据收口：pilot 启用决定 imp:ccf1ee268b695abbf2cd 已登记，追溯链工件 out/dev-ws/evolution-trace.json（从原始事件 qe:41b0798e… 到 rank_15 诊断、9 个回放 run 与启用决定全程可读）。
+
+- 首次真实「查询—反馈—诊断—修复—回放—回滚」闭环（retrieval-evolution-pilot，2026-10-26）：真实企业工作区（out/dev-ws）查询「商品 审核状态 流转」经反馈与诊断定位——含原始实词的《商品主数据融合项目设计文档》排第 15，top6 被 seeds 扩展英文词匹配的 generic 节点占据。候选 1（仅名称加成限定）真实回放失败并回滚留档；候选 2（名称精确加成限定于原始查询标识符 + 扩展词计分降权 EXPANSION_TOKEN_WEIGHT=0.35，独立任务 retrieval-identifier-boost-scope）回放 5/5：目标 1 名次 15→4、目标 2 名次 5→1、保持者 rank1 与负例零回归，回滚演练与基线逐样本一致后启用。新回放引擎 `domimap replay`：冻结样本集（sha 校验，改样本即不可比）、trigger=replay 不污染用户统计、expect=refused/expected=证据子串判定、基线/候选/回放三轮比较（regressions/improvements/verdict）。全程 ReplayRun 留档，事件/反馈/诊断/回放可追溯。
+
+- AI 诊断与问题簇（retrieval-diagnosis，2026-10-26）：miss/失败/异常的用户事件按查询摘要归并问题簇（正确拒答与 disputed 不入队）；确定性规则预检——期望证据解析（节点/ev 反解/名称路径）、诊断性重跑（top_k=50、确定性核心、trigger=diagnostic+parent 关联不污染用户统计）区分排序差距（rank_N）/召回差距（not_in_top_50）/已呈现被标 miss/范围过滤；拒答原因映射假设；期望不在图时"来源未覆盖"与"期望写错"并列 unruled 并进 unknowns。结构化诊断包（domimap.diag.v1）可 `--out` 导出给 coding agent；可选模型分析复用 anthropic 协议客户端——每簇一次、同输入+版本复用、失败冷却 300s、输入 8000 字符/输出 1500 token 上限、白名单字段解析（超界丢弃并记录）、DATA 段声明数据非指令；无 key → ai=unavailable 规则诊断不受影响。CLI `issues`/`diagnose`；UI「反馈与历史」新增只读问题簇区块（诊断执行走 CLI，避免 UI 触发模型费用）。
+
+- 查询反馈与统计（retrieval-feedback，2026-10-26）：queries.db 追加 feedback 表——hit/partial/miss/not_applicable 相关性与 success/failure/correct_abstention/needs_clarification 任务结果提交（CLI `feedback`、UI 结果区反馈条与 POST /api/feedback），修订追加保留历史（superseded_by 链）、幂等键同内容去重异内容冲突；有效相关性=权威来源（user/human/dev_gold）最新修订，权威矛盾进 disputed 不计命中率，ai_suggestion 永不覆盖人源且单独统计。`history`/`qstats`/`qexport` 与 UI「反馈与历史」工作流：H/(H+P+M) 完整命中率（unknown 不算 miss、partial 不折算）、判定覆盖率、来源分列、正确拒答比例（仅 refused 且有权威反馈者）、user/非 user 触发分离（回放与开发评测不污染用户统计）、同 profile 去重（重复次数单列）；受控删除（全量删必须先出示 snapshot 备份）+ SQLite backup API 一致性快照与结构校验恢复；成功/失败样例导出（未保存原文者 replayable=false）。
+
+- 查询可观测性（retrieval-observation，2026-10-26）：CLI/MCP/UI 三入口经同一记录服务把每次查询写入工作区 `queries.db`（独立于权威证据/知识库）——执行状态（ok/refused/error/cancelled）、结构化拒答原因码（identifier_absent/empty_query/generic_only/coverage_below_min/domain_filter_empty/no_strong_candidate，与拒答分支一一对应，不再从中文文案反推）、实际参数、有序候选、版本指纹、耗时。记录 fail-open（异常→`recording_failed`，查询排序/拒答/exit code 逐字不变）；隐私默认不存原文（HMAC 工作区密钥摘要，`DOMIMAP_KEEP_QUERIES=1` 才本地保留，`DOMIMAP_OBSERVE=0` 关闭）；幂等键同内容去重、异内容显式冲突不覆盖；重试/回放以 parent/trigger 关联不污染真实请求数；容量上限最旧先出。反馈闭环（retrieval-feedback-evolution 计划）的地基切片。
+
+- 工作台改版（product-ui-workbench，2026-10-24）：`domimap ui` 由单框搜索页升级为工作流工作台——左列枚举当前全部 13 条工作流（7 条工作台直接运行：检索问答/需求定位卡/问题排查卡/影响面分析/领域地图/证据阅读/笔记沉淀；6 条终端命令：建图/增量更新/嵌入索引/LLM 草稿/人审导出/MCP 接入，附精确命令与复制按钮），中部节点链画布（运行时节点高亮推进），页眉注入图规模/证据库/笔记/嵌入索引状态。新增只读 API `/api/scenario`、`/api/impact`、`/api/domain`，`/api/read` 支持 `?sid=`，全部沿用回环 Host/Origin 校验与 Searcher 同源语义；页面改用纯 DOM API 渲染并加 CSP（`default-src 'none'`）；文案去营销化（无"智能/助手/大模型"用语）。同任务修复 `/api/read` 参数校验先于库存在性检查、查询参数双重 URL 解码两个继承问题。
+
+- 工作台 50 轮界面优化（product-ui-workbench-opt50，2026-10-24）：视觉——8px 间距体系/分层配色/字体层级/卡片阴影/暗色模式(prefers-color-scheme)/画布点阵网格与右缘渐隐/目录单字方章/类型徽章分色/候选阶梯淡入/节点运行呼吸与连线流动动画（respect prefers-reduced-motion）/细滚动条/sticky 毛玻璃页眉/响应式断点；交互——键盘导航（↑↓/Enter/Esc///）、URL hash 路由、表单记忆与最近使用标记、目录过滤（联动隐藏空组）、画布缩放（+/−/100%，占位容器防裁切）与折叠开关、候选序号+Alt+数字 直开证据、证据徽标点击复制、结果一键复制与运行耗时徽章、会话查询历史、粘贴即搜、领域 datalist 建议、候选所属领域标签、知识候选人工/LLM 来源标识（API 附 conf/domain）、证据片段折叠、拒答态改信息条、页脚快捷键速查；无障碍（role/aria-label/aria-live/focus-visible）。每轮独立改进→重启→全新加载验证，里程碑截图评审两轮；终审修复：缩放/收起控件整合、证据徽标精简、renderSearch 重复代码块清除、coverage 显示语义错误当轮撤下。清单归档 out/verification/ui-workbench-opt50.json。
+- 工作台 Playwright 全流程自测轮（同日）：修复证据链路映射断点——候选/`/api/read?node=` 经 rel 路径映射到 evidence 表真实 ev_id（点候选直读固化原文，含 Java/DDL/文档），候选携带可读 `ev` 字段；UI Searcher 与 CLI 同样挂接 knowledge.db 且笔记保存即时重挂可检索；页眉统计经 `/api/stats` 随保存刷新。13 条工作流（7 可运行 + 6 命令型）成功/失败/边界态逐条实测通过。
+
+- 拒答原因诚实化（search-refusal-reason，同日）：Playwright 自测三次独立复现——`domimap search` 拒答分支（`cov < min_cov or not scored or not strong`）文案一律印"覆盖率 X% 不足 Y% 阈值"，域过滤筛空候选（覆盖率明明达标）时自相矛盾并误导排障方向。现按真实触发条件分化文案（覆盖率不足/域过滤后无候选（点名域值）/无强命中候选/仅通用词），`refused` 标志与拒答判定不变；UI 拒答前缀改"拒答："不再硬编码原因，GET 型工作流输入超 2000 字符前端诚实拦截（原为必然撞 HTTP 414 的开发者黑话报错）。
+
+- 页眉统计随页面加载刷新（ui-stats-fresh-load，同日）："每次全新加载重测"第 2–4 轮复现——`domimap ui` 的 `/` 返回启动时一次性渲染的整页（stats 冻结快照），长驻服务里保存笔记/建嵌入索引后刷新页面看到的仍是启动时刻状态（笔记数不显示）。`/` 改为每请求现渲染，新加载页面即得实时统计；新增回归测试（保存后全新加载注入 STATS 即含新笔记数，无需客户端刷新）。
+
+- note 保存服务端校验与运行面板交互加固（ui-note-validation，2026-10-25）：第三轮重测前置探测复现——`POST /api/note/save` 对缺失/纯空白 body 返回 200 并创建空笔记进检索池（UI 前端挡了、API 层没挡）。现空正文/claims 非数组一律 400 且计数不变（"空参不静默"契约）；运行面板输入控件 Enter 触发运行（isComposing 守卫防输入法误触、textarea Shift+Enter 保留换行）；finishRun 加 CUR 守卫，迟到的旧响应不再可能把切换后的新画布标成已运行（慢盘/隧道下的理论竞态窗口）。并发幂等语义（同 key 同文去重、异文 409）验证无回归。
+
 ### 计划中（按 docs/roadmap.md M0–M5 交付，未完成不得在此列为已完成）
 
 - M0 工程基线：Git、CI、安装闭环、四竞品比较协议 spike。

@@ -11,9 +11,15 @@ SQLite 短事务（BEGIN IMMEDIATE）实现：
 import hashlib
 import json
 import os
+from pathlib import Path
+import shutil
 import sqlite3
+import tempfile
+import threading
 import time
 import uuid
+
+from .storage import synchronized, read_snapshot, sync_directory
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS knowledge (
@@ -42,6 +48,39 @@ CREATE TABLE IF NOT EXISTS tombstones (
 """
 
 CLAIM_TYPES = {"requirement", "implementation", "observation", "decision", "inference"}
+BACKUP_TABLES = ("knowledge", "claims", "revisions", "idempotency", "baselines",
+                 "review_pending", "claim_bindings", "usage", "tombstones")
+
+
+def _table_counts(db):
+    return {table: db.execute("SELECT COUNT(*) FROM " + table).fetchone()[0]
+            for table in BACKUP_TABLES}
+
+
+def _file_sha(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for block in iter(lambda: stream.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _validate_backup_database(db):
+    """Compare structure with our own schema without executing SQL from the archive."""
+    if db.execute("PRAGMA quick_check").fetchall() != [("ok",)]:
+        raise ValueError("backup database integrity check failed")
+    if db.execute("SELECT 1 FROM sqlite_master WHERE type IN ('trigger','view') LIMIT 1").fetchone():
+        raise ValueError("backup contains unsupported schema objects")
+    reference = sqlite3.connect(":memory:")
+    try:
+        reference.executescript(SCHEMA)
+        for table in BACKUP_TABLES:
+            statement = "PRAGMA table_info(" + table + ")"
+            if db.execute(statement).fetchall() != reference.execute(statement).fetchall():
+                raise ValueError("backup table schema mismatch: " + table)
+    finally:
+        reference.close()
+    return _table_counts(db)
 
 # LLM 增强笔记（product-llm-enrich）的 body 前缀：检索层据此标注 conf=LLM/prov=knowledge:llm。
 # 产物一律 inference 型草稿（state=proposed），人工 accept/confirm 前不作为确认知识。
@@ -72,17 +111,13 @@ class KnowledgeStore:
     def __init__(self, db_path):
         self.db_path = db_path
         os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
-        # 多会话并发（R05/R10）：跨线程共用，BEGIN IMMEDIATE 串行化写入
+        # Transactions belong to a connection; BEGIN does not isolate its calling threads.
+        self._lock = threading.RLock()
         self.db = sqlite3.connect(db_path, timeout=30, check_same_thread=False)
         self.db.executescript(SCHEMA)
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.commit()
         self._fail_stage = None
-
-    # ---- 内部：短事务包装 ----
-    def _tx(self):
-        self.db.execute("BEGIN IMMEDIATE")
-        return self.db
 
     def _content_sha(self, body, claims):
         return hashlib.sha256(json.dumps(
@@ -94,6 +129,7 @@ class KnowledgeStore:
                             {"body": body, "claims": claims}, ensure_ascii=False), time.time()))
 
     # ---- API ----
+    @synchronized
     def submit(self, body, claims=None, idempotency_key=None):
         claims = self._check_claims(claims or [])
         key = idempotency_key or ("auto-" + uuid.uuid4().hex)
@@ -124,6 +160,7 @@ class KnowledgeStore:
             self.db.commit()
             return result
 
+    @synchronized
     def amend(self, note_id, body, expected_revision, claims=None):
         with self.db:
             self.db.execute("BEGIN IMMEDIATE")
@@ -153,18 +190,21 @@ class KnowledgeStore:
             self.db.commit()
             return {"note_id": note_id, "revision": new_rev, "status": "active"}
 
+    @synchronized
     def withdraw(self, note_id):
         with self.db:
             self.db.execute("UPDATE knowledge SET status='withdrawn', updated=? WHERE note_id=?",
                             (time.time(), note_id))
             self.db.commit()
 
+    @synchronized
     def accept_claim(self, note_id, idx):
         with self.db:
             self.db.execute("UPDATE claims SET state='accepted' WHERE note_id=? AND idx=?",
                             (note_id, idx))
             self.db.commit()
 
+    @read_snapshot
     def get(self, note_id):
         row = self.db.execute(
             "SELECT note_id, body, revision, status FROM knowledge WHERE note_id=?",
@@ -174,12 +214,14 @@ class KnowledgeStore:
         return {"note_id": row[0], "body": row[1], "revision": row[2], "status": row[3],
                 "claims": self._claims_of(note_id)}
 
+    @synchronized
     def history(self, note_id):
         return [{"revision": r[0], "snapshot": json.loads(r[1]), "created": r[2]}
                 for r in self.db.execute(
                     "SELECT revision, snapshot, created FROM revisions WHERE note_id=? "
                     "ORDER BY revision", (note_id,))]
 
+    @read_snapshot
     def list_active(self):
         return [{"note_id": r[0], "body": r[1], "updated": r[2], "claims": self._claims_of(r[0])}
                 for r in self.db.execute(
@@ -187,6 +229,7 @@ class KnowledgeStore:
                     "ORDER BY updated DESC")]
 
     # ---------- R06：依赖失效复核 ----------
+    @synchronized
     def record_baseline(self, current):
         """登记证据键基线摘要（扫描方提供，如 EvidenceStore 的 sha 映射）。"""
         with self.db:
@@ -194,6 +237,7 @@ class KnowledgeStore:
                 self.db.execute("INSERT OR REPLACE INTO baselines VALUES (?,?,?)",
                                 (key, sha, time.time()))
 
+    @synchronized
     def scan_dependencies(self, current):
         """当前摘要 vs 基线：仅受影响 claim 入待复核队列（幂等，主键去重）。
 
@@ -226,6 +270,7 @@ class KnowledgeStore:
             self.db.commit()
             return queue
 
+    @synchronized
     def confirm_review(self, note_id, claim_idx, new_evidence, new_sha):
         """确认 = 显式绑定新证据摘要（不是点击即真）。"""
         with self.db:
@@ -238,6 +283,7 @@ class KnowledgeStore:
                             (note_id, claim_idx))
             self.db.commit()
 
+    @synchronized
     def touch_note(self, note_id):
         """使用/点击计数——显式不影响复核状态与真实性（R06-02 负例语义）。"""
         with self.db:
@@ -246,6 +292,7 @@ class KnowledgeStore:
             self.db.commit()
 
     # ---------- R07-03：受管遗忘与硬删 ----------
+    @synchronized
     def forget(self, note_id, reason=""):
         """主动遗忘：主表/检索/导出移除，留墓碑（审计+保留期）。
         历史备份不受影响（备份时点语义，效果可解释）。"""
@@ -257,12 +304,14 @@ class KnowledgeStore:
                 self.db.execute("DELETE FROM claims WHERE note_id=?", (note_id,))
                 self.db.commit()
 
+    @synchronized
     def purge_expired(self, retention_days):
         with self.db:
             self.db.execute("DELETE FROM tombstones WHERE forgotten_at < ?",
                             (time.time() - retention_days * 86400,))
             self.db.commit()
 
+    @synchronized
     def purge(self, note_id):
         """硬删：含修订历史（显式操作，区别于 forget 的受管遗忘）。"""
         with self.db:
@@ -273,31 +322,53 @@ class KnowledgeStore:
             self.db.execute("DELETE FROM claim_bindings WHERE note_id=?", (note_id,))
             self.db.commit()
 
+    @synchronized
     def tombstones(self):
         return [{"note_id": r[0], "reason": r[1], "forgotten_at": r[2]}
                 for r in self.db.execute(
                     "SELECT note_id, reason, forgotten_at FROM tombstones ORDER BY forgotten_at")]
 
     # ---------- R07：备份/恢复/Markdown 互操作 ----------
+    @synchronized
     def backup(self, out_dir):
-        """在线备份（SQLite backup API）+ manifest 计数。"""
-        os.makedirs(out_dir, exist_ok=True)
-        dst = os.path.join(out_dir, "kb.db")
-        target = sqlite3.connect(dst)
-        with self.db:
-            self.db.backup(target)
-        target.close()
-        rev = self.db.execute("SELECT COUNT(*) FROM revisions").fetchone()[0]
-        claims = self.db.execute("SELECT COUNT(*) FROM claims").fetchone()[0]
-        manifest = {"schema": "domimap.kbackup.v1", "notes": self.count(),
-                    "revisions": rev, "claims": claims, "created": time.time()}
-        with open(os.path.join(out_dir, "manifest.json"), "w", encoding="utf-8") as f:
-            json.dump(manifest, f, ensure_ascii=False, indent=1)
-        return manifest
+        """Publish a new knowledge-only archive; counts describe the backed-up snapshot."""
+        out_dir = os.path.abspath(out_dir)
+        if os.path.lexists(out_dir):
+            raise FileExistsError("backup destination already exists")
+        parent = os.path.dirname(out_dir)
+        os.makedirs(parent, exist_ok=True)
+        staging = tempfile.mkdtemp(prefix=".kb-backup-", dir=parent)
+        try:
+            dst = os.path.join(staging, "kb.db")
+            target = sqlite3.connect(dst)
+            try:
+                self.db.backup(target)
+                counts = _table_counts(target)
+            finally:
+                target.close()
+            manifest = {"schema": "domimap.kbackup.v2", "notes": counts["knowledge"],
+                        "revisions": counts["revisions"], "claims": counts["claims"],
+                        "table_counts": counts, "sha256": _file_sha(dst), "created": time.time()}
+            with open(dst, "rb") as stream:
+                os.fsync(stream.fileno())
+            with open(os.path.join(staging, "manifest.json"), "w", encoding="utf-8") as stream:
+                json.dump(manifest, stream, ensure_ascii=False, indent=1)
+                stream.flush()
+                os.fsync(stream.fileno())
+            sync_directory(staging)
+            os.rename(staging, out_dir)
+            sync_directory(parent)
+            return manifest
+        finally:
+            if os.path.isdir(staging):
+                shutil.rmtree(staging)
 
     @classmethod
     def restore(cls, backup_dir, db_path):
-        """干净目录恢复：直接打开备份库（校验 manifest 计数；拒绝符号链接成员防穿越）。"""
+        """Validate a private staging copy before publishing to a fresh destination."""
+        db_path = os.path.abspath(db_path)
+        if any(os.path.lexists(db_path + suffix) for suffix in ("", "-wal", "-shm", "-journal")):
+            raise FileExistsError("restore requires a new database destination")
         base = os.path.realpath(backup_dir)
         for member in ("kb.db", "manifest.json"):
             p = os.path.join(backup_dir, member)
@@ -305,15 +376,47 @@ class KnowledgeStore:
             inside = os.path.commonpath([real, base]) == base  # 解析后仍在归档目录内
             if os.path.islink(p) or not os.path.isfile(real) or not inside:
                 raise ValueError("归档成员非法（符号链接/穿越）：%s" % member)
-        inst = cls(db_path)
-        m = json.load(open(os.path.join(backup_dir, "manifest.json"), encoding="utf-8"))
-        src = sqlite3.connect(os.path.join(backup_dir, "kb.db"))
-        with inst.db:
-            src.backup(inst.db)
-        src.close()
-        assert inst.count() == m["notes"], "恢复校验失败：notes"
-        return inst
+        with open(os.path.join(backup_dir, "manifest.json"), encoding="utf-8") as stream:
+            raw_manifest = stream.read((1 << 16) + 1)
+        if len(raw_manifest) > (1 << 16):
+            raise ValueError("backup manifest exceeds size limit")
+        manifest = json.loads(raw_manifest)
+        if not isinstance(manifest, dict) or manifest.get("schema") not in {
+                "domimap.kbackup.v1", "domimap.kbackup.v2"}:
+            raise ValueError("unsupported backup schema")
+        parent = os.path.dirname(db_path)
+        os.makedirs(parent, exist_ok=True)
+        fd, staging = tempfile.mkstemp(prefix=".kb-restore-", dir=parent)
+        os.close(fd)
+        try:
+            shutil.copyfile(os.path.join(backup_dir, "kb.db"), staging)
+            if manifest["schema"] == "domimap.kbackup.v2" and _file_sha(staging) != manifest.get("sha256"):
+                raise ValueError("backup database hash mismatch")
+            source = sqlite3.connect(Path(staging).as_uri() + "?mode=ro", uri=True)
+            try:
+                counts = _validate_backup_database(source)
+            except sqlite3.DatabaseError as error:
+                raise ValueError("invalid backup database") from error
+            finally:
+                source.close()
+            for key, table in (("notes", "knowledge"), ("revisions", "revisions"), ("claims", "claims")):
+                if type(manifest.get(key)) is not int or manifest[key] != counts[table]:
+                    raise ValueError("backup count mismatch: " + key)
+            if manifest["schema"] == "domimap.kbackup.v2":
+                declared = manifest.get("table_counts")
+                if (not isinstance(declared, dict) or declared != counts
+                        or any(type(value) is not int for value in declared.values())):
+                    raise ValueError("backup table counts mismatch")
+            with open(staging, "rb") as stream:
+                os.fsync(stream.fileno())
+            # Atomic no-clobber publication; unlike replace(), a concurrent creator also wins safely.
+            os.link(staging, db_path)
+            sync_directory(parent)
+            return cls(db_path)
+        finally:
+            os.unlink(staging)
 
+    @read_snapshot
     def export_markdown(self, out_dir):
         """active 笔记导出为 MD（front-matter: note_id/base_revision/status + claims）。"""
         os.makedirs(out_dir, exist_ok=True)
@@ -329,6 +432,7 @@ class KnowledgeStore:
             paths.append(p)
         return paths
 
+    @synchronized
     def import_markdown(self, path):
         """显式导入：base_revision=当前 → amend 新修订；过期 → ConflictError（防覆盖）。"""
         text = open(path, encoding="utf-8").read()
@@ -350,6 +454,7 @@ class KnowledgeStore:
         claims = json.loads(fields.get("claims", "[]")) or None
         return self.amend(note_id, body=body, expected_revision=base, claims=claims)
 
+    @read_snapshot
     def claims_with_flags(self, current_digests=None):
         """检索面 claim 视图：依据已变且未绑定当前版本的 claim 标 stale（F4-02）。"""
         out = {}
@@ -374,6 +479,7 @@ class KnowledgeStore:
                 return True
         return False
 
+    @synchronized
     def count(self):
         return self.db.execute("SELECT COUNT(*) FROM knowledge").fetchone()[0]
 
@@ -390,5 +496,6 @@ class KnowledgeStore:
                 raise ValueError("claim 类型必须是 %s 之一：%r" % (sorted(CLAIM_TYPES), c.get("type")))
         return claims
 
+    @synchronized
     def close(self):
         self.db.close()

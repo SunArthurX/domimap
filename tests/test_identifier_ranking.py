@@ -69,5 +69,67 @@ class TestIdentifierRanking(unittest.TestCase):
         self.assertEqual(r["seeds"][0]["file"], "doc/note.md")
 
 
+class TestBoostScopeOriginalOnly(unittest.TestCase):
+    """retrieval-identifier-boost-scope：加成只属于原始查询标识符。
+
+    seeds 域扩展词与类名撞名（商品→Item）不构成用户表达的"定义性同一"，不得以 ×3
+    加成计分（真实语料实证：含"审核"实词的 docx 曾被 generic Item/Product 类压到
+    第 15 名，修复后回到 top_k——真实语料回放见 out/dev-ws 与 AC-R06-06 证据；
+    此处钉住机制语义与端到端不回归）。
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.s = build({
+            "src/com/example/Item.java": "public class Item {\n"
+                                         "// 无关 generic 类，仅靠类名撞扩展词\n}\n",
+            "doc/audit.md": "# 商品审核说明\n商品 审核状态 流转 规则：状态机与回退。\n"
+                            + "细节补充。\n" * 20,
+        })
+        cls.item_nid = next(nid for nid, n in cls.s.g.nodes.items()
+                            if n["name"] == "Item")
+
+    def test_boost_only_when_identifier_in_original_tokens(self):
+        # 机制：加成仅当 name_tokens（原始查询）含与节点名全等的 token；比率恰为 ×3
+        boosted = self.s._score(["item"], self.item_nid, name_tokens=["item"])
+        unboosted = self.s._score(["item"], self.item_nid, name_tokens=["商品", "审核"])
+        self.assertGreater(boosted, 0)
+        self.assertAlmostEqual(boosted, unboosted * 3.0, places=6,
+                               msg="名称精确加成应为恰好 ×3")
+        legacy = self.s._score(["item"], self.item_nid)  # 兼容旧调用：默认全量 qtokens
+        self.assertAlmostEqual(legacy, boosted, places=6)
+
+    def test_expansion_token_weight_ratio(self):
+        # 机制：扩展词（weak_tokens）按 EXPANSION_TOKEN_WEIGHT 计权；原始词全权
+        from domimap.search import EXPANSION_TOKEN_WEIGHT
+        full = self.s._score(["item"], self.item_nid, name_tokens=["商品"])
+        weak = self.s._score(["item"], self.item_nid, name_tokens=["商品"],
+                             weak_tokens={"item"})
+        self.assertGreater(full, 0)
+        self.assertAlmostEqual(weak, full * EXPANSION_TOKEN_WEIGHT, places=6,
+                               msg="扩展词计分应按 EXPANSION_TOKEN_WEIGHT 降权")
+        # 原始查询也含该词时不得降权（weak 集构造排除原始词）
+        self.assertAlmostEqual(
+            self.s._score(["item"], self.item_nid, name_tokens=["item"],
+                          weak_tokens=set()),
+            self.s._score(["item"], self.item_nid, name_tokens=["item"],
+                          weak_tokens=None), places=6)
+
+    def test_seeds_expansion_collision_query_doc_first(self):
+        r = self.s.query("商品 审核状态 流转", top_k=5)
+        self.assertFalse(r.get("refused"))
+        self.assertEqual(r["seeds"][0]["file"], "doc/audit.md",
+                         "含原始实词的文档应居首（不得被撞名类凭扩展词霸榜）")
+
+    def test_original_identifier_boost_kept(self):
+        s2 = build({"src/com/example/StockClient.java":
+                    "public class StockClient {\n// 库存 客户端 说明\n}\n",
+                    "doc/other.md": "# 其它\n库存 其它 内容 说明。\n" + "细节。\n" * 30})
+        # 原始查询自带标识符：加成保留（与既有契约一致）
+        r = s2.query("StockClient 库存", top_k=5)
+        self.assertFalse(r.get("refused"))
+        self.assertEqual(r["seeds"][0]["name"], "StockClient")
+
+
 if __name__ == "__main__":
     unittest.main()

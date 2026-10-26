@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "search-refusal-reason",
+  "state": "verified",
+  "spec": "specs/tasks/search-refusal-reason.md",
+  "requirements": [
+    "R01",
+    "R04",
+    "F2"
+  ],
+  "acceptance_cases": [
+    "AC-F2-01"
+  ],
+  "files": [
+    "CHANGELOG.md",
+    "domimap/search.py",
+    "domimap/ui.py",
+    "tests/test_refusal_reason.py",
+    "domimap/store.py",
+    "domimap/mcp.py",
+    "domimap/__main__.py",
+    "domimap/knowledge.py",
+    "domimap/storage.py",
+    "tests/test_production_boundaries.py",
+    "tests/test_knowledge_safety.py",
+    "tests/test_ui_workbench.py",
+    "tests/test_release_gate.py",
+    "docs/production-readiness.md",
+    "docs/architecture.md",
+    "docs/known-defects.md",
+    ".gitignore",
+    "specs/progress.json",
+    "specs/tasks/product-ui-workbench.json",
+    "specs/tasks/product-ui-workbench.md",
+    "specs/tasks/production-boundaries.json",
+    "specs/tasks/production-boundaries.md"
+  ],
+  "test_files": [
+    "tests/test_refusal_reason.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_refusal_reason tests.test_negative_refusal tests.test_semantic_bridge tests.test_ui_workbench -v",
+    "make verify"
+  ],
+  "rollback": "revert domimap/search.py 与 domimap/ui.py 本任务差异 + 删除 tests/test_refusal_reason.py；无数据迁移"
+}

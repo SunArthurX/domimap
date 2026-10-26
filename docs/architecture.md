@@ -1,5 +1,7 @@
 # domimap 生产架构与数据边界
 
+2026-10-24 状态说明：下文保留目标架构，不能将旧的“尚未提供”描述当作当前源码清单。当前实现审计、已验证重构、兼容边界和剩余生产缺口见 [生产化重构审计](production-readiness.md)；规范性要求仍以 specs 为准。
+
 日期：2026-10-16。状态：**待实施设计**，随[生产主计划](roadmap.md)执行。下面的路径、模块、字段和工具均为目标契约，除明确注明外当前 v0.4.0 尚未提供。
 
 ## 1. 系统结构与责任
@@ -143,6 +145,15 @@ Read 只接受受管 evidence_id 与允许范围，禁止将任意客户端路�
 MCP 使用[官方 Python SDK](https://github.com/modelcontextprotocol/python-sdk)的固定已测版本；协议随真实客户端能力选择，参照[官方版本规范](https://modelcontextprotocol.io/specification/latest/basic/lifecycle)。本轮 latest 已指向 2026-07-28，不代表现有客户端/SDK支持；旧服务固定回 2024-11-05 也不能作为所有客户端协商正确的证据。输入/输出契约与 SDK 升级分别测试。
 
 结构化诊断至少包含 request/build ID、版本、状态/耗时、候选/展开计数、snapshot/knowledge epoch、解析缺口与缓存/队列状态；UI 只呈现用户能处理的信息。doctor 不主动导入未经选定的重型后端，也不把“模块存在”当联调通过。
+
+查询观测（retrieval-observation，R06）：CLI/MCP/UI 三入口经同一 `observation.run_query` 包装记录每次查询到工作区独立 `queries.db`（与权威证据/知识库分库；schema `domimap.obs.v1`）。事件含执行状态（ok/refused/error/cancelled）、结构化拒答原因码（与 search.py 拒答分支一一对应，消费方不得从中文文案反推）、实际生效参数、有序候选、版本指纹与耗时。记录 fail-open：任何记录异常返回 `recording_failed`，查询结果/排序/exit code 不变。隐私默认不存查询原文（HMAC-SHA256 工作区密钥摘要支持本地归并；`DOMIMAP_KEEP_QUERIES=1` 显式保留原文，`DOMIMAP_OBSERVE=0` 整体关闭）。幂等键同内容去重、异内容记冲突不覆盖；容量固定上限最旧先出；重试/回放事件以 parent/trigger 关联原始请求，不并入真实用户请求数。
+
+查询反馈（retrieval-feedback，R06，drift 纠正后）：同库 feedback 表承载 hit/partial/miss/not_applicable 相关性与任务结果判定；幂等摘要覆盖完整规范化 payload（含理由/期望证据），同键异内容记冲突；同来源修订须携带 expected_revision（乐观并发），不同来源为并行意见，权威矛盾进 disputed。有效相关性只由权威来源最新修订决定；人工样本选用时间只看权威来源（AI 建议不改变采哪条人工判定）；统计分母只用用户 profile（replay/诊断事件不污染 unknown/覆盖率），分来源命中率单列，correct_refusal 明示为 refusal-precision。恢复为先校验后触碰（完整 schema/完整性/关联断链校验、占用拒绝、安全副本、失败不损原库）；删除同步清理派生（诊断原文/簇关联/孤儿簇），改进固定证据拒绝删除；容量裁剪豁免已判定事件。
+
+诊断（retrieval-diagnosis，R06）：miss/失败/异常的用户事件按查询摘要归并问题簇（正确拒答与争议不入队）；规则预检先行——期望证据解析、诊断性重跑（top_k=50 确定性核心，trigger=diagnostic + parent 关联，不污染用户统计）区分排序/召回/呈现/范围问题；无依据处进 unknowns 不武断。诊断包（domimap.diag.v1）可导出给 coding agent；可选模型分析每簇一次、同输入复用、失败冷却、输入输出上限、白名单字段解析、查询与资料在提示中一律是数据非指令；无模型时规则诊断与人工导出照常。诊断不改检索代码、不写知识库；改进走独立任务与回放。
+
+受控进化（retrieval-evolution-pilot/replay，R06，drift 纠正后）：回放期望绑定精确节点身份（expect= node/nodes；同文件错误节点=miss；旧名称/路径子串格式拒绝）；run 带冻结 manifest（runner/scorer/样本摘要/图与知识代际/词表指纹/代码指纹），冻结维度不一致不可比较，缺 manifest 的旧 run 仅作历史；可选层显式关闭（semantic/rerank/embed=False）。activated 门槛：现存簇+属于该簇的诊断+三 run manifest 一致+improved 判定+回滚逐样本等价且代码指纹相同+候选指纹非 unknown；追溯链只显示关联 run。诊断侧：簇键含范围与版本、partial 入队、再裁决移出、当前重测与历史复现分离（版本不一致降为假设）、召回池成员资格实证。首次真实闭环已在精确评分与独立裁决的冻结样本集上重证（2026-10-26：目标名次 15→4 与 5→1、零回归、回滚等价、新启用 imp:d914a167c7a25b8401fe；旧 imp:ccf1ee268b695abbf2cd 因 F02/F03/F04 失效留档）。
+
 
 支持矩阵以实际 OS/Python/extras/客户端/格式构造为单位。核心和可选依赖分别安装测试；build 环境依赖固定，库依赖声明兼容范围并记录实际 release 解析结果。卸载移除产品和受管客户端配置，不自动删除用户知识。
 

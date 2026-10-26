@@ -11,6 +11,11 @@
   domain -g FILE             领域地图（含跨域共享表）
   impact <符号> -g FILE      影响面（反向依赖）
   read <ev_id> --store DB    按证据 ID 读固化片段（源修改/删除后仍为旧版本）
+  feedback <event_id> --relevance hit|partial|miss|not_applicable
+                            提交/修订查询反馈（追加修订保留历史；--outcome 任务结果）
+  history / qstats / qexport 查询记录分页列表 / 反馈统计（H/(H+P+M) 口径）/ 样例导出
+  issues / diagnose         问题簇列表 / 规则预检诊断包（--ai 可选模型分析，--out 导出）
+  replay / evolution        固定样本集回放（基线/候选/回滚比较）/ 闭环追溯与启用登记
   scenario req|trb "文本"    需求定位卡 / 问题排查卡
   review -g FILE -o DIR      AMBIGUOUS 边导出 Obsidian 待审页（人审双通道）
   enrich -g FILE [--limit N] 可选 LLM 语义增强：Doc 材料生成 inference 草稿笔记
@@ -137,18 +142,30 @@ def cmd_query(args):
     s = Searcher(g, cache_path=args.graph + ".idx.json")
     from domimap.knowledge import attach_if_present
     attach_if_present(s, args.graph)  # 图旁 knowledge.db（人工/LLM 笔记）存在才挂
-    r = s.query(args.text, top_k=args.top, domain=args.domain, seeds=seeds,
-                semantic=True if getattr(args, "semantic", False) else None,
-                rerank=True if getattr(args, "rerank", False) else None,
-                rerank_pool=getattr(args, "rerank_pool", None),
-                embed=True if getattr(args, "embed", False) else None)
+    # 实际生效参数原样传入（与无记录时的调用逐键一致）；记录 fail-open 不改查询行为
+    params = {"top_k": args.top, "domain": args.domain, "seeds": seeds}
+    if getattr(args, "semantic", False):
+        params["semantic"] = True
+    if getattr(args, "rerank", False):
+        params["rerank"] = True
+    if getattr(args, "rerank_pool", None):
+        params["rerank_pool"] = args.rerank_pool
+    if getattr(args, "embed", False):
+        params["embed"] = True
+    from domimap.observation import run_query, observation_enabled
+    r, obs = run_query(args.graph, s, args.text, "cli", params)
     if getattr(args, "json", False):
         import json as _j
         print(_j.dumps({"seeds": [{"id": n["id"], "kind": n["kind"], "name": n["name"],
                                    "file": n["file"]} for n in r["seeds"]],
-                        "refused": r.get("refused", False)}, ensure_ascii=False))
+                        "refused": r.get("refused", False),
+                        "query_id": obs.get("event_id"),
+                        "recording": obs["status"]}, ensure_ascii=False))
     else:
         print(r["text"])
+        if observation_enabled():  # 关闭记录时不留输出足迹；失败状态进 stderr 不碰 stdout 契约
+            print("（观测：%s %s）" % (obs.get("event_id") or "-", obs["status"]),
+                  file=sys.stderr)
     if r.get("refused"):
         sys.exit(3)  # 退出码契约（graphify 范式）：3=无匹配
 
@@ -205,10 +222,12 @@ def cmd_read(args):
     from domimap.store import EvidenceStore
     import json as _json
     store = EvidenceStore(args.store)
-    row = store.db.execute("SELECT sid FROM evidence WHERE ev_id=?", (args.ev_id,)).fetchone()
-    if not row:
+    try:
+        ev = store.read_evidence(args.ev_id)
+    finally:
+        store.close()
+    if ev is None:
         print("无此证据 ID"); sys.exit(4)
-    ev = store.evidence_for_source(row[0])
     print(_json.dumps({k: v for k, v in ev.items() if k != "text"}, ensure_ascii=False, indent=1))
     print("--- 片段 ---")
     print(ev["text"] if ev.get("available") else "（不可用：%s）" % ev.get("reason"))
@@ -277,6 +296,335 @@ def cmd_schema(args):
         print(_json.dumps(_json.load(f), ensure_ascii=False, indent=1))
 
 
+def _feedback_store(args):
+    from domimap.feedback import FeedbackStore
+    graph = args.graph
+    if not os.path.exists(graph):
+        print("图不存在：%s" % graph, file=sys.stderr); sys.exit(4)
+    qdb = os.path.join(os.path.dirname(os.path.abspath(graph)), "queries.db")
+    if not os.path.exists(qdb):
+        print("无查询记录库（queries.db；先发起查询或开启观测）", file=sys.stderr); sys.exit(4)
+    return FeedbackStore(qdb)
+
+
+def cmd_feedback(args):
+    """提交/修订查询反馈（hit/partial/miss + 任务结果；追加修订保留历史）。"""
+    import json as _j
+    store = _feedback_store(args)
+    try:
+        from domimap.feedback import FeedbackError
+        try:
+            r = store.submit(args.event_id, args.relevance,
+                             task_outcome=args.outcome or "unknown",
+                             source=args.source, reason=args.reason,
+                             expected_evidence=args.expected,
+                             idempotency_key=args.key,
+                             expected_revision=args.expected_revision)
+        except FeedbackError as e:
+            print(str(e)); sys.exit(4)
+    finally:
+        store.close()
+    print(_j.dumps(r, ensure_ascii=False))
+
+
+def cmd_history(args):
+    """查询记录分页列表（按入口/状态/拒答原因/触发类型过滤；含有效反馈）。"""
+    import json as _j
+    store = _feedback_store(args)
+    try:
+        r = store.list_events(entry=args.entry, status=args.status,
+                              refusal_reason=args.refusal_reason, trigger=args.trigger,
+                              limit=args.limit, offset=args.offset)
+    finally:
+        store.close()
+    if getattr(args, "json", False):
+        print(_j.dumps(r, ensure_ascii=False, indent=1))
+        return
+    print("共 %d 条（显示 %d-%d）" % (r["total"], r["offset"] + 1,
+                                    r["offset"] + len(r["items"])))
+    for it in r["items"]:
+        fb = it["feedback_relevance"] or ("disputed" if it["disputed"] else "-")
+        print("%s  [%s/%s] %s%s  fb=%s  %s" % (
+            it["event_id"], it["entry"], it["trigger_kind"], it["status"],
+            ("/" + it["refusal_reason"]) if it["refusal_reason"] else "",
+            fb, it["query_digest"]))
+
+
+def cmd_qstats(args):
+    """反馈统计：完整命中率 H/(H+P+M)、判定覆盖率、来源分列、正确拒答比例。"""
+    import json as _j
+    store = _feedback_store(args)
+    try:
+        r = store.stats()
+    finally:
+        store.close()
+    if getattr(args, "json", False):
+        print(_j.dumps(r, ensure_ascii=False, indent=1))
+        return
+    e = r["effective"]
+    print("事件 %d（profile %d，重复 %d）｜触发 user %d / 非 user %d" % (
+        r["events"], r["profiles"]["distinct"], r["profiles"]["repeated_events"],
+        r["trigger"]["user"], r["trigger"]["non_user"]))
+    print("有效相关性 hit=%d partial=%d miss=%d unknown=%d n.a.=%d disputed=%d" % (
+        e["hit"], e["partial"], e["miss"], e["unknown"], e["not_applicable"],
+        e["disputed"]))
+    print("已判定完整命中率 H/(H+P+M) = %s（分母 %d，partial 单列不折算）" % (
+        r["hit_rate"] if r["hit_rate"] is not None else "无判定样本",
+        r["hit_rate_denominator"]))
+    print("判定覆盖率 %s｜未反馈比例 %s" % (r["judgment_coverage"],
+                                          r["unfeedbacked_ratio"]))
+    print("正确拒答：%d/%d（refused 且有权威反馈者）" % (
+        r["correct_refusal"]["correct_abstention"],
+        r["correct_refusal"]["refused_with_feedback"]))
+    for src, c in sorted(r["by_source"].items()):
+        print("  来源 %-16s 最新修订 %d（hit=%s partial=%s miss=%s）" % (
+            src, c["latest_count"], c.get("hit", 0), c.get("partial", 0),
+            c.get("miss", 0)))
+
+
+def cmd_issues(args):
+    """问题簇列表（miss/失败/异常按查询摘要归并；正确拒答不入队）。"""
+    import json as _j
+    from domimap.diagnosis import list_issues
+    issues = list_issues(args.graph)
+    if getattr(args, "json", False):
+        print(_j.dumps(issues, ensure_ascii=False, indent=1))
+        return
+    if not issues:
+        print("无待诊断问题簇（正确拒答不入队；先在查询后提交 miss 反馈）")
+        return
+    for it in issues:
+        dg = it["last_diagnosis"]
+        print("%s  事件×%d  %s  %s" % (
+            it["cluster_id"], it["event_count"], it["status"],
+            ("诊断 " + dg["diagnosis_id"] + " ai=" + str(dg["ai_status"])) if dg else "未诊断"))
+
+
+def cmd_diagnose(args):
+    """规则预检 + 可选模型分析，输出结构化诊断包（不改检索行为）。"""
+    import json as _j
+    from domimap.graph import Graph
+    from domimap.search import Searcher
+    from domimap.diagnosis import diagnose
+    from domimap.knowledge import attach_if_present
+    g = Graph.load(args.graph)
+    s = Searcher(g, cache_path=args.graph + ".idx.json")
+    attach_if_present(s, args.graph)
+    r = diagnose(args.graph, s, event_id=args.event, cluster_id=args.cluster,
+                 query_text=args.query, use_ai=args.ai, entry="cli")
+    if r.get("status") in ("empty", "unknown_event"):
+        print("无可诊断对象：%s" % r["status"]); sys.exit(4)
+    pack = r["pack"]
+    if args.out:
+        os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
+        with open(args.out, "w", encoding="utf-8") as f:
+            _j.dump(pack, f, ensure_ascii=False, indent=1)
+    if getattr(args, "json", False):
+        print(_j.dumps({"diagnosis_id": r["diagnosis_id"], "status": r["status"],
+                        "ai_status": r["ai_status"], "pack": pack}, ensure_ascii=False,
+                       indent=1))
+        return
+    print("诊断 %s（%s，ai=%s）%s" % (r["diagnosis_id"], r["status"], r["ai_status"],
+                                    ("→ " + args.out) if args.out else ""))
+    for f in pack["findings"]:
+        print("  检查 %-20s %s" % (f["check"], f["result"]))
+    for h in pack["hypotheses"]:
+        print("  假设 %-24s %s" % (h["cause"], h["status"]))
+        print("        %s" % h["support"])
+    for u in pack["unknowns"]:
+        print("  未知：%s" % u)
+
+
+def cmd_evolution(args):
+    """闭环追溯视图 / 改进启用登记：簇→事件→反馈→诊断→回放→决定。"""
+    import json as _j
+    from domimap import replay
+    from domimap.diagnosis import list_issues
+    if args.record_improvement:
+        if not (args.cluster and args.baseline and args.candidate):
+            print("--record-improvement 需要 --cluster/--baseline/--candidate",
+                  file=sys.stderr)
+            sys.exit(2)
+        try:
+            import importlib.util as _ilu
+            _spec = _ilu.spec_from_file_location(
+                "check_specs", os.path.join(os.path.dirname(HERE), "scripts",
+                                            "check_specs.py"))
+            _cs = _ilu.module_from_spec(_spec)
+            _spec.loader.exec_module(_cs)
+            fp = _cs.source_fingerprint()
+        except Exception:
+            fp = None
+        try:
+            r = replay.record_improvement(
+                args.graph, args.cluster, args.baseline, args.candidate,
+                args.record_improvement, diagnosis_id=args.diagnosis,
+                rollback_run=args.rollback, notes=args.notes,
+                source_fingerprint=fp)
+        except ValueError as e:
+            print(str(e)); sys.exit(4)
+        print(_j.dumps(r, ensure_ascii=False))
+        return
+    if args.cluster:
+        c = replay.chain(args.graph, args.cluster)
+        if getattr(args, "json", False):
+            print(_j.dumps(c, ensure_ascii=False, indent=1))
+            return
+        if not c["cluster"]:
+            print("无此问题簇：%s" % args.cluster); sys.exit(4)
+        print("簇 %s（%s，事件×%d）" % (c["cluster"]["cluster_id"],
+                                        c["cluster"]["status"],
+                                        c["cluster"]["event_count"]))
+        for e in c["events"]:
+            print("  事件 %s [%s/%s] %s%s" % (e["event_id"], e["entry"],
+                                              e["trigger_kind"], e["status"],
+                                              ("/" + e["refusal_reason"])
+                                              if e["refusal_reason"] else ""))
+        for dg in c["diagnoses"]:
+            print("  诊断 %s ai=%s" % (dg["diagnosis_id"], dg["ai_status"]))
+            for f in dg["findings"]:
+                print("    检查 %s → %s" % (f["check"], f["result"]))
+        for r in c["replay_runs"]:
+            print("  回放 %s [%s] %d/%d%s" % (r["run_id"], r["label"],
+                                              r["summary"]["ok"],
+                                              r["summary"]["total"],
+                                              (" " + r["notes"]) if r["notes"] else ""))
+        for im in c["improvements"]:
+            print("  决定 %s %s（candidate=%s%s）" % (
+                im["improvement_id"], im["decision"], im["candidate_run"],
+                ("，rollback=" + im["rollback_run"]) if im["rollback_run"] else ""))
+        return
+    issues = list_issues(args.graph)
+    if getattr(args, "json", False):
+        print(_j.dumps(issues, ensure_ascii=False, indent=1))
+        return
+    if not issues:
+        print("无问题簇积压（积压=未诊断优先，按影响面排序）")
+        return
+    for it in issues:
+        dg = it["last_diagnosis"]
+        print("%s  事件×%-3d %s  %s" % (
+            it["cluster_id"], it["event_count"], it["status"],
+            ("诊断 " + dg["diagnosis_id"] + " ai=" + str(dg["ai_status"]))
+            if dg else "未诊断"))
+
+
+def cmd_replay(args):
+    """固定样本集回放（冻结摘要；trigger=replay 不污染用户统计；可对比基线 run）。"""
+    import json as _j
+    from domimap.graph import Graph
+    from domimap.search import Searcher
+    from domimap import replay
+    from domimap.knowledge import attach_if_present
+    try:  # 指纹可选（新克隆/缺 scripts 时回放仍可跑，仅记录为空）
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location(
+            "check_specs", os.path.join(os.path.dirname(HERE), "scripts",
+                                        "check_specs.py"))
+        _cs = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_cs)
+        fp = _cs.source_fingerprint()
+    except Exception:
+        fp = None
+    samples, sha = replay.load_samples(args.samples)
+    g = Graph.load(args.graph)
+    s = Searcher(g, cache_path=args.graph + ".idx.json")
+    attach_if_present(s, args.graph)
+    run = replay.run_replay(args.graph, s, samples, sha, args.label,
+                            notes=args.notes, source_fingerprint=fp,
+                            cluster_id=args.cluster)
+    out = {"run_id": run["run_id"], "label": args.label,
+           "samples_sha256": sha, "summary": run["summary"]}
+    if args.baseline:
+        base = replay.get_run(args.graph, args.baseline)
+        if base is None:
+            print("基线 run 不存在：%s" % args.baseline); sys.exit(4)
+        try:
+            cmp_ = replay.compare_runs(base, run)
+        except ValueError as e:
+            print(str(e)); sys.exit(4)
+        out["comparison"] = cmp_
+        out["baseline_run_id"] = args.baseline
+    if getattr(args, "json", False):
+        print(_j.dumps(out, ensure_ascii=False, indent=1))
+        return
+    print("回放 %s（%s）：%d/%d 通过" % (run["run_id"], args.label,
+                                        run["summary"]["ok"], run["summary"]["total"]))
+    for x in run["results"]:
+        print("  %-16s %s rank=%s top_k=%d%s" % (
+            x["id"], "PASS" if x["ok"] else "MISS",
+            x["rank"] if x["rank"] is not None else ("拒答" if x["refused"] else "无"),
+            x["top_k"], ""))
+    if "comparison" in out:
+        c = out["comparison"]
+        print("对比 %s：改善 %d、回归 %d、不变 %d（verdict=%s）" % (
+            args.baseline, len(c["improvements"]), len(c["regressions"]),
+            c["unchanged"], c["verdict"]))
+
+
+def cmd_qsnapshot(args):
+    """查询/反馈库一致性快照（SQLite backup API）。"""
+    import json as _j
+    store = _feedback_store(args)
+    try:
+        r = store.snapshot(args.out)
+    finally:
+        store.close()
+    print(_j.dumps(r, ensure_ascii=False))
+
+
+def cmd_qrestore(args):
+    """安全恢复：先在备份上完整校验（schema/完整性/关联），失败绝不触碰原库；
+    被其他连接占用时拒绝在线原地恢复。"""
+    import json as _j
+    from domimap.feedback import FeedbackError
+    store = _feedback_store(args)
+    try:
+        r = store.restore(args.backup)
+    except FeedbackError as e:
+        print(str(e)); sys.exit(4)
+    finally:
+        try:
+            store.close()
+        except Exception:
+            pass
+    print(_j.dumps(r, ensure_ascii=False))
+
+
+def cmd_qdelete(args):
+    """受控删除查询事件（同步清理派生；改进固定证据拒绝；--all 须先出示快照）。"""
+    import json as _j
+    from domimap.feedback import FeedbackError
+    store = _feedback_store(args)
+    try:
+        ids = args.ids or None
+        r = store.delete_events(ids=ids, before=args.before,
+                                delete_all=args.all, backup_path=args.backup)
+    except FeedbackError as e:
+        print(str(e)); sys.exit(4)
+    finally:
+        store.close()
+    print(_j.dumps(r, ensure_ascii=False))
+
+
+def cmd_qexport(args):
+    """导出成功/失败开发样例（去重；未保存原文者 replayable=false）。"""
+    import json as _j
+    store = _feedback_store(args)
+    try:
+        samples = store.export_samples(args.kind)
+    finally:
+        store.close()
+    out = {"kind": args.kind, "count": len(samples),
+           "replayable": sum(1 for s in samples if s["replayable"]),
+           "samples": samples}
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
+    with open(args.out, "w", encoding="utf-8") as f:
+        _j.dump(out, f, ensure_ascii=False, indent=1)
+    print("导出 %d 个%s样例（可回放 %d）→ %s" % (out["count"], args.kind,
+                                                out["replayable"], args.out))
+
+
 def main():
     ap = argparse.ArgumentParser(prog="domimap", description="多仓 Java 知识中台 MVP")
     ap.add_argument("-g", "--graph", default=os.path.join("out", "mini", "graph.json"))
@@ -315,6 +663,63 @@ def main():
     rd = sub.add_parser("read"); rd.add_argument("ev_id")
     rd.add_argument("--store", default=os.path.join("out", "store.db")); rd.set_defaults(fn=cmd_read)
     sub.add_parser("schema").set_defaults(fn=cmd_schema)
+    fb = with_g(sub.add_parser("feedback")); fb.add_argument("event_id")
+    fb.add_argument("--relevance", required=True,
+                    choices=["hit", "partial", "miss", "not_applicable", "unknown"])
+    fb.add_argument("--outcome", choices=["success", "failure", "correct_abstention",
+                                          "needs_clarification", "unknown"])
+    fb.add_argument("--source", default="user_feedback",
+                    choices=["user_feedback", "human_annotation", "dev_gold",
+                             "rule_check", "ai_suggestion"])
+    fb.add_argument("--reason"); fb.add_argument("--expected")
+    fb.add_argument("--key", help="幂等键（同键同内容去重）")
+    fb.add_argument("--expected-revision", dest="expected_revision", type=int,
+                    help="同来源修订需携带其当前最新修订号（乐观并发）")
+    fb.set_defaults(fn=cmd_feedback)
+    hi = with_g(sub.add_parser("history"))
+    hi.add_argument("--entry", choices=["cli", "mcp", "ui"])
+    hi.add_argument("--status", choices=["ok", "refused", "error", "cancelled"])
+    hi.add_argument("--refusal-reason", dest="refusal_reason")
+    hi.add_argument("--trigger", choices=["user", "retry", "replay", "diagnostic"])
+    hi.add_argument("--limit", type=int, default=20); hi.add_argument("--offset", type=int, default=0)
+    hi.add_argument("--json", action="store_true"); hi.set_defaults(fn=cmd_history)
+    qs = with_g(sub.add_parser("qstats")); qs.add_argument("--json", action="store_true")
+    qs.set_defaults(fn=cmd_qstats)
+    iss = with_g(sub.add_parser("issues")); iss.add_argument("--json", action="store_true")
+    iss.set_defaults(fn=cmd_issues)
+    dg = with_g(sub.add_parser("diagnose"))
+    dg.add_argument("--event"); dg.add_argument("--cluster"); dg.add_argument("--query")
+    dg.add_argument("--ai", action="store_true",
+                    help="可选模型根因分析（每簇一次；无 key 时 ai=unavailable 不阻塞）")
+    dg.add_argument("--out", help="诊断包 JSON 输出路径（建议 out/ 下）")
+    dg.add_argument("--json", action="store_true"); dg.set_defaults(fn=cmd_diagnose)
+    rp = with_g(sub.add_parser("replay")); rp.add_argument("--samples", required=True,
+                                                           help="冻结样本集 JSON 文件")
+    rp.add_argument("--cluster", help="关联问题簇（追溯链限定）")
+    rp.add_argument("--label", default="candidate",
+                    help="baseline | candidate | rollback | 自定义")
+    rp.add_argument("--baseline", help="对比的基线 run_id（样本集摘要须一致）")
+    rp.add_argument("--notes"); rp.add_argument("--json", action="store_true")
+    rp.set_defaults(fn=cmd_replay)
+    ev = with_g(sub.add_parser("evolution")); ev.add_argument("--cluster")
+    ev.add_argument("--record-improvement", dest="record_improvement",
+                    choices=["activated", "rejected", "rolled_back"])
+    ev.add_argument("--baseline"); ev.add_argument("--candidate")
+    ev.add_argument("--rollback"); ev.add_argument("--diagnosis")
+    ev.add_argument("--notes"); ev.add_argument("--json", action="store_true")
+    ev.set_defaults(fn=cmd_evolution)
+    qe = with_g(sub.add_parser("qexport")); qe.add_argument("--kind", required=True,
+                                                            choices=["success", "failure"])
+    qe.add_argument("-o", "--out", default=os.path.join("out", "samples.json"))
+    qe.set_defaults(fn=cmd_qexport)
+    qs = with_g(sub.add_parser("qsnapshot")); qs.add_argument("-o", "--out", required=True)
+    qs.set_defaults(fn=cmd_qsnapshot)
+    qr = with_g(sub.add_parser("qrestore")); qr.add_argument("--backup", required=True)
+    qr.set_defaults(fn=cmd_qrestore)
+    qd = with_g(sub.add_parser("qdelete")); qd.add_argument("ids", nargs="*")
+    qd.add_argument("--before", type=float); qd.add_argument("--all", action="store_true")
+    qd.add_argument("--backup", help="--all 必须出示 qsnapshot 产出的备份路径")
+    qd.set_defaults(fn=cmd_qdelete)
     en = with_g(sub.add_parser("enrich")); en.add_argument("--limit", type=int, default=5)
     en.add_argument("--targets", choices=["docs", "domain", "all"], default="docs")
     en.add_argument("--dry-run", action="store_true"); en.add_argument("--force", action="store_true")

@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "id": "production-boundaries",
+  "state": "verified",
+  "spec": "specs/tasks/production-boundaries.md",
+  "requirements": [
+    "R01",
+    "R02",
+    "R03",
+    "R05",
+    "R07",
+    "R08",
+    "R11",
+    "R13",
+    "F2"
+  ],
+  "acceptance_cases": [
+    "AC-R01-01",
+    "AC-R02-01",
+    "AC-R03-01",
+    "AC-R05-01",
+    "AC-R07-01",
+    "AC-R08-03",
+    "AC-R11-02",
+    "AC-R13-01",
+    "AC-F2-01"
+  ],
+  "files": [
+    "domimap/store.py",
+    "domimap/mcp.py",
+    "domimap/__main__.py",
+    "domimap/ui.py",
+    "tests/test_production_boundaries.py",
+    "docs/production-readiness.md",
+    "docs/architecture.md",
+    "domimap/knowledge.py",
+    "domimap/storage.py",
+    "tests/test_knowledge_safety.py",
+    "tests/test_release_gate.py",
+    "docs/known-defects.md",
+    ".gitignore",
+    "specs/progress.json",
+    "CHANGELOG.md",
+    "specs/tasks/product-ui-workbench.json",
+    "specs/tasks/product-ui-workbench.md",
+    "tests/test_ui_workbench.py"
+  ],
+  "test_files": [
+    "tests/test_production_boundaries.py",
+    "tests/test_knowledge_safety.py",
+    "tests/test_release_gate.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_production_boundaries -v",
+    "make verify",
+    "python3 -B scripts/check_specs.py --task specs/tasks/production-boundaries.json --base HEAD",
+    "make release-check"
+  ],
+  "verification_evidence": "out/refactor-production/summary.json",
+  "limitations": [
+    "Verified bounded refactor, not production acceptance; only directly re-run cases receive current evidence.",
+    "Whole-workspace capture/publication/restore, native clients/platforms and final independent comparison remain incomplete."
+  ]
+}

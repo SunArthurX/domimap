@@ -19,6 +19,7 @@ htmlcov/
 /out/
 /tests/out/
 /tests/out_*/
+/.playwright-mcp/
 
 # Operating system files
 .DS_Store
