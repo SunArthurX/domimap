@@ -100,58 +100,31 @@ class Server:
     def __init__(self, graph_path, enable_write=False):
         self.graph_path = graph_path
         self.enable_write = bool(enable_write)
-        self._mtime = None
-        self._kb_mtime = None
-        self._reload()
+        from .service import AppService
+        self.svc = AppService(graph_path)
+
+    # 既有调用方/测试通过 g / s / seeds 直达服务装配（与 CLI/UI 同一份）
+    @property
+    def g(self):
+        return self.svc.g
+
+    @property
+    def s(self):
+        return self.svc.s
+
+    @property
+    def seeds(self):
+        return self.svc.seeds
 
     def _reload(self):
-        from .graph import Graph
-        from .search import Searcher
-        self.g = Graph.load(self.graph_path)
-        cov = os.path.join(os.path.dirname(os.path.abspath(self.graph_path)), "coverage.json")
-        coverage = {}
-        if os.path.exists(cov):
-            try:
-                import json as _cj
-                coverage = _cj.load(open(cov, encoding="utf-8"))
-            except Exception:
-                coverage = {}
-        self.s = Searcher(self.g, cache_path=self.graph_path + ".idx.json", coverage=coverage)
-        from .knowledge import attach_if_present
-        attach_if_present(self.s, self.graph_path)  # 图旁 knowledge.db（人工/LLM 笔记）
-        from .graph import load_seeds
-        self.seeds = load_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
-        self._stat()
-
-    def _stat(self):
-        """热重载指纹 = graph.json 与 knowledge.db 两者的 mtime。"""
-        try:
-            self._mtime = os.stat(self.graph_path).st_mtime_ns
-        except OSError:
-            self._mtime = None
-        kb = os.path.join(os.path.dirname(os.path.abspath(self.graph_path)), "knowledge.db")
-        try:
-            self._kb_mtime = os.stat(kb).st_mtime_ns
-        except OSError:
-            self._kb_mtime = None
+        self.svc.reload()
 
     def _fresh(self):
-        """graph 或 knowledge 任一变化即重建（新增笔记无需重启 serve）。"""
-        try:
-            kb = os.path.join(os.path.dirname(os.path.abspath(self.graph_path)), "knowledge.db")
-            if (os.stat(self.graph_path).st_mtime_ns != self._mtime
-                    or os.stat(kb).st_mtime_ns != self._kb_mtime):
-                self._reload()
-        except OSError:
-            pass
+        """graph / knowledge / store 任一变化即重建（新增笔记无需重启 serve）。"""
+        self.svc.refresh()
 
     def _ev_map(self):
-        """Only the shared store may resolve a node to a real evidence ID (by sid; rel for legacy graphs)."""
-        if getattr(self, "_ev_map_cache", None) is not None:
-            return self._ev_map_cache
-        from .store import EvidenceResolver
-        self._ev_map_cache = EvidenceResolver.beside(self.graph_path)
-        return self._ev_map_cache
+        return self.svc.resolver
 
     def handle(self, name, args):
         """Compatibility text API; stdio uses call() to preserve the error flag."""
@@ -161,24 +134,23 @@ class Server:
         if name in WRITE_TOOLS and not self.enable_write:
             text = "错误: 写工具未启用（write_disabled）；以 `domimap serve --enable-write` 启动后可用"
             return {"content": [{"type": "text", "text": text}], "isError": True}
+        from .service import ServiceError
         try:
             _validate_arguments(name, args)
             text = self._dispatch(name, args)
             return {"content": [{"type": "text", "text": text}], "isError": False}
         except InvalidParams:
             text = "错误: 非法参数（invalid params）"
+        except ServiceError as e:
+            text = "错误: 非法参数（invalid params）" if e.code == "invalid_params" else "错误: %s（%s）" % (e, e.code)
         except Exception:
             text = "错误: 工具执行失败（tool_failed）"
         return {"content": [{"type": "text", "text": text}], "isError": True}
 
     def _dispatch(self, name, args):
-        self._ev_map_cache = None  # 热重载后失效重建
         self._fresh()
         if name == "kg_explore":
-            from .observation import run_query
-            params = {"top_k": int(args.get("top_k", 6)), "domain": args.get("domain"),
-                      "seeds": self.seeds}
-            r, obs = run_query(self.graph_path, self.s, args["query"], "mcp", params)
+            r, obs = self.svc.query(args["query"], "mcp", top_k=args.get("top_k"), domain=args.get("domain"))
             ev_map = self._ev_map()
             extra = []
             for n in r["seeds"]:
@@ -194,15 +166,7 @@ class Server:
             return out
         if name == "kg_read":
             import json as _j
-            from .store import EvidenceStore
-            db = os.path.join(os.path.dirname(os.path.abspath(self.graph_path)), "store.db")
-            if not os.path.exists(db):
-                return _j.dumps({"available": False, "reason": "无证据库（先 build 工作区）"}, ensure_ascii=False)
-            store = EvidenceStore(db)
-            try:
-                ev = store.read_evidence(args["ev_id"])
-            finally:
-                store.close()
+            ev = self.svc.read_evidence(args["ev_id"])
             if ev is None:
                 return _j.dumps({"available": False, "reason": "证据 ID 不存在"}, ensure_ascii=False)
             meta = {k: v for k, v in ev.items() if k != "text"}
@@ -245,21 +209,20 @@ class Server:
             return "\n".join(lines) or "（空图）"
         if name == "kg_impact":
             import json as _j
-            max_nodes = int(args.get("max_nodes", 200))  # 预算在遍历中执行
-            start, deps = self.g.impact(args["symbol"], int(args.get("depth", 2)),
-                                        max_nodes=max_nodes + 1)
-            if not start:
-                return "无匹配符号"
-            partial = len(deps) > max_nodes
-            deps = deps[:max_nodes]
+            from .service import ServiceError
+            try:
+                r = self.svc.impact(args["symbol"], args.get("depth", 2), args.get("max_nodes", 200))
+            except ServiceError as e:
+                if e.code == "not_found":
+                    return "无匹配符号"
+                raise
             return _j.dumps({
-                "start": ["[%s] %s @%s" % (n["kind"], n["name"], n["file"]) for n in start],
-                "deps": ["%s --%s--> %s" % (a["name"], b, c["name"]) for a, b, c in deps[:max_nodes]],
-                "total_deps": len(deps), "truncated": max(0, len(deps) - max_nodes),
-                "partial": partial}, ensure_ascii=False)
+                "start": ["[%s] %s @%s" % (n["kind"], n["name"], n["file"]) for n in r["start"]],
+                "deps": ["%s --%s--> %s" % (a["name"], b, c["name"]) for a, b, c in r["deps"]],
+                "total_deps": r["total"], "truncated": int(r["truncated"]),
+                "partial": r["partial"]}, ensure_ascii=False)
         if name == "kg_doc_search":
-            r = self.s.query(args["query"], top_k=8, expand=False, budget=6000)
-            docs = [n for n in r["seeds"] if n["kind"] == "Doc"]
+            docs, r, obs = self.svc.doc_search(args["query"], "mcp")
             if not docs:
                 return "文档无匹配（诚实拒答：不编造）。" + r["text"][:200]
             return "\n".join("- %s @%s" % (d["name"], d["file"]) for d in docs)

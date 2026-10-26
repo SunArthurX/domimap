@@ -6,6 +6,7 @@
   build <repo...> -o DIR     扫描仓库 → 统一图 graph.json + coverage.json
                              （--merge 单仓直出到 -o 目录；--discover 把参数视为工作区根，
                              自动发现子仓合并建图，并生成证据库 store.db 与增量清单）
+  doc TEXT                   文档检索（与 MCP kg_doc_search 同参同观测）
   update -o DIR              工作区增量重建（manifest 未变时毫秒级 no-op）
   rebind LABEL PATH -o DIR   来源根移动后重绑物理路径（sid/节点 ID 不变，再 update）
   export-workspace WS DEST   整库导出（证据/代/图/来源登记/知识库；--include-queries 才带查询日志）
@@ -137,26 +138,16 @@ def cmd_embed(args):
 
 
 def cmd_query(args):
-    from domimap.graph import Graph
-    from domimap.search import Searcher
-    g = Graph.load(args.graph)
-    from domimap.graph import load_seeds
-    seeds = load_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
-    s = Searcher(g, cache_path=args.graph + ".idx.json")
-    from domimap.knowledge import attach_if_present
-    attach_if_present(s, args.graph)  # 图旁 knowledge.db（人工/LLM 笔记）存在才挂
-    # 实际生效参数原样传入（与无记录时的调用逐键一致）；记录 fail-open 不改查询行为
-    params = {"top_k": args.top, "domain": args.domain, "seeds": seeds}
-    if getattr(args, "semantic", False):
-        params["semantic"] = True
-    if getattr(args, "rerank", False):
-        params["rerank"] = True
+    from domimap.service import AppService
+    svc = AppService(args.graph)  # 与 MCP/UI 同一装配与默认参数（product#6）
+    overrides = {"top_k": args.top, "domain": args.domain}
+    for flag in ("semantic", "rerank", "embed"):
+        if getattr(args, flag, False):
+            overrides[flag] = True
     if getattr(args, "rerank_pool", None):
-        params["rerank_pool"] = args.rerank_pool
-    if getattr(args, "embed", False):
-        params["embed"] = True
-    from domimap.observation import run_query, observation_enabled
-    r, obs = run_query(args.graph, s, args.text, "cli", params)
+        overrides["rerank_pool"] = args.rerank_pool
+    from domimap.observation import observation_enabled
+    r, obs = svc.query(args.text, "cli", **overrides)
     if getattr(args, "json", False):
         import json as _j
         print(_j.dumps({"seeds": [{"id": n["id"], "kind": n["kind"], "name": n["name"],
@@ -188,15 +179,30 @@ def cmd_domain(args):
         print("⚠ 跨域共享表: %s ← %s（改动需多域评审）" % (x["table"], "+".join(x["domains"])))
 
 def cmd_impact(args):
-    from domimap.graph import Graph
-    g = Graph.load(args.graph)
-    start, deps = g.impact(args.symbol, args.depth)
-    if not start:
-        print("无匹配符号"); sys.exit(4)
-    for n in start:
+    from domimap.service import AppService, ServiceError
+    svc = AppService(args.graph)
+    try:
+        r = svc.impact(args.symbol, args.depth, args.max_nodes)
+    except ServiceError as e:
+        print(str(e)); sys.exit(4)
+    for n in r["start"]:
         print("起点: [%s] %s @%s" % (n["kind"], n["name"], n["file"]))
-    for src, kind, dst in deps[:40]:
-        print("  ← %s --%s(%s)--> %s" % (src["name"], kind, dst["name"], src["meta"].get("domain", "")))
+    for src, kind, dst in r["deps"]:
+        dom = src["meta"].get("domain", "")
+        print("  ← %s --%s--> %s%s" % (src["name"], kind, dst["name"], ("  [%s]" % dom) if dom else ""))
+    if r["partial"]:
+        print("（partial：影响面在 %d 节点预算内截断，--max-nodes 可调）" % r["max_nodes"])
+
+
+def cmd_doc(args):
+    """文档检索（与 MCP kg_doc_search 同参同观测）。"""
+    from domimap.service import AppService
+    svc = AppService(args.graph)
+    docs, r, obs = svc.doc_search(args.text, "cli", top_k=args.top)
+    if not docs:
+        print("文档无匹配（诚实拒答：不编造）。"); sys.exit(3)
+    for d in docs:
+        print("- %s @%s" % (d["name"], d["file"]))
 
 def cmd_review(args):
     from domimap.graph import Graph
@@ -697,7 +703,10 @@ def main():
     q.add_argument("--domain"); q.set_defaults(fn=cmd_query)
     with_g(sub.add_parser("domain")).set_defaults(fn=cmd_domain)
     i = with_g(sub.add_parser("impact")); i.add_argument("symbol"); i.add_argument("--depth", type=int, default=2)
+    i.add_argument("--max-nodes", type=int, default=200, help="遍历预算（达到即停，结果标 partial）")
     i.set_defaults(fn=cmd_impact)
+    dc = with_g(sub.add_parser("doc", help="文档检索（与 MCP kg_doc_search 同参）")); dc.add_argument("text")
+    dc.add_argument("--top", type=int, default=None); dc.set_defaults(fn=cmd_doc)
     r = with_g(sub.add_parser("review")); r.add_argument("-o", "--out", default="out/review"); r.set_defaults(fn=cmd_review)
     ex = sub.add_parser("export-workspace", help="整库导出为可校验目录（证据/代/图/来源登记/知识库）")
     ex.add_argument("workspace", help="含 graph.json 的工作区目录"); ex.add_argument("dest")

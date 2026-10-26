@@ -54,7 +54,7 @@ domimap 的核心价值是让人和 Agent 在不同会话中，重新核对同�
 | P0 ✅ 2026-10-26 source-identity | workspace/repo/source 身份贯穿节点与结果，避免 basename 身份及仅 rel 映射 | 同 basename 的两个仓/同路径文档/同路由不串接，根重绑持久化 |
 | P0 ✅ 2026-10-26 atomic-publish | 将 graph.json 兼容文件、coverage、manifest 与 generation 的发布统一 | 关键阶段退出、两构建者、丢图/坏图后读取只见完整一致代 |
 | P0 ✅ 2026-10-26 workspace-restore | 整库导出恢复，将固定证据和来源映射与知识事务一起纳入 | 空目录恢复后历史引用、修订、审定、scope 均可检索和读取 |
-| P1 | 公共应用服务统一查询、coverage、context、time 和热更新 | CLI/MCP/UI 同请求同序同错误；WAL 中新增笔记能被长驻客户端发现 |
+| P1 ◐ 2026-10-26 app-service（查询/coverage/impact 预算/错误映射/热更新已统一；context→T10、time/as_of→T9） | 公共应用服务统一查询、coverage、context、time 和热更新 | CLI/MCP/UI 同请求同序同错误；WAL 中新增笔记能被长驻客户端发现 |
 | P1 | 可选格式/真实客户端/OS 与 Python 支持逐项重验 | 直接运行证据，缺环境保持 implementing；不得只重写历史指纹 |
 | P1 | 发布管线硬化：固定 Actions、构建工件净化、tag 与已验证源码一致、发布任务依赖正式门槛 | 干净包异目录安装、源码与历史净化审查、release gate 关闭时不能正式发布 |
 | P1 | 新的独立端到端确认批次及裁决 | 冻结协议、四个真实基线、三指标与修正置信界全部达标 |

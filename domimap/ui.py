@@ -14,8 +14,6 @@ import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from .graph import Graph, load_seeds
-from .search import Searcher
 
 # 工作台页面：__STATS_JSON__ 在服务时注入（图名/规模/库状态）。渲染一律 DOM API。
 PAGE_TEMPLATE = r"""<!doctype html>
@@ -1078,12 +1076,6 @@ def _page_stats(graph_path, g):
     return stats
 
 
-def _evidence_map(graph_path):
-    """Use the shared evidence service: resolve by source identity (sid), by unique rel only for legacy graphs."""
-    from .store import EvidenceResolver
-    return EvidenceResolver.beside(graph_path)
-
-
 def render_page(graph_path, g):
     stats_json = json.dumps(_page_stats(graph_path, g), ensure_ascii=False)
     # 防 </script> 提前闭合（图路径来自本地文件名，仍做标准转义）
@@ -1094,12 +1086,15 @@ def render_page(graph_path, g):
 def make_server(graph_path, host="127.0.0.1", port=0):
     if host not in ("127.0.0.1", "localhost", "::1"):
         raise ValueError("本地 UI 仅允许回环绑定（安全边界 R08）")
-    g = Graph.load(graph_path)
-    searcher = Searcher(g, cache_path=graph_path + ".idx.json")
-    seeds = load_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
-    ev_by_rel = _evidence_map(graph_path)
-    from .knowledge import attach_if_present
-    attach_if_present(searcher, graph_path)  # 图旁 knowledge.db 存在才挂（与 CLI query 同源）
+    from .service import AppService, ServiceError
+    svc = AppService(graph_path)  # 与 CLI/MCP 同一装配与默认参数（product#6）
+    g, searcher, seeds, ev_by_rel = svc.g, svc.s, svc.seeds, svc.resolver
+
+    def _refresh(force=False):
+        """graph/knowledge/store 变化即重建（长驻 UI 不再冻结启动时刻的图与笔记）。"""
+        nonlocal g, searcher, seeds, ev_by_rel
+        if svc.refresh(force=force):
+            g, searcher, seeds, ev_by_rel = svc.g, svc.s, svc.seeds, svc.resolver
 
     class H(BaseHTTPRequestHandler):
         def log_message(self, *a):  # 安静模式
@@ -1131,6 +1126,7 @@ def make_server(graph_path, host="127.0.0.1", port=0):
             return True
 
         def do_POST(self):
+            _refresh()
             if self.path == "/api/note/save":
                 if not self._origin_ok():
                     n = int(self.headers.get("Content-Length") or 0)
@@ -1158,7 +1154,7 @@ def make_server(graph_path, host="127.0.0.1", port=0):
                 try:
                     r = kb.submit(nb, body.get("claims") or [],
                                   idempotency_key=body.get("idempotency_key"))
-                    searcher.attach_knowledge(kb)  # 按 nid 幂等重挂：新笔记即时可检索
+                    _refresh(force=True)  # 整体重建装配：新笔记即时可检索，且不累加索引统计
                 except ValueError as e:
                     self._send(409, json.dumps({"error": str(e)}, ensure_ascii=False))
                     return
@@ -1213,6 +1209,7 @@ def make_server(graph_path, host="127.0.0.1", port=0):
             if not self._origin_ok():
                 self._send(403, json.dumps({"error": "非回环来源请求被拒绝"}, ensure_ascii=False))
                 return
+            _refresh()
             u = urlparse(self.path)
             qs = parse_qs(u.query)
             if u.path == "/":
@@ -1230,9 +1227,16 @@ def make_server(graph_path, host="127.0.0.1", port=0):
                 if not q.strip():
                     self._send(400, json.dumps({"error": "空查询"}, ensure_ascii=False))
                     return
-                from domimap.observation import run_query
-                params = {"top_k": 6, "expand": False, "domain": dom, "seeds": seeds}
-                r, obs = run_query(graph_path, searcher, q, "ui", params)
+                try:
+                    r, obs = svc.query(q, "ui", domain=dom)
+                except ServiceError as e:
+                    self._send(400, json.dumps({"error": str(e), "code": e.code}, ensure_ascii=False))
+                    return
+                except Exception:
+                    # 与 CLI/MCP 一样返回有界错误，而不是断开连接（内部异常文本不外泄）
+                    self._send(500, json.dumps({"error": "内部错误（internal）", "code": "internal"},
+                                               ensure_ascii=False))
+                    return
                 seeds_out = []
                 for n in r["seeds"]:
                     item = {"id": n["id"], "kind": n["kind"], "name": n["name"],
@@ -1360,19 +1364,22 @@ def make_server(graph_path, host="127.0.0.1", port=0):
                 except ValueError:
                     self._send(400, json.dumps({"error": "depth 须为整数"}, ensure_ascii=False))
                     return
-                start, deps = g.impact(sym, depth=depth)
-                if not start:
-                    self._send(404, json.dumps({"error": "无匹配符号"}, ensure_ascii=False))
+                try:
+                    res = svc.impact(sym, depth=depth)
+                except ServiceError as e:
+                    self._send(404 if e.code == "not_found" else 400,
+                               json.dumps({"error": str(e), "code": e.code}, ensure_ascii=False))
                     return
                 def _nm(n):
                     return {"id": n["id"], "kind": n["kind"], "name": n["name"], "file": n["file"]}
                 self._send(200, json.dumps({
-                    "start": [_nm(n) for n in start],
-                    "deps": [{"src": s["name"], "src_file": s["file"], "kind": k,
+                    "start": [_nm(n) for n in res["start"]],
+                    "deps": [{"src": s_["name"], "src_file": s_["file"], "kind": k,
                               "dst": d["name"], "dst_file": d["file"],
-                              "domain": s["meta"].get("domain", "")}
-                             for s, k, d in deps[:40]],
-                    "total": len(deps), "truncated": len(deps) > 40}, ensure_ascii=False))
+                              "domain": s_["meta"].get("domain", "")}
+                             for s_, k, d in res["deps"]],
+                    "total": res["total"], "truncated": res["truncated"], "partial": res["partial"],
+                    "max_nodes": res["max_nodes"]}, ensure_ascii=False))
                 return
             if u.path == "/api/domain":
                 m = g.domain_map()

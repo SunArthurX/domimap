@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "app-service",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/app-service.md",
+  "requirements": [
+    "R04",
+    "F2"
+  ],
+  "acceptance_cases": [
+    "AC-R04-02",
+    "AC-F2-01"
+  ],
+  "files": [
+    "domimap/service.py",
+    "domimap/mcp.py",
+    "domimap/ui.py",
+    "domimap/__main__.py",
+    "tests/test_app_service.py",
+    "docs/production-readiness.md",
+    "CHANGELOG.md",
+    "specs/tasks/app-service.json",
+    "specs/tasks/app-service.md"
+  ],
+  "test_files": [
+    "tests/test_app_service.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_app_service tests.test_m2_shared tests.test_ui_workbench tests.test_production_boundaries -v",
+    "make verify",
+    "python3 -B scripts/check_specs.py --task specs/tasks/app-service.json --base a8d865b"
+  ],
+  "rollback": "revert 本片差异（三入口回到各自装配）；无数据迁移。"
+}
