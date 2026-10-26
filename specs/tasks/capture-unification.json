@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "capture-unification",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/capture-unification.md",
+  "requirements": [
+    "R02",
+    "R03"
+  ],
+  "acceptance_cases": [
+    "AC-R02-01",
+    "AC-R02-02",
+    "AC-R03-02"
+  ],
+  "files": [
+    "domimap/lite_scan.py",
+    "domimap/store.py",
+    "domimap/batch.py",
+    "domimap/graph.py",
+    "tests/test_capture_unification.py",
+    "docs/known-defects.md",
+    "docs/production-readiness.md",
+    "CHANGELOG.md",
+    "specs/tasks/capture-unification.json",
+    "specs/tasks/capture-unification.md"
+  ],
+  "test_files": [
+    "tests/test_capture_unification.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_capture_unification tests.test_evidence_store tests.test_recovery_coverage tests.test_identity -v",
+    "make verify",
+    "python3 -B scripts/check_specs.py --task specs/tasks/capture-unification.json --base 9f695d7"
+  ],
+  "rollback": "revert 本片 lite_scan/store/batch/graph 差异；已生成的单仓工作区多出 store.db/gens/blobs/<label>/manifest.json，旧版本忽略即可（graph.json 格式未变）。"
+}

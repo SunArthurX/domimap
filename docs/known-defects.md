@@ -24,6 +24,6 @@
 | D5 | 旧 ID 经 sid 解析为新版本，跨来源同内容覆盖出处 | 已关闭(production-boundaries)：来源版本 ID、精确读取及完整性校验；回归 TestEvidenceIdentity / TestEvidenceAdapters；不声称修复所有格式定位 |
 | D8 | 同连接线程间事务互相回滚，读操作混合多个修订 | 已关闭(production-boundaries)：共享连接互斥和读快照；回归 tests.test_knowledge_safety 并发写与跨连接读取 |
 | D9 | 恢复覆盖已有库、验证不足、备份计数取自变化后的源 | 已关闭(production-boundaries)：v2 快照清单、暂存校验、不覆盖发布；回归 tests.test_knowledge_safety；整库含证据恢复仍待实施 |
-| D10 | scan 与证据捕获分两次读源；普通单仓 build 绕过证据固化 | 待修复：R02/R03；先统一捕获输入与 build 路径，见 production-readiness |
+| D10 | scan 与证据捕获分两次读源；普通单仓 build 绕过证据固化 | 已关闭(capture-unification, 2026-10-26)：扫描单次读字节经 capture 回调固化、docx/pdf 同源抽取；graph.build 委托 build_many，所有入口共用证据契约；捕获失败进 coverage；回归 tests.test_capture_unification（读盘计数/证据可读/update 命名不漂移/捕获失败入 coverage） |
 | D11 | 来源身份依赖 label/basename，旧节点只带相对路径 | 待修复：R01；本次只阻止歧义链接，不等于跨仓身份全量收敛 |
 | D12 | graph.json/coverage/manifest 不与 generation 一起原子发布 | 待修复：R03；本次只增加 active 文件哈希校验 |

@@ -5,6 +5,7 @@
   EXTRACTED  = 从源码/XML 结构直接抽出（XML 用解析器）
   INFERRED   = 正则/启发式合成（需 golden 测试守护）
 """
+import io
 import os
 import re
 import xml.etree.ElementTree as ET
@@ -86,28 +87,47 @@ def _service_of(rel):
             return p
     return ""
 
-def scan_repo(root, repo_label=None):
-    """返回 records dict。多仓合并时传 repo_label，服务名变为 "label:子模块"。"""
+def _decode_text(raw):
+    """与文本模式 open(encoding=...) 等价：utf-8 严格读，失败回退 gb18030 宽容读；统一换行。
+
+    实况：企业 Java 仓注释常为 GBK（utf-8 宽容读成乱码使中文注释不可检索）。
+    """
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("gb18030", errors="replace")
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def scan_repo(root, repo_label=None, capture=None):
+    """返回 records dict。多仓合并时传 repo_label，服务名变为 "label:子模块"。
+
+    capture(path, rel, raw)：每个遍历到的文件只从磁盘读一次，同一份字节同时交给证据固化
+    （哈希/片段）与解析（D10：源在两次读取之间被改写不再可能）。捕获失败进 coverage.skipped。
+    """
     R = {"services": {}, "classes": [], "methods": [], "routes": [], "rpc": [],
          "topics": [], "sqlstmts": [], "tables": [], "pages": [], "docs": [], "entities": [],
          "raw_calls": [], "calls": [],
          "coverage": {"files_scanned": 0, "skipped": []}}
     routes_by_class = {}
+    binary_doc = {".docx", ".pdf", ".doc"}
     for path, rel in _walk(root, on_skip=R["coverage"]["skipped"].append):
         ext = os.path.splitext(rel)[1].lower()
+        try:
+            with open(path, "rb") as f:
+                raw = f.read()
+        except OSError as e:
+            R["coverage"]["skipped"].append({"file": rel, "reason": "读取失败：%s" % type(e).__name__})
+            continue
+        if capture is not None:
+            try:
+                capture(path, rel, raw)
+            except (OSError, ValueError) as e:
+                R["coverage"]["skipped"].append({"file": rel, "reason": "证据捕获失败：%s" % e})
         if ext not in CODE_EXT and ext not in DOC_EXT and ext not in {".docx", ".pdf", ".doc",
                                                                       ".html", ".htm"}:
             continue
-        try:
-            try:
-                with open(path, encoding="utf-8") as f:  # 严格读：失败说明非 utf-8
-                    text = f.read()
-            except UnicodeDecodeError:
-                # 实况：企业 Java 仓注释常为 GBK（utf-8 宽容读成乱码使中文注释不可检索）
-                with open(path, encoding="gb18030", errors="replace") as f:
-                    text = f.read()
-        except OSError:
-            continue
+        text = "" if ext in binary_doc else _decode_text(raw)
         R["coverage"]["files_scanned"] += 1
         svc = _service_of(rel)
         if not svc:
@@ -139,7 +159,7 @@ def scan_repo(root, repo_label=None):
             R["docs"].append({"path": rel, "text": text[:200000], "service": svc,
                               "mtime": mt, "content_era": era, **meta})
         elif ext in (".docx", ".pdf"):
-            ex = extract_document(path)
+            ex = extract_document(path, raw=raw)
             if ex["status"] == "ok":
                 meta = {}
                 if "pages" in ex:
@@ -500,7 +520,7 @@ def _import_optional(mod):
     return __import__(mod)
 
 
-def extract_document(path):
+def extract_document(path, raw=None):
     """PDF/DOCX 状态化抽取（R09-01）：
 
     返回 {"status": ok|no-dep|corrupt|encrypted|no-text, "text"?, "pages"?}。
@@ -515,13 +535,14 @@ def extract_document(path):
     except ImportError:
         return {"status": "no-dep"}
     try:
+        src = io.BytesIO(raw) if raw is not None else path  # 同一份字节（D10）
         if ext == ".docx":
-            d = docx.Document(path)
+            d = docx.Document(src)
             text = "\n".join(p.text for p in d.paragraphs).strip()
             return {"status": "ok" if text else "no-text", "text": text}
         from pypdf import PdfReader
         try:
-            r = PdfReader(path)
+            r = PdfReader(src)
             if r.is_encrypted:
                 try:
                     r.decrypt("")

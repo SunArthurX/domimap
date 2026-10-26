@@ -307,13 +307,15 @@ def load_seeds(path):
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
-def build(repo_root, out_dir, seeds_path):
-    R = lite_scan.scan_repo(repo_root)
-    seeds = load_seeds(seeds_path)
-    g = Graph()
-    g.build_from_records(R, seeds)
-    os.makedirs(out_dir, exist_ok=True)
-    g.save(os.path.join(out_dir, "graph.json"))
-    with open(os.path.join(out_dir, "coverage.json"), "w", encoding="utf-8") as f:
-        json.dump(R["coverage"], f, ensure_ascii=False, indent=1)
-    return g, R["coverage"]
+def build(repo_root, out_dir, seeds_path=None):
+    """单仓构建：与批量路径共用同一证据契约（扫描即固化 → 不可变代 → graph.json → manifest）。
+
+    服务不加仓名前缀（单仓既有命名，写入 manifest.service_prefix=None 供 update 沿用）。
+    seeds_path 保留签名兼容；种子统一取包内 seeds.json（与 build_many 一致）。
+    """
+    from .batch import build_many
+    root = os.path.abspath(repo_root)
+    g, cov, _ = build_many([root], out_dir, force=True,
+                           merged_name=os.path.basename(os.path.abspath(out_dir)) or "repo",
+                           labels={root: None})
+    return g, cov

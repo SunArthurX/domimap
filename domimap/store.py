@@ -53,9 +53,11 @@ class EvidenceStore:
 
     # ---------- 来源捕获（字节即哈希，内容寻址不可变） ----------
     @_synchronized
-    def capture_source(self, repo, sid, abs_path, rel):
-        with open(abs_path, "rb") as f:
-            raw = f.read(BLOB_LIMIT + 1)
+    def capture_source(self, repo, sid, abs_path, rel, raw=None):
+        """固化一份来源字节。raw 由扫描器传入时不再读盘（哈希/解析/片段同源，D10）。"""
+        if raw is None:
+            with open(abs_path, "rb") as f:
+                raw = f.read(BLOB_LIMIT + 1)
         truncated = len(raw) > BLOB_LIMIT
         raw = raw[:BLOB_LIMIT]
         sha = hashlib.sha256(raw).hexdigest()
