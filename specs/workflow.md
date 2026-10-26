@@ -10,7 +10,7 @@
 
 ## 2. 一个切片的文件
 
-在 `specs/tasks/` 创建同名的 `<task>.md` 和 `<task>.json`。JSON 从 [task-template.json](task-template.json)复制，替换全部占位内容，列出准确文件。Markdown 至少包含：
+在 `specs/tasks/` 创建同名的 `<task>.md` 和 `<task>.json`。JSON 从 [task-template.json](task-template.json)复制，替换全部占位内容，列出准确文件。`kind` 声明切片类型并受 `check_specs` 全量边界检查：`slice`（默认）只列本片产品/测试/文档文件，不得列规范文件（product/requirements/acceptance/benchmark/workflow/protocol）或其他任务 manifest；`spec-change` 修改登记与需求/验收文本，可列其他 manifest，但不含 `domimap/` 产品代码；`umbrella` 用于跨片全 diff 范围检查，须写 `reason`。Markdown 至少包含：
 
 1. 关联需求与验收 ID；问题、预期用户结果和本切片边界。
 2. 前置依赖、输入/输出、状态转移、错误/预算、版本/迁移契约。

@@ -30,10 +30,8 @@
     "docs/known-defects.md",
     ".gitignore",
     "specs/progress.json",
-    "specs/tasks/product-ui-workbench.json",
-    "specs/tasks/product-ui-workbench.md",
-    "specs/tasks/production-boundaries.json",
-    "specs/tasks/production-boundaries.md"
+    "specs/tasks/search-refusal-reason.json",
+    "specs/tasks/search-refusal-reason.md"
   ],
   "test_files": [
     "tests/test_refusal_reason.py"

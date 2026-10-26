@@ -8,6 +8,7 @@
 
 - T1 spec-rehome-r15：R06 回归原义"依据变化→定位陈述→复核队列"（AC-R06-01/02）；检索反馈闭环五案例迁册为 R15「检索质量反馈与受控进化」（AC-R15-01..05，文本逐字不变、连续归位）。`check_specs.REQUIREMENTS` 显式需求集 21→22（精确相等守卫保留）；product.md/roadmap 同步；12 份历史任务 manifest 与守账测试改用新 ID；证据按新 case_id 真实重跑定稿。
 - T2 mcp-write-gate：MCP 写工具 `kg_feedback` 改为 `domimap serve --enable-write` 显式启用——默认服务 `tools/list` 只公布 6 个只读工具，未启用时调用返回 `isError` + `write_disabled`；经 MCP 转达的判定以新来源 `agent_relay`（∈ SOURCE_VALUES、∉ AUTHORITATIVE_SOURCES）落库，不进命中率/覆盖率/诊断队列口径，响应附 `source` 字段；`schema.json` 增 `mcp_write_tools` 并有契约测试。行为变化：此前任何 MCP 客户端可写入权威 `user_feedback`；现在人工确认须经 UI/CLI。
+- T3 manifest-bounds：`check_specs.check_manifest_bounds` 按 `kind` 约束任务 manifest 白名单——`slice` 不得列规范文件或其他任务 manifest，`spec-change` 不得含 `domimap/` 产品代码，`umbrella` 须写 `reason`；`--task` 与全量结构校验都执行。此前 14 份 manifest 共用同一份 79 文件全仓清单（含 requirements/acceptance.json），`--task` 范围检查形同虚设；现按各任务 .md「## 文件」节裁剪（c0 定为 spec-change，publish-openprep×2 定为 umbrella 并写理由，另 4 份去除并行兄弟 manifest 条目）。task-template.json 与 workflow.md §2 同步。
 
 ### 偏离纠正（drift audit 2026-10-26，C0–C7 已完成）
 

@@ -30,12 +30,8 @@
     "docs/known-defects.md",
     ".gitignore",
     "specs/progress.json",
-    "specs/tasks/product-ui-workbench.json",
-    "specs/tasks/product-ui-workbench.md",
-    "specs/tasks/production-boundaries.json",
-    "specs/tasks/production-boundaries.md",
-    "specs/tasks/search-refusal-reason.json",
-    "specs/tasks/search-refusal-reason.md"
+    "specs/tasks/ui-stats-fresh-load.json",
+    "specs/tasks/ui-stats-fresh-load.md"
   ],
   "test_files": [
     "tests/test_ui_stats_fresh.py"

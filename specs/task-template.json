@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "id": "REPLACE-task-id",
+  "kind": "slice",
   "state": "planned",
   "spec": "specs/tasks/REPLACE-task-id.md",
   "requirements": [],

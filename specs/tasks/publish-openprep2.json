@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "id": "publish-openprep2",
+  "kind": "umbrella",
   "state": "verified",
   "spec": "specs/tasks/publish-openprep2.md",
   "requirements": [
@@ -42,12 +43,15 @@
     "tests/test_comment_recall.py",
     "tests/test_corpus_isolation.py",
     "tests/test_gbk_read.py",
-    "tests/test_identifier_ranking.py"
+    "tests/test_identifier_ranking.py",
+    "specs/tasks/publish-openprep2.json",
+    "specs/tasks/publish-openprep2.md"
   ],
   "test_files": [
     "tests/test_comment_recall.py",
     "tests/test_corpus_isolation.py",
     "tests/test_gbk_read.py",
     "tests/test_identifier_ranking.py"
-  ]
+  ],
+  "reason": "公开发布前跨任务文档净化（路径/输出脱敏），需同时触及多份历史任务 .md；范围见本任务 .md"
 }

@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "id": "publish-openprep",
+  "kind": "umbrella",
   "state": "verified",
   "spec": "specs/tasks/publish-openprep.md",
   "requirements": [
@@ -31,12 +32,15 @@
     "tests/test_glm_host.py",
     "tests/test_m4_formats.py",
     "tests/test_release_gate.py",
-    "tests/test_spec_contracts.py"
+    "tests/test_spec_contracts.py",
+    "specs/tasks/publish-openprep.json",
+    "specs/tasks/publish-openprep.md"
   ],
   "test_files": [
     "tests/test_glm_host.py",
     "tests/test_m4_formats.py",
     "tests/test_release_gate.py",
     "tests/test_spec_contracts.py"
-  ]
+  ],
+  "reason": "公开发布前跨任务文档净化（路径/输出脱敏），需同时触及多份历史任务 .md；范围见本任务 .md"
 }

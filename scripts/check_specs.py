@@ -179,6 +179,42 @@ def require_stage(stage, cases, progress):
         raise ValueError("Incomplete " + stage + ": " + ", ".join(pending))
 
 
+# Normative files no code slice may whitelist; only kind=spec-change / umbrella tasks edit them.
+NORMATIVE_SPECS = frozenset({
+    "specs/product.md", "specs/requirements.json", "specs/acceptance.json",
+    "specs/benchmark.md", "specs/workflow.md", "benchmarks/protocol.json",
+})
+TASK_KINDS = {"slice", "spec-change", "umbrella"}
+
+
+def check_manifest_bounds(name, task):
+    """A manifest's allowlist must match its kind, so the --task diff gate cannot be defanged.
+
+    slice (default): no normative specs, no other task manifests.
+    spec-change: may edit specs/registry and sibling manifests, but ships no product code.
+    umbrella: anything, but must state why (whole-diff bookkeeping across parallel slices).
+    """
+    kind = task.get("kind", "slice")
+    if kind not in TASK_KINDS:
+        raise ValueError("Unknown task kind %r (expected one of %s)" % (kind, sorted(TASK_KINDS)))
+    files = set(task.get("files", []))
+    task_id = task.get("id", "")
+    own = {name, task.get("spec", ""), "specs/tasks/%s.json" % task_id, "specs/tasks/%s.md" % task_id}
+    normative = sorted(files & NORMATIVE_SPECS)
+    siblings = sorted(f for f in files if f.startswith("specs/tasks/") and f not in own)
+    product = sorted(f for f in files if f.startswith("domimap/"))
+    if kind == "slice":
+        if normative:
+            raise ValueError("Slice task whitelists normative specs (declare kind=spec-change): " + ", ".join(normative))
+        if siblings:
+            raise ValueError("Slice task whitelists other task manifests (declare kind=spec-change or umbrella): " + ", ".join(siblings[:5]))
+    elif kind == "spec-change":
+        if product:
+            raise ValueError("spec-change task must not ship product code: " + ", ".join(product[:5]))
+    elif not isinstance(task.get("reason"), str) or not task["reason"].strip():
+        raise ValueError("umbrella task needs a non-empty reason")
+
+
 def check_task(root, name, req, cases, base=None):
     task = load(local_path(root, name))
     if task.get("state") not in STATES or not task.get("id") or "REPLACE" in task["id"]:
@@ -197,6 +233,7 @@ def check_task(root, name, req, cases, base=None):
         local_path(root, path)
         if any(char in path for char in "*?["):
             raise ValueError("Task files must be exact, not broad patterns")
+    check_manifest_bounds(name, task)
     if base:
         def git(*args):
             return {name for name in subprocess.check_output(["git", *args], cwd=root).decode("utf-8").split("\0") if name}
@@ -221,6 +258,8 @@ def main():
         if args.structural and (args.stage or args.release):
             raise ValueError("--structural cannot gate --stage/--release: those require local evidence")
         req, cases, progress = validate(require_evidence=not args.structural)
+        for manifest in sorted((ROOT / "specs/tasks").glob("*.json")):
+            check_manifest_bounds(str(manifest.relative_to(ROOT)), load(manifest))
         links = check_links()
         if args.base and not args.task:
             raise ValueError("--base requires --task")

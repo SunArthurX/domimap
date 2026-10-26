@@ -387,6 +387,8 @@ def cmd_serve(args):
 
 ### Task 3: 任务 manifest 边界恢复（R13，umbrella 模式）
 
+> **执行时细化（2026-10-26）**：T0 已将 79 文件批次提交入库，"为并行未提交文件做全 diff 检查"的 umbrella 需求消失，故不再新建 umbrella-worktree 任务。lint 规则定稿为三类 `kind`：`slice`（默认）禁规范文件与兄弟 manifest；`spec-change` 允许规范与兄弟 manifest、禁 `domimap/` 产品代码（T1 本身即此类）；`umbrella` 须 `reason`（两份历史发布净化任务归此类）。实际裁剪 20 份（原估 11 份：另有 6 份历史 manifest 也列有并行兄弟条目）。
+
 **Files:**
 - Modify: `scripts/check_specs.py`（check_task 内 + main() 加全量 lint）
 - Create: `specs/tasks/umbrella-worktree-2026-10-26.json` / `.md`（kind=umbrella，持有现 79 文件清单）

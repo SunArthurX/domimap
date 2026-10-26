@@ -156,6 +156,57 @@ class TestSpecContracts(unittest.TestCase):
         ids = list(acc)
         self.assertEqual(ids.index("AC-R15-05") - ids.index("AC-R15-01"), 4, "R15 案例应连续归位")
 
+    def _bounds_task(self, **over):
+        task = {"id": "identity", "state": "implementing", "spec": "specs/tasks/identity.md",
+                "requirements": ["R01"], "acceptance_cases": ["AC-R01-01"],
+                "files": ["domimap/x.py", "tests/test_x.py"], "test_files": ["tests/test_x.py"]}
+        task.update(over)
+        return task
+
+    def test_manifest_bounds_by_task_kind(self):
+        """slice 不得白名单规范文件/兄弟 manifest；spec-change 不得含产品代码；umbrella 须有 reason。"""
+        name = "specs/tasks/identity.json"
+        specs.check_manifest_bounds(name, self._bounds_task())  # 普通切片：通过
+        with self.assertRaisesRegex(ValueError, "normative"):
+            specs.check_manifest_bounds(name, self._bounds_task(
+                files=["domimap/x.py", "specs/acceptance.json", "tests/test_x.py"]))
+        with self.assertRaisesRegex(ValueError, "task manifests"):
+            specs.check_manifest_bounds(name, self._bounds_task(
+                files=["domimap/x.py", "specs/tasks/other.json", "tests/test_x.py"]))
+        specs.check_manifest_bounds(name, self._bounds_task(
+            kind="spec-change",
+            files=["specs/acceptance.json", "specs/tasks/other.json", "tests/test_x.py"]))
+        with self.assertRaisesRegex(ValueError, "product code"):
+            specs.check_manifest_bounds(name, self._bounds_task(
+                kind="spec-change", files=["domimap/x.py", "specs/acceptance.json", "tests/test_x.py"]))
+        with self.assertRaisesRegex(ValueError, "reason"):
+            specs.check_manifest_bounds(name, self._bounds_task(
+                kind="umbrella", files=["domimap/x.py", "specs/tasks/other.json", "tests/test_x.py"]))
+        specs.check_manifest_bounds(name, self._bounds_task(
+            kind="umbrella", reason="全 diff 范围检查",
+            files=["domimap/x.py", "specs/tasks/other.json", "specs/acceptance.json", "tests/test_x.py"]))
+        with self.assertRaisesRegex(ValueError, "kind"):
+            specs.check_manifest_bounds(name, self._bounds_task(kind="whatever"))
+
+    def test_check_task_enforces_manifest_bounds(self):
+        req, cases, _ = specs.validate(self.root)
+        cid = next(iter(cases))
+        task = {"id": "identity", "state": "implementing", "spec": "specs/tasks/identity.md",
+                "requirements": [cases[cid]["requirement"]], "acceptance_cases": [cid],
+                "files": ["allowed.py", "specs/requirements.json", "tests/test_allowed.py"],
+                "test_files": ["tests/test_allowed.py"]}
+        self.write("specs/tasks/identity.md", "fixture")
+        self.write("specs/tasks/identity.json", task)
+        with self.assertRaisesRegex(ValueError, "normative"):
+            specs.check_task(self.root, "specs/tasks/identity.json", req, cases)
+
+    def test_real_task_manifests_are_bounded(self):
+        """仓库内每份 manifest 都必须通过边界检查（历史全仓白名单已裁剪）。"""
+        for manifest in sorted((ROOT / "specs/tasks").glob("*.json")):
+            task = json.loads(manifest.read_text(encoding="utf-8"))
+            with self.subTest(manifest=manifest.name):
+                specs.check_manifest_bounds(str(manifest.relative_to(ROOT)), task)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

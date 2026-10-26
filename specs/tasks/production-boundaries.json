@@ -41,9 +41,9 @@
     ".gitignore",
     "specs/progress.json",
     "CHANGELOG.md",
-    "specs/tasks/product-ui-workbench.json",
-    "specs/tasks/product-ui-workbench.md",
-    "tests/test_ui_workbench.py"
+    "tests/test_ui_workbench.py",
+    "specs/tasks/production-boundaries.json",
+    "specs/tasks/production-boundaries.md"
   ],
   "test_files": [
     "tests/test_production_boundaries.py",

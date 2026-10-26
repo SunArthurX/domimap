@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "id": "manifest-bounds",
+  "kind": "spec-change",
+  "state": "verified",
+  "spec": "specs/tasks/manifest-bounds.md",
+  "requirements": [
+    "R13"
+  ],
+  "acceptance_cases": [
+    "AC-R13-01"
+  ],
+  "files": [
+    "scripts/check_specs.py",
+    "tests/test_spec_contracts.py",
+    "specs/task-template.json",
+    "specs/workflow.md",
+    "CHANGELOG.md",
+    "docs/superpowers/plans/2026-10-26-drift-analysis-and-priorities.md",
+    "specs/tasks/drift-correction-c0.json",
+    "specs/tasks/drift-correction-c1.json",
+    "specs/tasks/drift-correction-c2.json",
+    "specs/tasks/drift-correction-c3.json",
+    "specs/tasks/drift-correction-c4.json",
+    "specs/tasks/drift-correction-c5.json",
+    "specs/tasks/drift-correction-c6.json",
+    "specs/tasks/drift-correction-c7.json",
+    "specs/tasks/retrieval-observation.json",
+    "specs/tasks/retrieval-feedback.json",
+    "specs/tasks/retrieval-diagnosis.json",
+    "specs/tasks/retrieval-evolution-pilot.json",
+    "specs/tasks/retrieval-evolution-replay.json",
+    "specs/tasks/retrieval-identifier-boost-scope.json",
+    "specs/tasks/production-boundaries.json",
+    "specs/tasks/search-refusal-reason.json",
+    "specs/tasks/ui-note-validation.json",
+    "specs/tasks/ui-stats-fresh-load.json",
+    "specs/tasks/publish-openprep.json",
+    "specs/tasks/publish-openprep2.json",
+    "specs/tasks/manifest-bounds.json",
+    "specs/tasks/manifest-bounds.md"
+  ],
+  "test_files": [
+    "tests/test_spec_contracts.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_spec_contracts -v",
+    "make verify",
+    "python3 -B scripts/check_specs.py --task specs/tasks/manifest-bounds.json --base 27bcd78"
+  ],
+  "rollback": "revert check_specs.py/test_spec_contracts.py 差异；20 份 manifest 的 files 可由 git 还原（其 .md 叙述未改）。"
+}
