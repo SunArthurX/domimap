@@ -16,7 +16,7 @@ import threading
 import time
 from pathlib import Path
 
-from .storage import synchronized
+from .storage import synchronized, ensure_user_version, QUERIES_DB_VERSION
 
 RELEVANCE_VALUES = ("unknown", "hit", "partial", "miss", "not_applicable")
 TASK_OUTCOME_VALUES = ("unknown", "success", "failure", "correct_abstention",
@@ -113,6 +113,7 @@ class FeedbackStore:
             try:
                 self.db.executescript(_loop_schema_sql())
                 self.db.commit()
+                ensure_user_version(self.db, QUERIES_DB_VERSION, "queries.db")
                 break
             except sqlite3.OperationalError as error:
                 if "locked" not in str(error) or attempt == 2:
@@ -731,6 +732,7 @@ class FeedbackStore:
             try:
                 self.db.executescript(_loop_schema_sql())
                 self.db.commit()
+                ensure_user_version(self.db, QUERIES_DB_VERSION, "queries.db")
                 break
             except sqlite3.OperationalError as error:
                 if "locked" not in str(error) or attempt == 2:

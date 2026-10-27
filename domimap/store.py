@@ -16,7 +16,9 @@ import tempfile
 import threading
 import time
 
-from .storage import synchronized as _synchronized, sync_directory as _sync_directory
+from .storage import synchronized as _synchronized, sync_directory as _sync_directory, ensure_user_version, STORE_DB_VERSION
+
+USER_VERSION = STORE_DB_VERSION
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sources (
@@ -35,6 +37,14 @@ CREATE INDEX IF NOT EXISTS idx_evidence_sid ON evidence(sid);
 BLOB_LIMIT = 1 << 20  # 单来源固化片段上限（1MiB；超出截断并标注）
 
 
+def _decode_evidence(raw):
+    """证据片段读回：utf-8 严格，失败回退 gb18030（企业 Java 仓 GBK 注释），与扫描层解码一致。"""
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("gb18030", errors="replace")
+
+
 class EvidenceStore:
     def __init__(self, db_path):
         self.db_path = db_path
@@ -49,6 +59,7 @@ class EvidenceStore:
         self.db = sqlite3.connect(db_path, timeout=30, check_same_thread=False)
         self.db.executescript(SCHEMA)
         self.db.commit()
+        ensure_user_version(self.db, USER_VERSION, "store.db")
         self._fail_stage = None  # 测试注入口
 
     # ---------- 来源捕获（字节即哈希，内容寻址不可变） ----------
@@ -141,7 +152,7 @@ class EvidenceStore:
             return dict(unavailable, reason="invalid_locator")
         return {"ev_id": ev_id, "sid": sid, "available": True,
                 "locator": locator, "sha256": blob_sha,
-                "text": raw.decode("utf-8", errors="replace")}
+                "text": _decode_evidence(raw)}
 
     @_synchronized
     def evidence_for_source(self, sid):

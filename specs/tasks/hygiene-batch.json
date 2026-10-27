@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "id": "hygiene-batch",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/hygiene-batch.md",
+  "requirements": [
+    "R08",
+    "R10",
+    "R11"
+  ],
+  "acceptance_cases": [
+    "AC-R08-02",
+    "AC-R10-01",
+    "AC-R11-02"
+  ],
+  "files": [
+    "domimap/storage.py",
+    "domimap/store.py",
+    "domimap/knowledge.py",
+    "domimap/observation.py",
+    "domimap/feedback.py",
+    "domimap/scenario.py",
+    "domimap/ui.py",
+    "domimap/__main__.py",
+    ".gitignore",
+    ".github/workflows/ci.yml",
+    ".github/workflows/pypi.yml",
+    "CHANGELOG.md",
+    "tests/test_hygiene_batch.py",
+    "tests/test_ui_workbench.py",
+    "specs/tasks/hygiene-batch.json",
+    "specs/tasks/hygiene-batch.md"
+  ],
+  "test_files": [
+    "tests/test_hygiene_batch.py",
+    "tests/test_ui_workbench.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_hygiene_batch tests.test_ui_workbench -v",
+    "make verify",
+    "python3 -B scripts/check_specs.py --task specs/tasks/hygiene-batch.json --base a54d789"
+  ],
+  "rollback": "逐项 revert；user_version 标记留在库中无害（旧版本忽略）。"
+}

@@ -23,7 +23,7 @@ from domimap.graph import Graph, load_seeds  # noqa: E402
 from domimap.ui import make_server  # noqa: E402
 
 WORKFLOW_NAMES = ["检索问答", "需求定位卡", "问题排查卡", "影响面分析", "领域地图",
-                  "证据阅读", "笔记沉淀", "工作区建图", "增量更新", "嵌入索引",
+                  "证据阅读", "笔记沉淀", "反馈与历史", "工作区建图", "增量更新", "嵌入索引",
                   "LLM 草稿笔记", "人审队列导出", "MCP 客户端接入"]
 AI_FLAVOR_WORDS = ["智能", "助手", "大模型", "✨", "🤖"]
 

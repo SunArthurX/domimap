@@ -21,6 +21,11 @@ htmlcov/
 /tests/out_*/
 /.playwright-mcp/
 
+# Query logs are user data: never commit from any workspace location (roadmap §9)
+queries.db
+queries.db-*
+queries.key
+
 # Operating system files
 .DS_Store
 Thumbs.db

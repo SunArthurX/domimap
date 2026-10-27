@@ -16,7 +16,9 @@ import sqlite3
 import threading
 import time
 
-from .storage import synchronized
+from .storage import synchronized, ensure_user_version, QUERIES_DB_VERSION
+
+USER_VERSION = QUERIES_DB_VERSION
 
 OBS_SCHEMA = "domimap.obs.v1"
 MAX_EVENTS = 20000
@@ -189,6 +191,7 @@ class ObservationStore:
         for attempt in range(RECORD_ATTEMPTS):
             try:
                 self.db.executescript(SCHEMA)
+                ensure_user_version(self.db, USER_VERSION, "queries.db")
                 self.db.commit()
                 return
             except sqlite3.OperationalError as error:

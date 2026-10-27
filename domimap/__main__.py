@@ -46,6 +46,41 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 from domimap import __version__  # noqa: E402
 
+def _doctor_databases(graph_path):
+    """三库健康：存在性 / quick_check / user_version / 关键状态（active 代、笔记数、事件数）。"""
+    import sqlite3 as _s3
+    ws = os.path.dirname(os.path.abspath(graph_path))
+    rows = []
+    for name in ("store.db", "knowledge.db", "queries.db"):
+        p = os.path.join(ws, name)
+        if not os.path.exists(p):
+            rows.append("  %-13s 不存在" % name); continue
+        try:
+            db = _s3.connect(p)
+            try:
+                qc = db.execute("PRAGMA quick_check").fetchone()[0]
+                uv = db.execute("PRAGMA user_version").fetchone()[0]
+                extra = ""
+                if name == "store.db":
+                    from domimap.store import EvidenceStore
+                    st = EvidenceStore(p)
+                    try:
+                        act = st.active_generation()
+                        extra = "active=%s" % ("gen-%d nodes=%d" % (act["gen_id"], act["nodes"]) if act else "缺失/损坏")
+                    finally:
+                        st.close()
+                elif name == "knowledge.db":
+                    extra = "notes=%d" % db.execute("SELECT COUNT(*) FROM knowledge WHERE status='active'").fetchone()[0]
+                else:
+                    extra = "events=%d" % db.execute("SELECT COUNT(*) FROM query_events").fetchone()[0]
+                rows.append("  %-13s quick_check=%s user_version=%s %s" % (name, qc, uv, extra))
+            finally:
+                db.close()
+        except Exception as e:
+            rows.append("  %-13s 打不开：%s" % (name, e))
+    return rows
+
+
 def cmd_doctor(args):
     print("domimap %s doctor" % __version__)
     print("  平台: %s / %s / Python %s" % (platform.system(), platform.machine(), platform.version()))
@@ -94,6 +129,9 @@ def cmd_doctor(args):
                 print("  [LLM] knowledge.db：LLM 草稿笔记 %d 条（active）" % llm_notes)
     except Exception:
         pass  # doctor 不因 LLM 段缺配置/缺文件而失败
+    print("  数据库（图旁 %s）：" % os.path.dirname(os.path.abspath(args.graph)))
+    for line in _doctor_databases(args.graph):
+        print(line)
 
 def cmd_build(args):
     from domimap.graph import build
@@ -663,6 +701,8 @@ def cmd_diagnose(args):
         print("无可诊断对象：%s" % r["status"]); sys.exit(4)
     pack = r["pack"]
     if args.out:
+        if "query_text" in _j.dumps(pack, ensure_ascii=False):
+            print("⚠ 诊断包含查询原文：属用户查询日志，勿公开发布（roadmap §9）", file=sys.stderr)
         os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
         with open(args.out, "w", encoding="utf-8") as f:
             _j.dump(pack, f, ensure_ascii=False, indent=1)
@@ -865,6 +905,8 @@ def cmd_qexport(args):
     out = {"kind": args.kind, "count": len(samples),
            "replayable": sum(1 for s in samples if s["replayable"]),
            "samples": samples}
+    if any(s.get("query_text") for s in samples):
+        print("⚠ 导出含查询原文（DOMIMAP_KEEP_QUERIES 生效）：属用户查询日志，勿公开发布（roadmap §9）", file=sys.stderr)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         _j.dump(out, f, ensure_ascii=False, indent=1)

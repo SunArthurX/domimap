@@ -30,18 +30,16 @@ def classify(text, seeds):
 def scenario_req(g, s, text, seeds, top=10):
     doms = classify(text, seeds)
     lines = ["# 需求定位卡", "", "识别领域：" + ("、".join(doms) if doms else "未命中种子（将全图检索）"), ""]
-    # 查询期领域词表同义词扩展：命中域的英文种子词拼进检索（纯代码仓中文词面不匹配的兜底）
-    qtext = text
+    # 领域词表扩展走 Searcher 的 seeds 机制（扩展词按 EXPANSION_TOKEN_WEIGHT 降权），不再手工拼进查询文本
     if doms:
         ext = []
         for d in doms:
             ext.extend(seeds[d].get("keywords", [])[:6])
             ext.extend(seeds[d].get("prefixes", [])[:4])
-        qtext = text + " " + " ".join(ext)
-        lines.append("> 已扩展检索词（领域词表）：" + " ".join(ext[:8]) + " …")
+        lines.append("> 领域词表扩展（降权参与检索）：" + " ".join(ext[:8]) + " …")
         lines.append("")
     buckets = {k: [] for k in ("Service", "Route", "Table", "Topic", "Doc", "SqlStmt")}
-    r = s.query(qtext, top_k=top, expand=False)
+    r = s.query(text, top_k=top, expand=False, seeds=seeds)
     for n in r["seeds"]:
         if n["kind"] in buckets and all(n["id"] != b["id"] for b in buckets[n["kind"]]):
             buckets[n["kind"]].append(n)

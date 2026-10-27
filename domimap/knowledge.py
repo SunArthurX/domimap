@@ -19,7 +19,9 @@ import threading
 import time
 import uuid
 
-from .storage import synchronized, read_snapshot, sync_directory
+from .storage import synchronized, read_snapshot, sync_directory, ensure_user_version, KNOWLEDGE_DB_VERSION
+
+USER_VERSION = KNOWLEDGE_DB_VERSION
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS knowledge (
@@ -136,6 +138,7 @@ class KnowledgeStore:
             pass
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.commit()
+        ensure_user_version(self.db, USER_VERSION, "knowledge.db")
         self._fail_stage = None
 
     def _content_sha(self, body, claims):
