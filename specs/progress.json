@@ -528,6 +528,12 @@
       "artifact": "out/project-analysis/index.html",
       "evidence": "out/project-analysis/revision3/summary.json",
       "scope": "Fourteen question-local visuals and seven detailed 5W2H dimensions; product stages unchanged."
+    },
+    "agent-professional-review": {
+      "state": "verified",
+      "artifact": "out/agent-review-2026-10-27/review.md",
+      "evidence": "out/agent-review-2026-10-27/summary.json",
+      "scope": "Review completed with reproducible findings RV01-RV08; no product milestone/case was reapproved or changed. See report for recommended invalidations and fixes."
     }
   }
 }
