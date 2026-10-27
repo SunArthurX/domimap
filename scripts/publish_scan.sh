@@ -31,7 +31,8 @@ fi
 echo "✓ 无密钥模式"
 
 echo "-- 私有语料路径/用户数据泄露检查 --"
-if git diff "$BASE"..HEAD | grep -n -E '/Users/USER/work/(corpus)' ; then
-  echo "⚠ 差异中出现私有语料绝对路径（确认是否可公开引用）"
+# 通用规则：任何本机家目录下的绝对路径都不应出现在公开差异里（不嵌入具体用户名/语料名）
+if git diff "$BASE"..HEAD | grep -n -E '/Users/[A-Za-z0-9_.-]+/(work|Downloads|Documents)/' ; then
+  echo "⚠ 差异中出现本机家目录绝对路径（确认是否可公开引用）"
 fi
 echo "== publish_scan 通过 =="

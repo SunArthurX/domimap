@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "publish-desensitize-r3",
+  "state": "verified",
+  "spec": "specs/tasks/publish-desensitize-r3.md",
+  "requirements": [
+    "R11",
+    "R13"
+  ],
+  "acceptance_cases": [
+    "AC-R11-02",
+    "AC-R13-01"
+  ],
+  "files": [
+    "CHANGELOG.md",
+    "scripts/publish_scan.sh",
+    "scripts/reverify_cases.py",
+    "specs/tasks/ci-local-artifact-guard.md",
+    "specs/tasks/drift-correction-c0.md",
+    "specs/tasks/drift-correction-c7.md",
+    "specs/tasks/retrieval-evolution-pilot.md",
+    "specs/tasks/retrieval-evolution-replay.md",
+    "specs/tasks/retrieval-identifier-boost-scope.md",
+    "tests/test_drift_correction.py",
+    "tests/test_identifier_ranking.py"
+  ],
+  "test_files": [
+    "tests/test_drift_correction.py",
+    "tests/test_identifier_ranking.py"
+  ],
+  "kind": "umbrella",
+  "reason": "跨 5 个并行切片任务清单的统一字符串去敏感（公司名/个人路径/内部文档标题）+ 对应测试与复验脚本；非产品行为变更"
+}
