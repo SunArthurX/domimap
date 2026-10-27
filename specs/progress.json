@@ -1,27 +1,35 @@
 {
   "schema_version": 1,
   "milestones": {
-    "M0": "implementing",
-    "M1": "implementing",
-    "M2": "implementing",
-    "M3": "implementing",
+    "M0": "verified",
+    "M1": "verified",
+    "M2": "verified",
+    "M3": "verified",
     "M4": "implementing",
     "M5": "implementing"
   },
   "cases": {
     "AC-R01-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R01-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R01-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R01-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R01-01.json",
+        "out/verification/AC-R01-01.json"
+      ]
     },
     "AC-R01-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R01-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R01-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R01-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R01-02.json",
+        "out/verification/AC-R01-02.json"
+      ]
     },
     "AC-R02-01": {
       "state": "verified",
@@ -34,53 +42,81 @@
       ]
     },
     "AC-R02-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R02-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R02-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R02-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R02-02.json",
+        "out/verification/AC-R02-02.json"
+      ]
     },
     "AC-R03-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R03-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R03-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R03-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R03-01.json",
+        "out/verification/AC-R03-01.json"
+      ]
     },
     "AC-R03-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R03-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R03-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R03-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R03-02.json",
+        "out/verification/AC-R03-02.json"
+      ]
     },
     "AC-R04-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R04-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R04-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R04-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R04-01.json",
+        "out/verification/AC-R04-01.json"
+      ]
     },
     "AC-R04-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R04-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R04-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R04-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R04-02.json",
+        "out/verification/AC-R04-02.json"
+      ]
     },
     "AC-F1-C1-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-F1-C1-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F1-C1-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F1-C1-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F1-C1-01.json",
+        "out/verification/AC-F1-C1-01.json"
+      ]
     },
     "AC-F1-C1-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-F1-C1-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F1-C1-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F1-C1-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F1-C1-02.json",
+        "out/verification/AC-F1-C1-02.json"
+      ]
     },
     "AC-F1-C2-01": {
       "state": "implementing",
@@ -125,18 +161,26 @@
       "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
     },
     "AC-F2-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-F2-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F2-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F2-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F2-01.json",
+        "out/verification/AC-F2-01.json"
+      ]
     },
     "AC-F3-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-F3-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F3-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F3-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F3-01.json",
+        "out/verification/AC-F3-01.json"
+      ]
     },
     "AC-F3-02": {
       "state": "implementing",
@@ -146,46 +190,70 @@
       "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
     },
     "AC-F4-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-F4-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F4-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F4-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F4-01.json",
+        "out/verification/AC-F4-01.json"
+      ]
     },
     "AC-F4-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-F4-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F4-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F4-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-F4-02.json",
+        "out/verification/AC-F4-02.json"
+      ]
     },
     "AC-R05-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R05-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R05-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R05-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R05-01.json",
+        "out/verification/AC-R05-01.json"
+      ]
     },
     "AC-R05-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R05-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R05-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R05-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R05-02.json",
+        "out/verification/AC-R05-02.json"
+      ]
     },
     "AC-R06-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R06-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R06-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R06-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R06-01.json",
+        "out/verification/AC-R06-01.json"
+      ]
     },
     "AC-R06-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R06-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R06-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R06-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R06-02.json",
+        "out/verification/AC-R06-02.json"
+      ]
     },
     "AC-R15-01": {
       "state": "verified",
@@ -227,39 +295,59 @@
       ]
     },
     "AC-R07-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R07-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R07-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R07-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R07-01.json",
+        "out/verification/AC-R07-01.json"
+      ]
     },
     "AC-R07-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R07-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R07-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R07-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R07-02.json",
+        "out/verification/AC-R07-02.json"
+      ]
     },
     "AC-R07-03": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R07-03.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R07-03.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R07-03.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R07-03.json",
+        "out/verification/AC-R07-03.json"
+      ]
     },
     "AC-R08-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R08-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R08-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R08-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R08-01.json",
+        "out/verification/AC-R08-01.json"
+      ]
     },
     "AC-R08-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R08-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R08-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R08-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R08-02.json",
+        "out/verification/AC-R08-02.json"
+      ]
     },
     "AC-R08-03": {
       "state": "verified",
@@ -272,81 +360,124 @@
       ]
     },
     "AC-R09-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R09-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R09-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R09-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R09-01.json",
+        "out/verification/AC-R09-01.json"
+      ]
     },
     "AC-R09-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R09-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R09-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R09-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R09-02.json",
+        "out/verification/AC-R09-02.json"
+      ]
     },
     "AC-R09-03": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R09-03.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R09-03.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R09-03.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R09-03.json",
+        "out/verification/AC-R09-03.json"
+      ]
     },
     "AC-R10-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R10-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R10-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R10-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R10-01.json",
+        "out/verification/AC-R10-01.json"
+      ]
     },
     "AC-R10-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R10-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R10-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R10-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R10-02.json",
+        "out/verification/AC-R10-02.json"
+      ]
     },
     "AC-R11-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R11-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R11-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R11-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R11-01.json",
+        "out/verification/AC-R11-01.json"
+      ]
     },
     "AC-R11-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R11-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R11-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R11-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R11-02.json",
+        "out/verification/AC-R11-02.json"
+      ]
     },
     "AC-R12-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R12-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R12-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R12-01.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R12-01.json",
+        "out/verification/AC-R12-01.json"
+      ]
     },
     "AC-R12-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R12-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R12-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R12-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R12-02.json",
+        "out/verification/AC-R12-02.json"
+      ]
     },
     "AC-R13-01": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R13-01.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R13-01.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R13-01.json",
+        "out/verification/AC-R13-01.json"
+      ]
     },
     "AC-R13-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R13-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R13-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R13-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R13-02.json",
+        "out/verification/AC-R13-02.json"
+      ]
     },
     "AC-R14-01": {
       "state": "implementing",
@@ -355,11 +486,15 @@
       ]
     },
     "AC-R14-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
-        "out/verification/AC-R14-02.json"
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R14-02.json"
       ],
-      "invalidation_reason": "2026-10-24: baseline evidence was already stale; production-boundaries changes invalidate the global source fingerprint. Historical evidence is retained; direct re-verification is required."
+      "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R14-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R14-02.json",
+        "out/verification/AC-R14-02.json"
+      ]
     },
     "AC-R15-05": {
       "state": "verified",

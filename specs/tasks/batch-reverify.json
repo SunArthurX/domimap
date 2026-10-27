@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "batch-reverify",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/batch-reverify.md",
+  "requirements": [
+    "R13"
+  ],
+  "acceptance_cases": [
+    "AC-R13-01"
+  ],
+  "files": [
+    "scripts/reverify_cases.py",
+    "scripts/publish_scan.sh",
+    "tests/test_spec_contracts.py",
+    "specs/tasks/batch-reverify.json",
+    "specs/tasks/batch-reverify.md"
+  ],
+  "test_files": [
+    "tests/test_spec_contracts.py"
+  ],
+  "verification": [
+    "python3 -B scripts/reverify_cases.py",
+    "make verify",
+    "python3 -B scripts/check_specs.py --task specs/tasks/batch-reverify.json --base abc545d"
+  ],
+  "rollback": "progress.json 回退（旧证据在 historical_evidence）；新增 out/verification/rerun-2026-10-26-drift2/ 可删；脚本无产品行为影响。"
+}
