@@ -53,21 +53,64 @@ class Graph:
 
     # ---------- 构建 ----------
     @staticmethod
+    def _mth_id(service, cls, name, sig):
+        """方法身份含完整参数类型签名（RV02）：同参数数量的重载不再合并；签名未知（跨行声明）记 "?"。"""
+        return "mth:%s:%s.%s(%s)" % (service, cls or "-", name, sig if sig is not None else "?")
+
+    def _mth_declare(self, service, cls, name, sig, argc, meta_extra, file, prov):
+        nid = self._mth_id(service, cls, name, sig)
+        self.add_node(nid, "Method", name, file,
+                      {"line": meta_extra.get("line"), "cls": cls or "", "argc": argc, **meta_extra},
+                      conf="EXTRACTED", prov=prov)
+        self._mth_index.setdefault((service, cls or "-", name), []).append((nid, argc))
+        return nid
+
+    def _mth_candidates(self, service, cls, name, argc):
+        """按 (svc, cls, name, argc) 解析候选重载（RV02）。argc=-1（未知）→ 全部候选（不确定，不猜）。"""
+        cands = self._mth_index.get((service, cls or "-", name), [])
+        if argc is None or argc < 0:
+            return [nid for nid, _ in cands]
+        return [nid for nid, a in cands if a == argc]
+
+    def _tbl_declare(self, service, name, file, meta, conf="EXTRACTED", prov="sql:ddl"):
+        """表/列按声明方服务隔离（RV02）：tbl:<svc>:<name>；同名跨仓不再合并，引用经 _tbl_ref 显式连接。"""
+        tid = "tbl:%s:%s" % (service, name)
+        self.add_node(tid, "Table", name, file, meta, conf=conf, prov=prov)
+        self._tbl_index.setdefault(name, []).append(tid)
+        return tid
+
+    def _tbl_ref(self, service, name, file):
+        """按名引用一张表（RV02）：只在**已声明**的表中找候选——单候选→显式连接；多候选→逐条 AMBIGUOUS（不合并）。
+
+        无声明时在本服务作用域建不确定节点，且**不**注册进名字索引：其他服务不得连接到
+        一个未声明的推断节点（否则首个被扫描的服务决定归属，构建顺序影响身份）。
+        同服务内多个 mapper 引用同名未声明表 → 同一作用域节点（确定性合并）。
+        """
+        cands = self._tbl_index.get(name, [])
+        if not cands:
+            return ["tbl:%s:%s" % (service, name)], True
+        return cands, False
+
+    @staticmethod
     def _sid(rec):
         """记录级来源身份（build_many 戳入 label|rel）；旧记录无 sid 时为空（D11 兼容）。"""
         return {"sid": rec["sid"]} if rec.get("sid") else {}
 
     def build_from_records(self, R, seeds):
+        self._mth_index = {}
+        self._tbl_index = {}
         dom_of_service = {}
         for svc, info in R["services"].items():
             self.add_node("svc:" + svc, "Service", svc, info.get("file", svc), {"classes": info.get("classes", 0)})
-        # DDL 表
+        # DDL 表：按声明方服务隔离（RV02）；列跟随所属表的作用域
         for t in R["tables"]:
-            self.add_node("tbl:" + t["table"], "Table", t["table"], t["file"],
-                          {"cols": t["cols"], **self._sid(t)}, conf=t["conf"], prov=t["prov"])
+            svc = t.get("service") or "(root)"
+            tid = self._tbl_declare(svc, t["table"], t["file"],
+                                    {"cols": t["cols"], **self._sid(t)}, conf=t["conf"], prov=t["prov"])
             for c in t["cols"]:
-                cid = self.add_node("col:%s.%s" % (t["table"], c), "Column", c, t["file"], {}, conf="EXTRACTED", prov="sql:ddl")
-                self.add_edge("tbl:" + t["table"], cid, "CONTAINS", "EXTRACTED", "sql:ddl")
+                cid = self.add_node("col:%s:%s.%s" % (svc, t["table"], c), "Column", c, t["file"],
+                                    {}, conf="EXTRACTED", prov="sql:ddl")
+                self.add_edge(tid, cid, "CONTAINS", "EXTRACTED", "sql:ddl")
         # 类/方法
         for c in R["classes"]:
             cid = self.add_node("cls:%s:%s" % (c["service"], c["fqn"]), "Class", c["name"], c["file"],
@@ -76,71 +119,66 @@ class Graph:
                                 conf="EXTRACTED", prov=c["prov"])
             self.add_edge("svc:" + c["service"], cid, "CONTAINS", "EXTRACTED", "java")
         for m in R["methods"]:
-            mid = self.add_node("mth:%s:%s.%s#%s" % (m["service"], m.get("cls") or "-",
-                                                      m["name"], m.get("argc", -1)),
-                                "Method", m["name"], m["file"],
-                                {"line": m.get("line"), "cls": m.get("cls") or "",
-                                 "argc": m.get("argc", -1), **self._sid(m)},
-                                conf="EXTRACTED", prov=m["prov"])
+            meta = {"line": m.get("line"), "argc": m.get("argc", -1), **self._sid(m)}
+            if m.get("sig") is None:
+                meta["sig_unknown"] = True  # 跨行签名未解析：身份带 ?，显式不确定
+            mid = self._mth_declare(m["service"], m.get("cls"), m["name"], m.get("sig"),
+                                    m.get("argc", -1), meta, m["file"], m["prov"])
             self.add_edge("svc:" + m["service"], mid, "CONTAINS", "EXTRACTED", "java")
         # 方法级调用（lite 正则合成；Method 节点 service 级命名，同名方法跨类共点的限制待 AST 引擎解决）
         for c in R.get("calls", []):
-            src = "mth:%s:%s.%s#%s" % (c["service"], c.get("from_cls") or "-",
-                                       c["from"], c.get("from_argc", -1))
-            if src not in self.nodes:
-                continue
-            for argc in c.get("to_argcs", [-1]):  # 重载多候选：逐候选连边，置信随 dispatch 已知性
-                dst = "mth:%s:%s.%s#%s" % (c["service"], c.get("to_cls") or "-", c["to_method"], argc)
-                if dst in self.nodes and dst != src:
-                    self.add_edge(src, dst, "CALLS", c["conf"], c["prov"])
+            # 调用侧签名未知：按 argc 匹配候选重载；多候选逐条 AMBIGUOUS（不确定保留，不合并）
+            for src in self._mth_candidates(c["service"], c.get("from_cls"), c["from"], c.get("from_argc", -1)):
+                for argc in c.get("to_argcs", [-1]):
+                    dsts = self._mth_candidates(c["service"], c.get("to_cls"), c["to_method"], argc)
+                    conf = c["conf"] if len(dsts) <= 1 else "AMBIGUOUS"
+                    for dst in dsts:
+                        if dst != src:
+                            self.add_edge(src, dst, "CALLS", conf, c["prov"])
         # Spring 路由
         for r in R["routes"]:
             # 路由/SQL/页面 ID 带服务限定（含仓标签前缀）：跨仓同路径/同 iface.id 不再合并（D11）
             rid = self.add_node("route:%s:%s %s" % (r["service"], r["method"], r["path"]), "Route",
                                 "%s %s" % (r["method"], r["path"]), r["file"], self._sid(r),
                                 conf=r["conf"], prov=r["prov"])
-            mid = "mth:%s:%s.%s#%s" % (r["service"], r.get("cls") or "-",
-                                        r["java_method"], r.get("argc", -1))
-            if mid in self.nodes:
+            for mid in self._mth_candidates(r["service"], r.get("cls"), r["java_method"], r.get("argc", -1)):
                 self.add_edge(mid, rid, "HANDLES", r["conf"], r["prov"])
         # MyBatis：SQL 语句 + 接口方法桥 + 表/列读写
         for s in R["sqlstmts"]:
             sid = self.add_node("sql:%s:%s.%s" % (s["service"], s["iface"], s["id"]), "SqlStmt",
                                 "%s.%s" % (s["iface"], s["id"]), s["file"],
                                 {"verb": s["verb"], "sql": s["sql"], **self._sid(s)}, conf=s["conf"], prov=s["prov"])
-            for m in R["methods"]:  # DAO 接口方法（同名，重载逐版本桥接）
-                if m["service"] == s["service"] and m.get("cls") == s["iface"] and m["name"] == s["id"]:
-                    mid = "mth:%s:%s.%s#%s" % (m["service"], m["cls"], m["name"], m.get("argc", -1))
-                    self.add_edge(mid, sid, "CALLS_SQL", s["conf"], s["prov"])
+            for mid in self._mth_candidates(s["service"], s["iface"], s["id"], None):
+                self.add_edge(mid, sid, "CALLS_SQL", s["conf"], s["prov"])
             for t in s["tables"]:
-                # 表节点缺失先建（真实语料常无 DDL：先连边后补节点会全丢，真实任务回放发现的排序缺陷）
-                self.add_node("tbl:" + t, "Table", t, s["file"], {"via": "mapper"},
-                              conf="EXTRACTED", prov="synth:mybatis")
-                self.add_edge(sid, "tbl:" + t,
-                              "WRITES" if s["verb"] in {"INSERT", "UPDATE", "DELETE"} else "READS",
-                              s["conf"], s["prov"])
-        # MyBatis 表也补进 Table 节点（DDL 未覆盖时）
-        for s in R["sqlstmts"]:
-            for t in s["tables"]:
-                self.add_node("tbl:" + t, "Table", t, s["file"], {"via": "mapper"}, conf="EXTRACTED", prov="synth:mybatis")
-        # JPA 实体：@Table 表 + @Column 列 + 实体类 MAPS_TO 表
+                cands, unresolved = self._tbl_ref(s["service"], t, s["file"])
+                if unresolved:
+                    for tid in cands:
+                        self.add_node(tid, "Table", t, s["file"],
+                                      {"via": "mapper", "unresolved": True, **self._sid(s)},
+                                      conf="EXTRACTED", prov="synth:mybatis")
+                conf = s["conf"] if len(cands) <= 1 else "AMBIGUOUS"
+                for tid in cands:
+                    self.add_edge(sid, tid,
+                                  "WRITES" if s["verb"] in {"INSERT", "UPDATE", "DELETE"} else "READS",
+                                  conf, s["prov"])
+        # JPA 实体：@Table 是声明（按实体所属服务隔离）；@Column 列跟随该作用域（RV02）
         for en in R.get("entities", []):
-            self.add_node("tbl:" + en["table"], "Table", en["table"], en["file"],
-                          {"via": "jpa"}, conf=en["conf"], prov=en["prov"])
+            tid = self._tbl_declare(en["service"], en["table"], en["file"],
+                                    {"via": "jpa"}, conf=en["conf"], prov=en["prov"])
             for c in en["cols"]:
-                cid = self.add_node("col:%s.%s" % (en["table"], c), "Column", c, en["file"],
-                                    {}, conf=en["conf"], prov=en["prov"])
-                self.add_edge("tbl:" + en["table"], cid, "CONTAINS", en["conf"], en["prov"])
+                cid = self.add_node("col:%s:%s.%s" % (en["service"], en["table"], c), "Column", c,
+                                    en["file"], {}, conf=en["conf"], prov=en["prov"])
+                self.add_edge(tid, cid, "CONTAINS", en["conf"], en["prov"])
             for n in list(self.nodes.values()):
                 if n["kind"] == "Class" and n["name"] == en["cls"]:
-                    self.add_edge(n["id"], "tbl:" + en["table"], "MAPS_TO", en["conf"], en["prov"])
+                    self.add_edge(n["id"], tid, "MAPS_TO", en["conf"], en["prov"])
                     break
-        # MQ Topic
-        for t in R["topics"]:
+        # MQ Topic：主题名即消息集群（发布/订阅按名对接是真实机制，保持全局名）；处理顺序排序使出处与构建顺序无关
+        for t in sorted(R["topics"], key=lambda x: (x["topic"], x["service"], x["file"])):
             tid = self.add_node("topic:" + t["topic"], "Topic", t["topic"], t["file"], {}, conf=t["conf"], prov=t["prov"])
-            _mid = "mth:%s:%s.%s#%s" % (t["service"], t.get("cls") or "-",
-                                         t["by"], t.get("argc", -1))
-            src = _mid if _mid in self.nodes else "svc:" + t["service"]
+            mids = self._mth_candidates(t["service"], t.get("cls"), t["by"], t.get("argc", -1))
+            src = mids[0] if len(mids) == 1 else ("svc:" + t["service"])
             if t["dir"] == "PUBLISHES":
                 self.add_edge(src, tid, "PUBLISHES", t["conf"], t["prov"])
             else:

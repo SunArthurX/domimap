@@ -393,7 +393,7 @@ def cmd_context(args):
     from domimap.service import AppService, ServiceError
     svc = AppService(args.graph)
     try:
-        ctx = svc.trusted_context(scope=args.scope)
+        ctx = svc.trusted_context(scope=args.scope, root=getattr(args, "root", None))
     except ServiceError as e:
         print("context: %s" % e); sys.exit(2)
     if ctx.get("note"):
@@ -453,9 +453,14 @@ def cmd_note(args):
         elif args.action == "withdraw":
             r = svc.note_withdraw(args.note_id)
         elif args.action == "accept":
-            if args.idx is None:
-                print("note accept 需要 --idx"); sys.exit(2)
-            r = svc.note_accept(args.note_id, args.idx)
+            if args.idx is None or args.expected_revision is None or not args.statement:
+                print("note accept 需要 --idx --expected-revision --statement（绑定审定对象，RV03）")
+                sys.exit(2)
+            r = svc.note_accept(args.note_id, args.idx,
+                                expected_revision=args.expected_revision,
+                                statement=args.statement,
+                                auditor="human:%s" % os.environ.get("USER", "cli"),
+                                reason=args.reason or "")
         elif args.action == "get":
             r = svc.note_get(args.note_id)
         else:
@@ -973,6 +978,8 @@ def main():
     nt.add_argument("note_id", nargs="?"); nt.add_argument("--body"); nt.add_argument("--claims", help="JSON 数组")
     nt.add_argument("--expected-revision", dest="expected_revision", type=int)
     nt.add_argument("--idempotency-key", dest="idempotency_key"); nt.add_argument("--idx", type=int)
+    nt.add_argument("--statement", default=None, help="审定绑定：当前陈述原文")
+    nt.add_argument("--reason", default=None)
     nt.set_defaults(fn=cmd_note)
     kbp = with_g(sub.add_parser("kb", help="知识库维护：export DIR | import FILE [--preview] | backup DIR | restore ARCHIVE DEST"))
     kbp.add_argument("action", choices=["export", "import", "backup", "restore"]); kbp.add_argument("path")
@@ -986,6 +993,7 @@ def main():
     tr.add_argument("path", nargs="?"); tr.set_defaults(fn=cmd_trust)
     cx = with_g(sub.add_parser("context", help="查看当前生效的 AGENTS.md/SOUL.md 可信上下文"))
     cx.add_argument("--scope", default=None, help="任务所在根内相对目录（嵌套规则取最具体一层）")
+    cx.add_argument("--root", default=None, help="目标可信根标签（登记多个根时必填，不串用）")
     cx.set_defaults(fn=cmd_context)
     rb = sub.add_parser("rebind", help="来源根移动后重绑物理路径（逻辑身份不变）")
     rb.add_argument("label"); rb.add_argument("path"); rb.add_argument("-o", "--out", default="out")

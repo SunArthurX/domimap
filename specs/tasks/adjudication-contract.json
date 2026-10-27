@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "adjudication-contract",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/adjudication-contract.md",
+  "requirements": [
+    "R05",
+    "R06"
+  ],
+  "acceptance_cases": [
+    "AC-R05-01",
+    "AC-R06-02"
+  ],
+  "files": [
+    "domimap/knowledge.py",
+    "domimap/service.py",
+    "domimap/mcp.py",
+    "domimap/__main__.py",
+    "tests/test_adjudication_contract.py",
+    "tests/test_knowledge_entries.py",
+    "tests/test_m3_knowledge.py",
+    "tests/test_m2_closeout.py",
+    "specs/tasks/adjudication-contract.json",
+    "specs/tasks/adjudication-contract.md"
+  ],
+  "test_files": [
+    "tests/test_adjudication_contract.py",
+    "tests/test_knowledge_entries.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_adjudication_contract.py tests.test_knowledge_entries.py -v",
+    "make verify"
+  ],
+  "rollback": "revert 本片差异；review_events 表可 DROP（审计历史将丢失，如实告知）。"
+}

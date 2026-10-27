@@ -70,25 +70,33 @@ class TestBoundedSoak(unittest.TestCase):
                         stats["errors"] += 1
 
         def writer():
-            kb = KnowledgeStore(G + ".soak.db")
+            # RV08：混合负载必须读写服务**实际使用**的 knowledge.db（读者经 attach_if_present 挂接的同一文件），
+            # 不得用旁路 .soak.db 冒充并发写
+            kb = KnowledgeStore(os.path.join(HERE, "out_shared", "knowledge.db"))
             i = 0
-            while time.time() < stop:
-                try:
-                    kb.submit(body="压测 %d" % i, claims=[], idempotency_key="s%d" % i)
-                    i += 1
-                    with lock:
-                        stats["writes"] += 1
-                except Exception as e:  # noqa: BLE001
-                    errs.append(e)
+            try:
+                while time.time() < stop:
+                    try:
+                        kb.submit(body="压测 %d" % i, claims=[], idempotency_key="s%d" % i)
+                        i += 1
+                        with lock:
+                            stats["writes"] += 1
+                    except Exception as e:  # noqa: BLE001
+                        errs.append(e)
+            finally:
+                kb.close()
 
         def publisher():
             st = EvidenceStore(os.path.join(HERE, "out_shared", "store.db"))
-            while time.time() < stop:
-                g2 = Graph(); g2.add_node("soak-%d" % int(time.time()), "Service", "s", "f"); g2.index()
-                st.publish_graph(g2, extra_meta={"soak": True})
-                with lock:
-                    stats["publishes"] += 1
-                time.sleep(10)
+            try:
+                while time.time() < stop:
+                    g2 = Graph(); g2.add_node("soak-%d" % int(time.time()), "Service", "s", "f"); g2.index()
+                    st.publish_graph(g2, extra_meta={"soak": True})
+                    with lock:
+                        stats["publishes"] += 1
+                    time.sleep(10)
+            finally:
+                st.close()
 
         ts = [threading.Thread(target=reader, args=(i,), daemon=True) for i in range(8)]
         ts += [threading.Thread(target=writer, daemon=True), threading.Thread(target=publisher, daemon=True)]

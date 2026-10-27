@@ -46,6 +46,10 @@ CREATE TABLE IF NOT EXISTS claim_bindings (
   PRIMARY KEY (note_id, claim_idx));
 CREATE TABLE IF NOT EXISTS usage (
   note_id TEXT PRIMARY KEY, hits INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS review_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, note_id TEXT, claim_idx INTEGER,
+  action TEXT, statement TEXT, expected_revision INTEGER, auditor TEXT,
+  reason TEXT, at REAL);  -- 审定/撤回审计事件（RV03）；不进 BACKUP_TABLES（v2 兼容），见任务规格
 CREATE TABLE IF NOT EXISTS tombstones (
   note_id TEXT PRIMARY KEY, reason TEXT, forgotten_at REAL);  -- 受管遗忘：可审计，过期清理
 """
@@ -216,27 +220,68 @@ class KnowledgeStore:
             return {"note_id": note_id, "revision": new_rev, "status": "active"}
 
     @synchronized
-    def withdraw(self, note_id):
-        """撤回 active 笔记；不存在或已撤回 → ConflictError（不静默成功）。"""
+    def withdraw(self, note_id, auditor="human:local", reason=""):
+        """撤回 active 笔记；不存在或已撤回 → ConflictError（不静默成功）。追加审计事件。"""
         with self.db:
+            self.db.execute("BEGIN IMMEDIATE")
             cur = self.db.execute(
                 "UPDATE knowledge SET status='withdrawn', updated=? WHERE note_id=? AND status='active'",
                 (time.time(), note_id))
             if cur.rowcount != 1:
                 raise ConflictError("知识不存在或已撤回: %s" % note_id)
+            self._audit(note_id, None, "withdraw", None, None, auditor, reason)
             self.db.commit()
         return {"note_id": note_id, "status": "withdrawn"}
 
+    def _audit(self, note_id, claim_idx, action, statement, expected_revision, auditor, reason):
+        self.db.execute(
+            "INSERT INTO review_events (note_id, claim_idx, action, statement,"
+            " expected_revision, auditor, reason, at) VALUES (?,?,?,?,?,?,?,?)",
+            (note_id, claim_idx, action, statement, expected_revision,
+             auditor or "unknown", reason or "", time.time()))
+
+    def review_events(self, note_id):
+        return [{"id": r[0], "claim_idx": r[1], "action": r[2], "statement": r[3],
+                 "expected_revision": r[4], "auditor": r[5], "reason": r[6], "at": r[7]}
+                for r in self.db.execute(
+                    "SELECT id, claim_idx, action, statement, expected_revision, auditor,"
+                    " reason, at FROM review_events WHERE note_id=? ORDER BY id", (note_id,))]
+
     @synchronized
-    def accept_claim(self, note_id, idx):
-        """审定一条陈述为 accepted（只改状态，不改类型：推断被接受仍是推断）。不存在 → ConflictError。"""
+    def accept_claim(self, note_id, idx, expected_revision=None, statement=None,
+                     auditor="human:local", reason=""):
+        """审定一条陈述为 accepted（RV03：绑定 expected_revision + 陈述身份，事务内校验并追加审计事件）。
+
+        只改状态，不改类型：推断被接受仍是推断。旧式无绑定调用（expected_revision/statement 缺省）
+        一律 TypeError 拒绝——防止"看过 A、批准了 B"。撤回后的笔记不可审定。
+        """
+        if expected_revision is None or statement is None:
+            raise TypeError("accept_claim 需要显式 expected_revision 与 statement（审定绑定，RV03）")
         with self.db:
-            cur = self.db.execute("UPDATE claims SET state='accepted' WHERE note_id=? AND idx=?",
-                                  (note_id, idx))
-            if cur.rowcount != 1:
+            self.db.execute("BEGIN IMMEDIATE")
+            row = self.db.execute(
+                "SELECT k.revision, k.status, c.statement, c.state FROM knowledge k"
+                " JOIN claims c ON c.note_id=k.note_id AND c.idx=? WHERE k.note_id=?",
+                (idx, note_id)).fetchone()
+            if not row:
                 raise ConflictError("陈述不存在: %s#%s" % (note_id, idx))
+            revision, status, current_statement, _ = row
+            if status != "active":
+                raise ConflictError("笔记已撤回，不可审定: %s" % note_id)
+            if revision != expected_revision:
+                raise ConflictError(
+                    "审定绑定的修订过期：当前 %d ≠ 请求 %d（内容可能已被他人修改）"
+                    % (revision, expected_revision))
+            if (current_statement or "").strip() != statement.strip():
+                raise ConflictError(
+                    "审定绑定的陈述不符：当前为 %r ≠ 请求 %r" % (current_statement, statement))
+            self.db.execute("UPDATE claims SET state='accepted' WHERE note_id=? AND idx=?",
+                            (note_id, idx))
+            self._audit(note_id, idx, "accept", current_statement, expected_revision,
+                        auditor, reason)
             self.db.commit()
-        return {"note_id": note_id, "idx": idx, "state": "accepted"}
+        return {"note_id": note_id, "idx": idx, "state": "accepted",
+                "revision": expected_revision, "auditor": auditor}
 
     @read_snapshot
     def get(self, note_id):

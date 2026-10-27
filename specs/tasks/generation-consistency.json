@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "id": "generation-consistency",
+  "kind": "slice",
+  "state": "implementing",
+  "spec": "specs/tasks/generation-consistency.md",
+  "requirements": [
+    "R02",
+    "R03"
+  ],
+  "acceptance_cases": [
+    "AC-R02-01",
+    "AC-R03-01",
+    "AC-R03-02"
+  ],
+  "files": [
+    "domimap/batch.py",
+    "domimap/store.py",
+    "domimap/service.py",
+    "tests/test_generation_consistency.py",
+    "specs/tasks/generation-consistency.json",
+    "specs/tasks/generation-consistency.md"
+  ],
+  "test_files": [
+    "tests/test_generation_consistency.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_generation_consistency tests.test_atomic_publish tests.test_capture_unification -v",
+    "make verify"
+  ],
+  "rollback": "revert batch/store/service 本片差异；generation JSON meta.sources 为新增键，旧读取忽略。"
+}

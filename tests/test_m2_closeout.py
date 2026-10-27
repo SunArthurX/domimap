@@ -5,6 +5,10 @@ import shutil
 import sys
 import tempfile
 import unittest
+# 回环 HTTP 测试不受系统代理干扰（评审 RV08：本机默认代理曾使回环请求 502）
+import urllib.request as _ur
+_ur.install_opener(_ur.build_opener(_ur.ProxyHandler({})))
+
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -62,7 +66,7 @@ class TestMcpFaultTolerance(unittest.TestCase):
             self.skipTest("图未生成")
         srv = Server(out + "/graph.json")
         r = srv.handle("kg_explore", None)  # params 非法
-        self.assertIn("错误", str(r)); self.assertNotIn("Traceback", str(r))
+        self.assertIn('"code": "invalid_params"', str(r)); self.assertNotIn("Traceback", str(r))
         self.assertNotIn("attribute", str(r).lower(), "不泄漏内部异常文本")
         ok = srv.handle("kg_explore", {"query": "price_version"})
         self.assertIn("price_version", ok)

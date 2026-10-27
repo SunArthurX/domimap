@@ -27,8 +27,8 @@ class TestMatrix(unittest.TestCase):
     def test_dynamic_sql_tables_extracted(self):
         g = build_ws({"a.xml": '<mapper namespace="X"><select id="q">'
                                '<if test="1">SELECT * FROM dyn_t WHERE x=1</if></select></mapper>'})
-        self.assertIn("tbl:dyn_t", g.nodes, "动态 SQL 内表必须抽取（声明=支持）")
-        self.assertTrue(any(e["kind"] == "READS" and e["dst"] == "tbl:dyn_t" for e in g.edges))
+        self.assertIn("tbl:mx:dyn_t", g.nodes, "动态 SQL 内表必须抽取（声明=支持）")
+        self.assertTrue(any(e["kind"] == "READS" and e["dst"] == "tbl:mx:dyn_t" for e in g.edges))
 
     def test_multi_provider_all_linked_ambiguous(self):
         g = build_ws({

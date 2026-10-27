@@ -24,11 +24,11 @@ PDF*/DOCX* TS/JS/Vue                                            │
 |---|---|---|---|---|
 | `Service` | `svc:` | 服务（按仓库/模块结构聚合的部署单元） | `java` | `classes` 数量 |
 | `Class` | `cls:` | Java 类/接口（FQN 级） | `java` | 注释词面参与索引 |
-| `Method` | `mth:` | 方法（服务内签名级；同名方法共享节点是已知取舍） | `java` | 调用关系端点 |
+| `Method` | `mth:` | 方法，ID 含完整参数类型签名 `mth:<svc>:<cls>.<name>(<types>)`（2026-10-27 RV02 起；跨行签名未知记 `?` 并标 sig_unknown，不猜） | `java` | 调用关系端点 |
 | `Route` | `route:` | HTTP 路由（method + path） | `java` | — |
 | `SqlStmt` | `sql:` | 一条 SQL 语句（MyBatis iface.id） | `synth:mybatis` | DDL 语句带语义加权 |
-| `Table` | `tbl:` | 数据库表；DDL 与 mapper 双来源各自建边 | `sql:ddl` / `synth:mybatis` | `via` 来源标记 |
-| `Column` | `col:` | 表列（仅 DDL 来源） | `sql:ddl` | — |
+| `Table` | `tbl:` | 数据库表，按**声明方服务**隔离 `tbl:<svc>:<name>`（DDL/JPA 为声明；mapper 引用按名解析：单候选连接、多候选 AMBIGUOUS、零候选本服务 `unresolved` 节点，RV02） | `sql:ddl` / `synth:mybatis` | `via` 来源标记 |
+| `Column` | `col:` | 表列，随所属表作用域 `col:<svc>:<table>.<col>`（DDL/JPA 声明） | `sql:ddl` | — |
 | `Topic` | `topic:` | MQ 主题 | `java` | — |
 | `Doc` | `doc:` | 文档（md/html/pdf*/docx*；front-matter 可带时间语义） | `doc:ingest` | `valid_until`、`superseded_by` |
 | `Page` | — | 前端页面（TS/JS/Vue 扫描） | `core` | — |

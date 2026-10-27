@@ -56,8 +56,8 @@ class TestGenericMQ(unittest.TestCase):
 class TestJPA(unittest.TestCase):
     def test_entity_maps_table_and_columns(self):
         g = G()
-        self.assertIn("tbl:t_ware_stock", g.nodes)
-        self.assertIn("col:t_ware_stock.sku_code", g.nodes)
+        self.assertIn("tbl:repo-belt:ware-service:t_ware_stock", g.nodes)
+        self.assertIn("col:repo-belt:ware-service:t_ware_stock.sku_code", g.nodes)
         self.assertTrue(any(e["kind"] == "MAPS_TO" and "WareStock" in e["src"] for e in g.edges),
                         "实体类应 MAPS_TO 表")
 

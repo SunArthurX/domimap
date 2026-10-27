@@ -332,6 +332,24 @@ class EvidenceStore:
         return local if os.path.exists(local) else None
 
     @_synchronized
+    def generation_sources_by_sha(self, sha256):
+        """按图字节 sha 定位其所属不可变代，返回该代 meta.sources（无该代或无 sources 键 → None）。"""
+        row = self.db.execute(
+            "SELECT path FROM generations WHERE sha256=? AND status='complete'", (sha256,)).fetchone()
+        if not row:
+            return None
+        path = self._gen_path(row[0])
+        if not path:
+            return None
+        try:
+            with open(path, encoding="utf-8") as f:
+                gen = json.load(f)
+        except (OSError, ValueError):
+            return None
+        sources = (gen.get("meta") or {}).get("sources")
+        return sources if isinstance(sources, dict) and sources else None
+
+    @_synchronized
     def seeds_digest(self):
         row = self.db.execute("SELECT value FROM meta WHERE key='seeds_sha256'").fetchone()
         return row[0] if row else None
@@ -347,25 +365,45 @@ class EvidenceStore:
 
 
 class EvidenceResolver:
-    """Resolve a graph node to its evidence ID.
+    """Resolve a graph node to its evidence ID, bound to the generation the served graph belongs to.
 
-    Prefers the node's source identity (meta.sid, stamped at build time); falls back to the
-    unique-relative-path map only for legacy graphs built before nodes carried sids (D11).
+    Resolution order (RV01):
+    1. graph sha → the immutable generation those exact bytes were published as → that
+       generation's meta.sources map (sid → ev_id). A graph file keeps resolving to the evidence
+       versions it was built from, even if newer captures exist or the store's active pointer
+       already moved on (interrupted publication windows stay consistent).
+    2. Legacy fallback: the store's latest per-source pointers (graphs published before
+       generations carried a sources map).
+    3. Unique-relative-path map for graphs built before nodes carried sids (D11).
     """
 
-    def __init__(self, store=None):
-        self.by_sid = store.evidence_by_sid() if store else {}
+    def __init__(self, store=None, graph_sha=None):
+        self.by_sid = {}
+        if store is not None:
+            if graph_sha:
+                sources = store.generation_sources_by_sha(graph_sha)
+                if sources is not None:
+                    self.by_sid = {sid: rec["ev_id"] for sid, rec in sources.items()}
+            if not self.by_sid:
+                self.by_sid = store.evidence_by_sid()
         self.by_rel = store.evidence_map() if store else {}
 
     @classmethod
     def beside(cls, graph_path):
-        """Open the store next to graph_path if present; otherwise an empty resolver."""
+        """Bind to the graph file being served: resolve via its own generation when possible."""
+        import hashlib as _h
         db = os.path.join(os.path.dirname(os.path.abspath(graph_path)), "store.db")
         if not os.path.exists(db):
             return cls(None)
+        sha = None
+        try:
+            with open(graph_path, "rb") as f:
+                sha = _h.sha256(f.read()).hexdigest()
+        except OSError:
+            sha = None
         store = EvidenceStore(db)
         try:
-            return cls(store)
+            return cls(store, graph_sha=sha)
         finally:
             store.close()
 

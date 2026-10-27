@@ -27,3 +27,16 @@
 | D10 | scan 与证据捕获分两次读源；普通单仓 build 绕过证据固化 | 已关闭(capture-unification, 2026-10-26)：扫描单次读字节经 capture 回调固化、docx/pdf 同源抽取；graph.build 委托 build_many，所有入口共用证据契约；捕获失败进 coverage；回归 tests.test_capture_unification（读盘计数/证据可读/update 命名不漂移/捕获失败入 coverage） |
 | D11 | 来源身份依赖 label/basename，旧节点只带相对路径 | 已关闭(source-identity, 2026-10-26)：同名仓标签自动去重（`name~hash6`，仅冲突者）并写入 manifest；文件背书节点 meta 带 `sid=label\|rel`，`EvidenceResolver` 先按 sid 后按唯一 rel（兼容旧图）；route/sql/page 节点 ID 带服务限定；`domimap rebind` 显式重绑（manifest 即持久化登记，sid/节点 ID 不变）。回归 tests.test_source_identity。遗留：tbl:/dom: 仍为全局名（同名表/Topic 隔离属 M1.2）；source.py 的 SourceRegistry 为历史最小实装，生产身份由 manifest+store.sources 承担 |
 | D12 | graph.json/coverage/manifest 不与 generation 一起原子发布 | 已关闭(atomic-publish, 2026-10-26)：三者一律 tmp+fsync+rename 原子落盘；graph.json 兼容副本字节等于 active 代，`_store_healthy` 校验其 sha（缺失/截断/篡改→重发布，补 D1 残留：graph.json 单独丢失不再误报 no-op）；manifest 文件签名改为内容 sha256（同尺寸+同 mtime 改写可识别，旧 [mtime,size] manifest 首次 update 自愈重建）。回归 tests.test_atomic_publish。遗留：active 代切换与兼容副本落盘仍是两步（中断窗口内二者都是完整快照，下次 update 自愈）；update 的 no-op 判定需重读全部文件哈希（≤2MiB/文件） |
+
+## 2026-10-27 评审复验（out/agent-review-2026-10-27，RV01–RV08）
+
+| RV | 复核结论 | 处理与回归 |
+|---|---|---|
+| RV01 构建中断混代/误报 no-op | 成立（两个中断反例复现） | 已修 generation-consistency：代绑定 sources 映射、EvidenceResolver 按图 sha 定位所属代解析、manifest 发布成功后落盘；回归 tests.test_generation_consistency |
+| RV02 重载/跨仓同名表碰撞 | 成立 | 已修 entity-identity：方法签名 ID、表/列按声明方隔离、引用 AMBIGUOUS、顺序无关；回归 tests.test_entity_identity |
+| RV03 审定无版本约束/审计 | 成立（旧 accept 批准新内容复现） | 已修 adjudication-contract：expected_revision+statement 绑定、review_events 审计、MCP 审定须 DOMIMAP_MCP_ADJUDICATE；回归 tests.test_adjudication_contract |
+| RV04 上下文跨根串用 | 成立（两根 AGENTS 同时 effective 拼接） | 已修 context-root-protocol：root 选择/ambiguous_root/文件数与时限；回归 tests.test_context_and_protocol |
+| RV05 业务错误 isError:false | 成立（kg_note 冲突返回成功） | 已修：call() 统一结构化错误映射；initialize 版本协商；回归同上 |
+| RV06 证据刷新/过度认定 | 成立（三例） | 已修 evidence-honesty：客户端会话不刷指纹改降级；AC-R10-02/R12-02/F1-C1-01/02 如实退回 implementing |
+| RV07 发布未绑门槛 | 成立 | 已修 release-gate：pypi 增 verify+release-gate 作业（当前必然失败=正确），publish 核对工件哈希 |
+| RV08 测试隔离 | 成立（代理 502；soak 旁路写） | 已修 test-isolation：ProxyHandler({})；soak 写真实 knowledge.db |

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "context-root-protocol",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/context-root-protocol.md",
+  "requirements": [
+    "F3",
+    "R04",
+    "R08"
+  ],
+  "acceptance_cases": [
+    "AC-F3-01",
+    "AC-R04-02",
+    "AC-R08-03"
+  ],
+  "files": [
+    "domimap/context.py",
+    "domimap/service.py",
+    "domimap/mcp.py",
+    "domimap/__main__.py",
+    "tests/test_context_and_protocol.py",
+    "tests/test_trusted_context.py",
+    "specs/tasks/context-root-protocol.json",
+    "specs/tasks/context-root-protocol.md"
+  ],
+  "test_files": [
+    "tests/test_context_and_protocol.py",
+    "tests/test_trusted_context.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_context_and_protocol.py tests.test_trusted_context.py -v",
+    "make verify"
+  ],
+  "rollback": "revert 本片差异；context_sha 登记/变更检测行为回退为旧语义。"
+}

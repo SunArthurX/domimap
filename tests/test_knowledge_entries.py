@@ -41,11 +41,12 @@ class TestKnowledgeEntries(unittest.TestCase):
         with self.assertRaises(ConflictError):
             kb.withdraw("kn:nope")
         with self.assertRaises(ConflictError):
-            kb.accept_claim("kn:nope", 0)
+            kb.accept_claim("kn:nope", 0, expected_revision=1, statement="x")  # RV03：绑定式审定
         r = kb.submit("结论 A", claims=CLAIMS, idempotency_key="k1")
         with self.assertRaises(ConflictError):
-            kb.accept_claim(r["note_id"], 5)
-        self.assertEqual(kb.accept_claim(r["note_id"], 0)["state"], "accepted")
+            kb.accept_claim(r["note_id"], 5, expected_revision=1, statement="x")
+        self.assertEqual(kb.accept_claim(r["note_id"], 0, expected_revision=1,
+                                         statement="改价必须带版本号")["state"], "accepted")
         self.assertEqual(kb.withdraw(r["note_id"])["status"], "withdrawn")
         with self.assertRaises(ConflictError):
             kb.withdraw(r["note_id"])  # 二次撤回不静默
@@ -109,8 +110,12 @@ class TestKnowledgeEntries(unittest.TestCase):
         self.assertEqual(p.returncode, 5, "过期修订号 → 冲突 exit 5")
         p = run("note", "history", nid, "-g", self.gp)
         self.assertEqual(len(json.loads(p.stdout)), 2)
-        p = run("note", "accept", nid, "--idx", "0", "-g", self.gp)
+        cur = json.loads(run("note", "get", nid, "-g", self.gp).stdout)
+        p = run("note", "accept", nid, "--idx", "0", "--expected-revision", str(cur["revision"]),
+                "--statement", CLAIMS[0]["statement"], "-g", self.gp)
         self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(run("note", "accept", nid, "--idx", "0", "-g", self.gp).returncode,
+                         2, "旧式无绑定 accept 必须拒绝（RV03）")
         p = run("note", "get", nid, "-g", self.gp)
         self.assertEqual(json.loads(p.stdout)["claims"][0]["state"], "accepted")
         p = run("note", "withdraw", nid, "-g", self.gp)
@@ -161,7 +166,9 @@ class TestKnowledgeEntries(unittest.TestCase):
         out = srv.call("kg_note", {"action": "amend", "note_id": nid, "body": "结论 A v2", "expected_revision": 1})
         self.assertEqual(json.loads(out["content"][0]["text"])["revision"], 2)
         out = srv.call("kg_note", {"action": "amend", "note_id": nid, "body": "x", "expected_revision": 1})
-        self.assertIn("error", json.loads(out["content"][0]["text"]), "冲突以结构化错误返回")
+        body = json.loads(out["content"][0]["text"])
+        self.assertTrue(out["isError"], "业务失败必须 isError=true（RV05）")
+        self.assertEqual(body["code"], "conflict", "冲突以结构化错误返回")
         self.assertTrue(srv.call("kg_note", {"action": "destroy"})["isError"], "枚举外动作被 schema 拒绝")
         out = srv.call("kg_note", {"action": "withdraw", "note_id": nid})
         self.assertEqual(json.loads(out["content"][0]["text"])["status"], "withdrawn")

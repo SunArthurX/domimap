@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "release-gate",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/release-gate.md",
+  "requirements": [
+    "R11",
+    "R13",
+    "R14"
+  ],
+  "acceptance_cases": [
+    "AC-R11-01",
+    "AC-R13-02",
+    "AC-R14-02"
+  ],
+  "files": [
+    ".github/workflows/pypi.yml",
+    "specs/tasks/release-gate.json",
+    "specs/tasks/release-gate.md"
+  ],
+  "test_files": [],
+  "verification": [
+    "python3 -B -m unittest  -v",
+    "make verify"
+  ],
+  "rollback": "回退 .github/workflows/pypi.yml 至两作业版本（将重新引入 RV07 缺陷）。"
+}

@@ -11,6 +11,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      dist_sha256: ${{ steps.hash.outputs.dist_sha256 }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
@@ -23,13 +25,77 @@ jobs:
             echo "::error::tag ${{ github.event.release.tag_name }} != pyproject $V"; exit 1
           fi
       - run: python3 -m pip install --quiet build && python3 -m build
+      - name: Record exact artifact hashes (publish must ship these bytes)
+        id: hash
+        run: |
+          cd dist
+          printf '%s\n' * > ../dist-files.txt
+          shasum -a 256 * > ../dist.sha256 || sha256sum * > ../dist.sha256
+          cat ../dist.sha256
+          echo "dist_sha256=$(awk '{print $1}' ../dist.sha256 | sort | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: dist
           path: dist/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: dist-proof
+          path: |
+            dist.sha256
+            dist-files.txt
+
+  verify:
+    # RV07：同一提交的测试与安装闭环——证明缺失或包变化时发布无法进行
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with: {name: dist, path: dist/}
+      - name: Structural spec check + full test suite
+        run: make ci
+      - name: Clean-environment install smoke (rebuild-from-source variant; package bytes verified in publish)
+        run: bash scripts/install_check.sh
+
+  release-gate:
+    # RV07：正式发布绑定最终验收——M4/M5 未完成、证据缺失时 make release-check 失败，
+    # 本作业无法产出 release-proof，publish 无从执行（不绕过 R14）。
+    needs: [build, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.13"
+      - name: Final acceptance gate (release-check)
+        run: |
+          if ! make release-check; then
+            echo "::error::正式验收未通过（M4/M5/四竞品比较证据缺失）——按规范拒绝发布，不得绕过 R14"
+            exit 1
+          fi
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with: {name: dist-proof, path: proof/}
+      - name: Emit release proof (commit + package hashes)
+        run: |
+          {
+            echo "commit=${{ github.sha }}"
+            echo "built_dist_sha256=${{ needs.build.outputs.dist_sha256 }}"
+            cat proof/dist.sha256
+          } > release-proof.txt
+          cat release-proof.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: release-proof
+          path: release-proof.txt
 
   publish:
-    needs: build
+    # RV07：发布已验证的同一工件——只下载 build 产物并核对哈希与 release-proof 一致，绝不重新构建
+    needs: [build, release-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: pypi
@@ -38,5 +104,14 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with: {name: dist, path: dist/}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with: {name: release-proof, path: proof/}
+      - name: Verify shipped bytes match the accepted proof
+        run: |
+          cd dist
+          shasum -a 256 * > ../actual.sha256 || sha256sum * > ../actual.sha256
+          cd ..
+          grep -v '^commit=\|^built_dist_sha256=' proof/release-proof.txt > expected.sha256
+          diff expected.sha256 actual.sha256 || { echo "::error::包哈希与验收证明不一致"; exit 1; }
       - name: Publish to PyPI (Trusted Publishing)
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086  # release/v1

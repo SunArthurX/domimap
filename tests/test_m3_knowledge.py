@@ -91,7 +91,8 @@ class TestKnowledgeTxn(unittest.TestCase):
             s = store(tmp)
             r = s.submit(body="推断条目", claims=[dict(CLAIMS[0], type="inference")],
                          idempotency_key="k5")
-            s.accept_claim(r["note_id"], 0)
+            stmt = s.get(r["note_id"])["claims"][0]["statement"]
+            s.accept_claim(r["note_id"], 0, expected_revision=1, statement=stmt)
             c = s.get(r["note_id"])["claims"][0]
             self.assertEqual((c["type"], c["state"]), ("inference", "accepted"))
             self.assertNotEqual(c["type"], "extracted", "接受推断不得变为抽取事实")

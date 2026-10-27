@@ -45,8 +45,19 @@ def _refresh_all_verified(fp):
             ev = json.loads(p.read_text(encoding="utf-8"))
             ev["source_fingerprint"] = fp
             if ev["command"][0] in ("claude", "codex"):
-                # 客户端真实会话记录：不盲重跑（会话不可重放），仅对齐指纹；工件保持原哈希
-                p.write_text(json.dumps(ev, ensure_ascii=False, indent=1), encoding="utf-8")
+                # RV06：客户端真实会话记录不可重放——**不得**把旧会话刷新为当前源码指纹。
+                # 源码已变化而会话无法重跑时，案例退回 implementing 并保留历史工件（诚实降级）；
+                # 源码未变（指纹一致）时原样保留。
+                if ev.get("source_fingerprint") != fp:
+                    cid_state = progress["cases"].get(cid)
+                    if cid_state and cid_state.get("state") == "verified":
+                        cid_state["state"] = "implementing"
+                        cid_state["invalidation_reason"] = (
+                            "client-session evidence is bound to an older source fingerprint; "
+                            "rerun the real client session against current source to re-verify")
+                        cid_state.setdefault("historical_evidence", []).append(ev_path)
+                        cid_state["evidence"] = [ev_path]  # 保留可读历史，状态如实
+                        print("DOWNGRADED (stale client session):", cid)
                 continue
             rr = subprocess.run(ev["command"], cwd=ROOT, capture_output=True, text=True)
             log = "out/verification/_rerun-%s.log" % cid

@@ -140,8 +140,12 @@ class AppService:
         return self.g.domain_map()
 
     # ---------- 可信上下文（F3） ----------
-    def trusted_context(self, scope=None, budget=None):
-        """从登记的可信根加载 AGENTS.md/SOUL.md；返回 items/text/changed/truncated/dropped/roots。
+    def trusted_context(self, scope=None, budget=None, root=None):
+        """从**目标**可信根加载 AGENTS.md/SOUL.md（RV04：跨根不串用）。
+
+        单根登记 → 默认该根（向后兼容）；多根未指定 root → ServiceError("ambiguous_root")（结构化歧义，
+        列出候选）；root 未登记 → invalid_params。只加载目标根的规则，其他根的内容不读。
+        
 
         changed：相对上次加载（store meta 记录每个规则文件 sha）内容变化或新增的文件；本次加载即视为已读。
         普通扫描摄入的同名文件永不进入这里——只有 `domimap trust add` 登记过的根才读。
@@ -159,29 +163,39 @@ class AppService:
             if not roots:
                 return {"roots": [], "items": [], "text": "", "changed": [], "truncated": False, "dropped": [],
                         "scope": scope or "", "note": "未登记可信根（domimap trust add LABEL PATH）"}
+            if root is None and len(roots) > 1:
+                raise ServiceError(
+                    "ambiguous_root",
+                    "登记了多个可信根，须指定 root（候选：%s）；不同仓库的规则不得互相串用"
+                    % ", ".join(r["label"] for r in roots))
+            target = roots[0] if root is None else next(
+                (r for r in roots if r["label"] == root), None)
+            if target is None:
+                raise ServiceError("invalid_params", "未登记的可信根：%s" % root)
             items, blocks, changed, dropped, truncated = [], [], [], [], False
-            allowed = [r["path"] for r in roots]
-            per_root = max(1, budget // len(roots))
-            for r in roots:
-                if not os.path.isdir(r["path"]):
-                    dropped.append("%s/ (missing root)" % r["label"])
-                    continue
-                try:
-                    out = _ctx.load_context(r["path"], trusted=allowed, budget=per_root, scope=scope)
-                except PermissionError as e:
-                    raise ServiceError("invalid_params", str(e))
-                truncated = truncated or out["truncated"]
-                dropped += ["%s/%s" % (r["label"], d) for d in out["dropped"]]
-                for i in out["items"]:
-                    key = "context_sha:%s/%s" % (r["label"], i["path"])
-                    prev = store.meta_get(key)
-                    if prev != i["sha256"]:
-                        changed.append("%s/%s" % (r["label"], i["path"]))
-                        store.meta_set(key, i["sha256"])
-                    items.append(dict(i, root=r["label"]))
-                blocks.append(_ctx.render(out["items"], label=r["label"]))
-            return {"roots": roots, "items": items, "text": "\n".join(b for b in blocks if b),
-                    "changed": changed, "truncated": truncated, "dropped": dropped, "scope": scope or ""}
+            limit_hit = False
+            r = target
+            if not os.path.isdir(r["path"]):
+                raise ServiceError("invalid_params", "可信根目录不存在：%s" % r["path"])
+            try:
+                out = _ctx.load_context(r["path"], trusted=[r["path"]], budget=budget, scope=scope)
+            except PermissionError as e:
+                raise ServiceError("invalid_params", str(e))
+            truncated = truncated or out["truncated"]
+            limit_hit = limit_hit or out.get("limit_hit", False)
+            dropped += ["%s/%s" % (r["label"], d) for d in out["dropped"]]
+            for i in out["items"]:
+                key = "context_sha:%s/%s" % (r["label"], i["path"])
+                prev = store.meta_get(key)
+                if prev != i["sha256"]:
+                    changed.append("%s/%s" % (r["label"], i["path"]))
+                    store.meta_set(key, i["sha256"])
+                items.append(dict(i, root=r["label"]))
+            blocks.append(_ctx.render(out["items"], label=r["label"]))
+            return {"roots": roots, "root": r["label"], "items": items,
+                    "text": "\n".join(b for b in blocks if b),
+                    "changed": changed, "truncated": truncated, "dropped": dropped,
+                    "limit_hit": limit_hit, "scope": scope or ""}
         finally:
             store.close()
 
@@ -277,12 +291,30 @@ class AppService:
     def note_withdraw(self, note_id):
         return self._knowledge_op(lambda kb: kb.withdraw(note_id))
 
-    def note_accept(self, note_id, idx):
+    def note_accept(self, note_id, idx, expected_revision=None, statement=None,
+                    auditor="human:cli", reason=""):
+        """审定（RV03）：必须绑定 expected_revision 与陈述原文；MCP 来源须单独授权（见 note_accept_agent）。"""
         try:
             idx = int(idx)
         except (TypeError, ValueError):
             raise ServiceError("invalid_params", "idx 须为整数")
-        return self._knowledge_op(lambda kb: kb.accept_claim(note_id, idx))
+        if expected_revision is None or statement is None:
+            raise ServiceError("invalid_params",
+                               "审定需要 --expected-revision 与 --statement（绑定审定对象，防旧请求批准新内容）")
+        return self._knowledge_op(
+            lambda kb: kb.accept_claim(note_id, idx, expected_revision=expected_revision,
+                                       statement=statement, auditor=auditor, reason=reason))
+
+    def note_accept_agent(self, note_id, idx, expected_revision, statement):
+        """MCP 转达的审定：--enable-write 不等于人工审定，须 DOMIMAP_MCP_ADJUDICATE=1 单独授权。"""
+        import os as _os
+        if _os.environ.get("DOMIMAP_MCP_ADJUDICATE") != "1":
+            raise ServiceError(
+                "forbidden",
+                "审定须单独授权：设置 DOMIMAP_MCP_ADJUDICATE=1（--enable-write 只授权提案/修订，"
+                "不自动等同于人工审定）")
+        return self.note_accept(note_id, idx, expected_revision=expected_revision,
+                                statement=statement, auditor="agent:mcp", reason="MCP adjudication")
 
     def note_get(self, note_id):
         kb = self._kb()

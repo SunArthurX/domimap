@@ -11,6 +11,8 @@ import os
 
 RULE_FILES = ("AGENTS.md", "SOUL.md")
 DEFAULT_BUDGET = 8000
+MAX_FILES = 64        # 读取前数量限制（RV04）：单根规则文件数上限，超出显式截断
+MAX_SCAN_SECONDS = 2.0  # 读取前耗时限制（RV04）：walk + 读盘总时限
 
 
 def _inside(real_root, path):
@@ -27,24 +29,40 @@ def _scope_dir(real_root, scope):
     return target
 
 
-def load_context(root, trusted=None, budget=DEFAULT_BUDGET, scope=None):
-    """加载 root 子树（全部深度，跳过隐藏目录）的规则文件；root 必须在 trusted 白名单内。"""
+def load_context(root, trusted=None, budget=DEFAULT_BUDGET, scope=None,
+                 max_files=MAX_FILES, deadline=None):
+    """加载 root 子树（全部深度，跳过隐藏目录）的规则文件；root 必须在 trusted 白名单内。
+
+    读取前限制（RV04）：文件数 max_files 与耗时 deadline（绝对时刻）——超限即停，
+    被跳过的文件进 dropped（显式，不静默全量）。
+    """
+    import time as _time
+    if deadline is None:
+        deadline = _time.time() + MAX_SCAN_SECONDS
     real = os.path.realpath(root)
     allowed = [os.path.realpath(t) for t in (trusted or [])]
     if not any(_inside(t, real) for t in allowed):
         raise PermissionError("非可信根的规则文件不加载：%s（请先 `domimap trust add`）" % root)
     scope_dir = _scope_dir(real, scope)
-    found = []
+    found, dropped, limit_hit = [], [], False
     for dirpath, dirnames, filenames in os.walk(real):
+        if _time.time() > deadline:
+            limit_hit = True  # 耗时超限：停止扫描，剩余目录记截断
+            break
         dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
         for fn in filenames:
             if fn in RULE_FILES:
                 p = os.path.join(dirpath, fn)
+                rel = os.path.relpath(p, real).replace(os.sep, "/")
                 if os.path.islink(p):
                     continue  # 规则文件不得经链接指向别处
+                if len(found) >= max_files:
+                    limit_hit = True  # 数量超限（RV04）：显式截断
+                    dropped.append(rel)
+                    continue
                 with open(p, "rb") as f:
                     raw = f.read()
-                found.append({"path": os.path.relpath(p, real).replace(os.sep, "/"), "kind": fn,
+                found.append({"path": rel, "kind": fn,
                               "dir": os.path.realpath(dirpath),
                               "sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw),
                               "text": raw.decode("utf-8", errors="replace")})
@@ -60,18 +78,19 @@ def load_context(root, trusted=None, budget=DEFAULT_BUDGET, scope=None):
         i.pop("dir", None)
     ordered = sorted(found, key=lambda i: (not i["effective"], i["path"]))
     total = sum(i["size"] for i in ordered)
-    if total <= budget:
-        return {"items": ordered, "truncated": False, "dropped": [], "scope": scope or "",
-                "text": render(ordered)}
-    keep, used, dropped = [], 0, []
-    for i in ordered:  # 超预算：生效条目优先，被丢条目显式列出
+    dropped = list(dropped)
+    if total <= budget and not limit_hit:
+        return {"items": ordered, "truncated": False, "dropped": dropped, "scope": scope or "",
+                "limit_hit": False, "text": render(ordered)}
+    keep, used = [], 0
+    for i in ordered:  # 超预算：生效条目优先，被丢条目显式列出（数量/时限超限的 dropped 已在上方收集）
         if used + i["size"] <= budget:
             keep.append(i)
             used += i["size"]
         else:
             dropped.append(i["path"])
-    return {"items": keep, "truncated": True, "dropped": dropped, "scope": scope or "",
-            "text": render(keep)}
+    return {"items": keep, "truncated": True, "dropped": dropped + [i["path"] for i in ordered if i not in keep],
+            "scope": scope or "", "limit_hit": limit_hit, "text": render(keep)}
 
 
 def render(items, label=None):

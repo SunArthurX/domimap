@@ -152,7 +152,7 @@ def scan_repo(root, repo_label=None, capture=None):
         elif ext in {".ts", ".tsx", ".js", ".jsx", ".vue"}:
             _scan_front(R, path, rel, svc, text)
         elif ext == ".sql":
-            _scan_sql(R, path, rel, text)
+            _scan_sql(R, path, rel, text, svc)
         elif ext in DOC_EXT:
             meta = {}
             body = text
@@ -281,16 +281,42 @@ def _html_to_text(text):
 def _lower_first(s):
     return s[0].lower() + s[1:] if s else s
 
-def _argc_of(line, meth):
-    """声明行内取参数个数；跨行签名返回 -1（显式未知，不猜）。"""
+def _params_of(line, meth):
+    """声明行内取参数列表原文（供完整签名身份）；跨行签名返回 None（显式未知，不猜）。"""
     i = line.find(meth + "(")
     if i < 0:
-        return -1
+        return None
     rest = line[i + len(meth) + 1:]
     j = rest.find(")")
     if j < 0:
+        return None
+    return rest[:j].strip()
+
+
+def _sig_of(line, meth):
+    """参数类型签名：每参取最后一个类型词（去泛型/数组标记），未知参数记 ?。用于方法身份（RV02）。"""
+    raw = _params_of(line, meth)
+    if raw is None:
+        return None
+    if not raw:
+        return ""
+    types = []
+    for part in raw.split(","):
+        toks = [t for t in part.replace("<", " ").replace(">", " ").split()
+                if t != "final" and not t.startswith("@")]
+        if not toks:
+            types.append("?")
+            continue
+        ty = toks[0].split(".")[-1].replace("[]", "")
+        types.append(ty if ty else "?")
+    return ",".join(types)
+
+
+def _argc_of(line, meth):
+    """声明行内取参数个数；跨行签名返回 -1（显式未知，不猜）。"""
+    inner = _params_of(line, meth)
+    if inner is None:
         return -1
-    inner = rest[:j].strip()
     if not inner:
         return 0
     depth = 0
@@ -389,10 +415,11 @@ def _scan_java(R, path, rel, svc, text, routes_by_class):
         meth = mm.group(1)
         off = text.find(line)
         cls_here = "(anonymous)" if anonymous_at(off) else cls_at(off)
+        sig = _sig_of(line, meth)
         entries.append({"name": meth, "off": off, "ln": ln, "cls": cls_here,
-                        "argc": _argc_of(line, meth)})
+                        "argc": _argc_of(line, meth), "sig": sig})
         R["methods"].append({"name": meth, "cls": cls_here, "argc": _argc_of(line, meth),
-                             "service": svc, "file": rel, "line": ln, "prov": "java:method"})
+                             "sig": sig, "service": svc, "file": rel, "line": ln, "prov": "java:method"})
     for ent in entries:
         meth, off, ln, cur_cls, argc = ent["name"], ent["off"], ent["ln"], ent["cls"], ent["argc"]
         line = text.split("\n")[ln - 1]
@@ -522,12 +549,13 @@ def _scan_front(R, path, rel, svc, text):
         R["pages"].append({"url": url, "method": method, "file": rel, "service": svc,
                            "prov": "synth:crossend", "conf": "INFERRED"})
 
-def _scan_sql(R, path, rel, text):
+def _scan_sql(R, path, rel, text, svc=None):
     for m in re.finditer(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?\s*\((.*?)\)\s*(?:ENGINE|;|$)', text, re.I | re.S):
         tbl = m.group(1)
         cols = [c for c in re.findall(r'^\s*`?(\w+)`?\s+\w+', m.group(2), re.M)
                 if c.upper() not in {'PRIMARY', 'UNIQUE', 'KEY', 'INDEX', 'CONSTRAINT', 'FOREIGN', 'CREATE'}]
-        R["tables"].append({"table": tbl, "cols": cols, "file": rel, "prov": "sql:ddl", "conf": "EXTRACTED"})
+        R["tables"].append({"table": tbl, "cols": cols, "file": rel, "service": svc or "(root)",
+                           "prov": "sql:ddl", "conf": "EXTRACTED"})
 
 def _import_optional(mod):
     __import__(mod)

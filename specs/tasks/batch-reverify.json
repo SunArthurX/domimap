@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "batch-reverify",
-  "kind": "slice",
+  "kind": "umbrella",
   "state": "verified",
   "spec": "specs/tasks/batch-reverify.md",
   "requirements": [
@@ -15,7 +15,50 @@
     "scripts/publish_scan.sh",
     "tests/test_spec_contracts.py",
     "specs/tasks/batch-reverify.json",
-    "specs/tasks/batch-reverify.md"
+    "specs/tasks/batch-reverify.md",
+    ".github/workflows/pypi.yml",
+    "docs/knowledge-graph.md",
+    "docs/known-defects.md",
+    "scripts/refresh_evidence.py",
+    "specs/tasks/adjudication-contract.json",
+    "specs/tasks/adjudication-contract.md",
+    "specs/tasks/context-root-protocol.json",
+    "specs/tasks/context-root-protocol.md",
+    "specs/tasks/entity-identity.json",
+    "specs/tasks/entity-identity.md",
+    "specs/tasks/evidence-honesty.json",
+    "specs/tasks/evidence-honesty.md",
+    "specs/tasks/generation-consistency.json",
+    "specs/tasks/generation-consistency.md",
+    "specs/tasks/release-gate.json",
+    "specs/tasks/release-gate.md",
+    "specs/tasks/test-isolation.json",
+    "specs/tasks/test-isolation.md",
+    "tests/test_adjudication_contract.py",
+    "tests/test_context_and_protocol.py",
+    "tests/test_entity_identity.py",
+    "tests/test_generation_consistency.py",
+    "tests/test_knowledge_entries.py",
+    "tests/test_m2_closeout.py",
+    "tests/test_m2_f4.py",
+    "tests/test_m3_knowledge.py",
+    "tests/test_m4_matrix.py",
+    "tests/test_m4_security.py",
+    "tests/test_m5_drills.py",
+    "tests/test_p1.py",
+    "tests/test_precision.py",
+    "tests/test_ui_workbench.py",
+    "tests/test_app_service.py",
+    "tests/test_golden.py",
+    "domimap/__main__.py",
+    "domimap/batch.py",
+    "domimap/context.py",
+    "domimap/graph.py",
+    "domimap/knowledge.py",
+    "domimap/lite_scan.py",
+    "domimap/mcp.py",
+    "domimap/service.py",
+    "domimap/store.py"
   ],
   "test_files": [
     "tests/test_spec_contracts.py"
@@ -25,5 +68,6 @@
     "make verify",
     "python3 -B scripts/check_specs.py --task specs/tasks/batch-reverify.json --base f0c7c18"
   ],
-  "rollback": "progress.json 回退（旧证据在 historical_evidence）；新增 out/verification/rerun-2026-10-26-drift2/ 可删；脚本无产品行为影响。"
+  "rollback": "progress.json 回退（旧证据在 historical_evidence）；新增 out/verification/rerun-2026-10-26-drift2/ 可删；脚本无产品行为影响。",
+  "reason": "跨切片证据治理伞：批量重验指纹失效案例 + 登记本轮 RV01-RV08 修复的全部变更文件（产品代码变更由各独立切片 manifest 承担契约与测试；本伞仅为 AC-R13-01 全 diff 范围检查）"
 }

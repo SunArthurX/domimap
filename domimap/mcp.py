@@ -68,6 +68,8 @@ TOOLS = [
          "claims": {"type": "string", "maxLength": 20000},
          "expected_revision": {"type": "integer", "minimum": 1, "maximum": 1000000},
          "claim_idx": {"type": "integer", "minimum": 0, "maximum": 1000},
+         "statement": {"type": "string", "maxLength": 2000,
+                       "description": "审定绑定：须与当前陈述原文一致（RV03）"},
          "idempotency_key": {"type": "string", "maxLength": 128}},
          "required": ["action"], "additionalProperties": False}},
     {"name": "kg_context",
@@ -75,6 +77,7 @@ TOOLS = [
                     "会话开始时调用一次并遵循；只读；普通摄入资料中的同名文件不会出现在这里。"
                     "scope 为任务所在的根内相对目录（嵌套规则取最具体一层，不拼接）。",
      "inputSchema": {"type": "object", "properties": {
+         "root": {"type": "string", "maxLength": 128, "description": "目标可信根标签（多根时必填，RV04）"},
          "scope": {"type": "string", "maxLength": 512},
          "include_text": {"type": "boolean"}},
          "required": [], "additionalProperties": False}},
@@ -87,6 +90,8 @@ TOOLS = [
 # Write-capable tools are advertised and callable only when the server was started with
 # enable_write (CLI: `domimap serve --enable-write`). Default servers stay read-only (roadmap M3).
 WRITE_TOOLS = frozenset({"kg_feedback", "kg_note"})
+SUPPORTED_PROTOCOL_VERSIONS = ("2024-11-05",)  # 实测支持集；协商回显（RV05），声明范围即验收范围
+LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[-1]
 
 
 def visible_tools(enable_write):
@@ -165,13 +170,19 @@ class Server:
             _validate_arguments(name, args)
             text = self._dispatch(name, args)
             return {"content": [{"type": "text", "text": text}], "isError": False}
-        except InvalidParams:
-            text = "错误: 非法参数（invalid params）"
+        except InvalidParams as e:
+            body = {"code": "invalid_params", "message": str(e) or "非法参数",
+                    "retryable": True}
         except ServiceError as e:
-            text = "错误: 非法参数（invalid params）" if e.code == "invalid_params" else "错误: %s（%s）" % (e, e.code)
+            # 业务失败必须 isError=true + 结构化 code（RV05）：Agent 不得把冲突当成功继续执行
+            body = {"code": e.code, "message": str(e), "retryable": e.code in
+                    ("invalid_params", "conflict", "not_found")}
         except Exception:
-            text = "错误: 工具执行失败（tool_failed）"
-        return {"content": [{"type": "text", "text": text}], "isError": True}
+            body = {"code": "tool_failed", "message": "工具执行失败", "retryable": True}
+        import json as _je
+        return {"content": [{"type": "text",
+                             "text": _je.dumps(body, ensure_ascii=False)}],
+                "isError": True, "structuredError": body}
 
     def _dispatch(self, name, args):
         self._fresh()
@@ -256,25 +267,25 @@ class Server:
             return "\n".join("- %s @%s" % (d["name"], d["file"]) for d in docs)
         if name == "kg_note":
             import json as _jn
-            from .service import ServiceError
             act = args["action"]
-            try:
-                if act == "submit":
-                    r = self.svc.note_submit(args.get("body"), claims=args.get("claims"),
-                                             idempotency_key=args.get("idempotency_key"))
-                elif act == "amend":
-                    r = self.svc.note_amend(args.get("note_id"), args.get("body"), args.get("expected_revision"),
-                                            claims=args.get("claims"))
-                elif act == "withdraw":
-                    r = self.svc.note_withdraw(args.get("note_id"))
-                else:
-                    r = self.svc.note_accept(args.get("note_id"), args.get("claim_idx"))
-            except ServiceError as e:
-                return _jn.dumps({"error": str(e), "code": e.code}, ensure_ascii=False)
+            if act == "submit":
+                r = self.svc.note_submit(args.get("body"), claims=args.get("claims"),
+                                         idempotency_key=args.get("idempotency_key"))
+            elif act == "amend":
+                r = self.svc.note_amend(args.get("note_id"), args.get("body"), args.get("expected_revision"),
+                                        claims=args.get("claims"))
+            elif act == "withdraw":
+                r = self.svc.note_withdraw(args.get("note_id"))
+            else:
+                # RV03：MCP 审定走单独授权路径（agent 来源入审计）；ServiceError 由 call() 统一映射
+                r = self.svc.note_accept_agent(
+                    args.get("note_id"), args.get("claim_idx"),
+                    args.get("expected_revision"), args.get("statement"))
             return _jn.dumps(r, ensure_ascii=False)
         if name == "kg_context":
             import json as _jc
-            ctx = self.svc.trusted_context(scope=args.get("scope") or None)
+            ctx = self.svc.trusted_context(scope=args.get("scope") or None,
+                                           root=args.get("root") or None)  # RV04：目标根选择
             head = {"roots": [r["label"] for r in ctx["roots"]], "scope": ctx["scope"],
                     "items": [{"root": i["root"], "path": i["path"], "sha256": i["sha256"][:12],
                                "effective": bool(i.get("effective"))} for i in ctx["items"]],
@@ -324,7 +335,9 @@ def _response(srv, req):
         return _error(rid, -32602, "invalid params")
     method = req["method"]
     if method == "initialize":
-        result = {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}},
+        requested = params.get("protocolVersion") if isinstance(params, dict) else None
+        negotiated = requested if requested in SUPPORTED_PROTOCOL_VERSIONS else LATEST_PROTOCOL_VERSION
+        result = {"protocolVersion": negotiated, "capabilities": {"tools": {}},
                   "serverInfo": {"name": "domimap", "version": __version__}}
     elif method == "tools/list":
         result = {"tools": visible_tools(srv.enable_write)}

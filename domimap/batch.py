@@ -115,22 +115,27 @@ def _atomic_write(path, data):
     sync_directory(os.path.dirname(os.path.abspath(path)))
 
 
-def _capture_into(store, label, signature, first_seen=None):
+def _capture_into(store, label, signature, first_seen=None, sources=None):
     """扫描回调：同一份字节既固化为证据（D10），也产出 manifest 的内容签名（D12），不再二次读盘。
 
     first_seen[rel] 记录该内容的首次收录时间（store 按内容 sha 取 min）：复制/touch 不刷新（F4）。
+    sources[sid] 记录本次构建实际使用的来源版本（rel/sha/ev_id）——随图进入同一不可变代（RV01）：
+    提前捕获的新版本不得给旧图背书，解析按图所属代的 sources 进行。
     """
     def capture(path, rel, raw):
         signature[rel] = hashlib.sha256(raw).hexdigest()
         rec = store.capture_source(label, label + "|" + rel, path, rel, raw=raw)
         if first_seen is not None:
             first_seen[rel] = rec["first_seen"]
+        if sources is not None:
+            sources[rec["sid"]] = {"repo": label, "rel": rel,
+                                   "sha256": rec["sha256"], "ev_id": rec["ev_id"]}
     return capture
 
 
-def publish_generation(store, g, out_dir):
-    """发布协议：不可变代 → seeds 摘要 → 指针切换成功后原子落盘 graph.json 兼容副本（字节等于该代）。"""
-    rec = store.publish_graph(g)
+def publish_generation(store, g, out_dir, sources=None):
+    """发布协议：不可变代（含 sources 版本映射）→ seeds 摘要 → 指针切换成功后原子落盘 graph.json 兼容副本。"""
+    rec = store.publish_graph(g, extra_meta={"sources": sources or {}})
     store.set_seeds_digest(_seeds_digest(os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "seeds.json")))
     with open(rec["path"], "rb") as f:
@@ -222,13 +227,14 @@ def build_many(roots, out_dir, jobs=8, force=False, merged_name=None, service_pr
     store = EvidenceStore(os.path.join(out_dir, "store.db"))
     try:
         signatures = {}
+        generation_sources = {}
 
         def scan(root):
             label = label_of(root)
             sig = signatures.setdefault(root, {})
             seen = {}
             R = lite_scan.scan_repo(root, repo_label=prefix_of(root),
-                                    capture=_capture_into(store, label, sig, seen))
+                                    capture=_capture_into(store, label, sig, seen, generation_sources))
             return _stamp_sid(R, label, seen)
         Rs = {}
         with ThreadPoolExecutor(max_workers=jobs) as ex:
@@ -238,6 +244,7 @@ def build_many(roots, out_dir, jobs=8, force=False, merged_name=None, service_pr
                   "topics": [], "sqlstmts": [], "tables": [], "pages": [], "docs": [], "entities": [],
                   "calls": [],
                   "coverage": {"files_scanned": 0, "skipped": []}}
+        manifests_pending = []
         # 已有 no-op 仓复用上次 records？MVP：全量重扫（秒级），只写变更仓 manifest
         for root in roots:
             label = label_of(root)
@@ -250,14 +257,19 @@ def build_many(roots, out_dir, jobs=8, force=False, merged_name=None, service_pr
             mdir = os.path.join(out_dir, label)
             os.makedirs(mdir, exist_ok=True)
             from . import __version__ as _v
-            manifest = {"root": os.path.abspath(root), "label": label, "tool_version": _v,
-                        "service_prefix": prefix_of(root),
-                        "files": signatures.get(root) or repo_signature(root)}
-            _atomic_write(os.path.join(mdir, "manifest.json"),
-                          json.dumps(manifest, ensure_ascii=False).encode("utf-8"))
+            manifests_pending.append(
+                (os.path.join(mdir, "manifest.json"),
+                 json.dumps({"root": os.path.abspath(root), "label": label, "tool_version": _v,
+                             "service_prefix": prefix_of(root),
+                             "files": signatures.get(root) or repo_signature(root)},
+                            ensure_ascii=False).encode("utf-8")))
         g = Graph()
         g.build_from_records(merged, seeds)
-        publish_generation(store, g, out_dir)
+        publish_generation(store, g, out_dir, generation_sources)
+        # RV01：manifest 记录的是"已发布完成"的来源状态——只在发布成功后落盘；
+        # 发布前中断时 manifest 未动，下一次 update 依旧 manifest 判脏并重建，不误报 no-op。
+        for mpath, mdata in manifests_pending:
+            _atomic_write(mpath, mdata)
         refresh_reviews(out_dir, store)
     finally:
         store.close()

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "entity-identity",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/entity-identity.md",
+  "requirements": [
+    "R01",
+    "R09"
+  ],
+  "acceptance_cases": [
+    "AC-R01-01",
+    "AC-R09-02"
+  ],
+  "files": [
+    "domimap/graph.py",
+    "domimap/lite_scan.py",
+    "tests/test_entity_identity.py",
+    "tests/test_precision.py",
+    "tests/test_golden.py",
+    "tests/test_m2_f4.py",
+    "tests/test_m4_matrix.py",
+    "tests/test_p1.py",
+    "specs/tasks/entity-identity.json",
+    "specs/tasks/entity-identity.md"
+  ],
+  "test_files": [
+    "tests/test_entity_identity.py",
+    "tests/test_precision.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_entity_identity.py tests.test_precision.py -v",
+    "make verify"
+  ],
+  "rollback": "revert graph.py/lite_scan.py 本片差异并重建图；测试断言随版本回退。"
+}

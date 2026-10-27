@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "id": "test-isolation",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/test-isolation.md",
+  "requirements": [
+    "R10",
+    "R13"
+  ],
+  "acceptance_cases": [
+    "AC-R10-01",
+    "AC-R13-01"
+  ],
+  "files": [
+    "tests/test_ui_workbench.py",
+    "tests/test_app_service.py",
+    "tests/test_m2_closeout.py",
+    "tests/test_m4_security.py",
+    "tests/test_m5_drills.py",
+    "specs/tasks/test-isolation.json",
+    "specs/tasks/test-isolation.md"
+  ],
+  "test_files": [
+    "tests/test_m5_drills.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_m5_drills.py -v",
+    "make verify"
+  ],
+  "rollback": "revert 测试差异（将重新引入代理敏感与旁路写）。"
+}
