@@ -461,9 +461,10 @@
     "AC-R13-01": {
       "state": "verified",
       "evidence": [
-        "out/verification/rerun-2026-10-26-drift2/cases/AC-R13-01.json"
+        "out/verification/AC-R13-01.json"
       ],
       "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R13-01.json",
         "out/verification/rerun-2026-10-26-drift2/cases/AC-R13-01.json",
         "out/verification/AC-R13-01.json"
       ]

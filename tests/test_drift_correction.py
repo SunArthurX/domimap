@@ -18,6 +18,13 @@ def _load(rel):
 
 
 class TestDriftCorrectionBookkeeping(unittest.TestCase):
+    def setUp(self):
+        # 守账对象是本地审计/闭环工件（out/drift-audit-2026-10-26、out/dev-ws、out/verification）：
+        # 不入 git，CI/新克隆没有——按仓库既有模式跳过，本地存在时全量断言。
+        for rel in ("out/drift-audit-2026-10-26/correction", "out/dev-ws"):
+            if not os.path.isdir(os.path.join(ROOT, rel)):
+                self.skipTest("本地审计工件不在（CI/新克隆）：%s" % rel)
+
     def test_corrected_cases_verified_with_evidence(self):
         progress = _load("specs/progress.json")
         for cid in ("AC-R15-01", "AC-R15-02", "AC-R15-03", "AC-R15-04", "AC-R15-05"):
