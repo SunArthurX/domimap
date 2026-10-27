@@ -2,6 +2,8 @@
 
 日期：2026-10-24。审计基线：d7802de；开始时有未提交的工作台 UI/测试/CHANGELOG 改动，予以保留。实施契约见 [production-boundaries](../specs/tasks/production-boundaries.md)。本报告是当前代码审阅，不替代产品规格、验收或独立比较。
 
+> **2026-10-27 复核**：下表四个 P0 切片已全部落地（捕获统一=D10 关闭 / 来源身份=D11 关闭 / 原子发布=D12 关闭 / 整库导出恢复），P1 的公共应用服务、可选格式与真实客户端重验、发布管线硬化（`scripts/publish_scan.sh` 净化扫描 + Actions 钉 SHA + CI 3.9–3.13 矩阵）与本轮批注中列出的项均已完成；41/49 案例 verified、M0–M3 verified。剩余缺口即外部条件三项：四客户端真实会话（Claude 已实测关闭 AC-F1-C1-01/02；Codex/DSH 账号与余额阻塞、ZCode 待用户会话）、24h 长跑与迁移演练、四竞品正式比较（R14）。详见 out/handoff.md 与 [roadmap 进度快照](roadmap.md)。
+
 ## 从用户结果推导架构
 
 domimap 的核心价值是让人和 Agent 在不同会话中，重新核对同一份有适用范围的材料，并维护已有结论。因此架构的先后顺序应为：

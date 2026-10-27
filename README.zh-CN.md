@@ -18,9 +18,13 @@ domimap 是一个本地优先的知识检索引擎，把多个 Java 仓库、项
 | **混合检索** | BM25 词法 + 图扩展 + 领域种子（+ 可选本地嵌入） |
 | **证据引用** | 每条结果带文件路径和不可变证据 ID |
 | **不可变证据** | 源码修改/删除不破坏旧引用 |
-| **知识时间线** | 内容纪元提取（显式日期/版本，非文件 mtime） |
+| **知识时间线** | 内容纪元提取（显式日期/版本，非文件 mtime）；过期/被替代文档默认不具资格，`--as-of` 查历史范围 |
 | **诚实拒答** | 四道拒答门——不猜近名、不产出幻觉命中 |
-| **MCP 集成** | 原生 MCP stdio 服务器（6 个 `kg_*` 工具） |
+| **知识闭环** | 带类型陈述的笔记保存 → 重建后依据变化入复核队列（`recheck`）→ 确认绑定新证据；陈旧陈述在检索面标注 |
+| **可信上下文** | AGENTS.md/SOUL.md 只从显式登记的可信根加载（`trust add`），嵌套作用域裁决 + 变更检测 |
+| **工作区生命周期** | 来源身份可重绑（`rebind`，逻辑身份不变）；整库导出/恢复（逐文件校验和） |
+| **客户端接入** | 一条命令接入 Claude Code / Codex / ZCode / DSH（`domimap connect`，幂等、有备份） |
+| **MCP 集成** | 原生 MCP stdio 服务器（7 个只读 `kg_*` 工具；2 个写工具须 `--enable-write`） |
 | **核心零依赖** | 纯 Python 标准库；可选依赖只做增强 |
 
 ## 快速开始
@@ -54,6 +58,8 @@ python3 -m domimap update -o out/idx                                # 增量
 # 检索（中英文混合）
 python3 -m domimap query "订单改价 changePrice" -g out/idx/graph.json
 python3 -m domimap query "ai_resource 表 定义 写入" -g out/idx/graph.json
+python3 -m domimap doc "灰度发布 规范" -g out/idx/graph.json        # 文档泳道（与 MCP 同参）
+python3 -m domimap query "灰度发布" --as-of 2026-01-01 -g out/idx/graph.json  # 历史范围查询
 
 # 按证据 ID 读固化片段（源码改了仍读旧版本）
 python3 -m domimap read <evidence_id> --store out/idx/store.db
@@ -68,6 +74,36 @@ python3 -m domimap schema
 
 # Web UI（仅回环监听）
 python3 -m domimap ui -g out/idx/graph.json --port 8080
+```
+
+### 知识与工作区生命周期
+
+```bash
+# 带类型陈述的笔记；修订须 --expected-revision（乐观并发）
+python3 -m domimap note submit --body "改价必须带版本号" --claims '[{"type":"decision","statement":"...","evidence":[]}]' -g out/idx/graph.json
+python3 -m domimap note amend <note_id> --body "..." --expected-revision 1 -g out/idx/graph.json
+python3 -m domimap recheck list -g out/idx/graph.json     # 重建后依据已变的陈述
+python3 -m domimap recheck confirm <note_id> 0 -g out/idx/graph.json
+
+# Markdown 互操作（冲突预览）与知识库备份
+python3 -m domimap kb export out/notes-md -g out/idx/graph.json
+python3 -m domimap kb import out/notes-md/<note>.md --preview -g out/idx/graph.json
+python3 -m domimap kb backup out/kb-snapshot -g out/idx/graph.json
+
+# 可信上下文根登记（扫描摄入的同名文件不会升级为指令）
+python3 -m domimap trust add myrules ~/my-rules -g out/idx/graph.json
+python3 -m domimap context -g out/idx/graph.json
+
+# 整库（证据库+图+来源登记+知识库）导出为带校验和的包，并可恢复
+python3 -m domimap export-workspace out/idx out/backup-dir
+python3 -m domimap restore-workspace out/backup-dir out/restored
+
+# 来源根移动：重绑物理路径，sid/节点 ID 不变
+python3 -m domimap rebind <label> /new/path -o out/idx
+
+# 客户端原生接入（幂等、写前备份、受管撤销）
+python3 -m domimap connect claude -g out/idx/graph.json   # 亦支持 codex | zcode | dsh
+python3 -m domimap clients                                # 四客户端接入诊断
 ```
 
 ### 可选大模型增强（建图后置，默认关闭）
@@ -119,6 +155,9 @@ python3 -m domimap serve -g out/idx/graph.json
 | `kg_impact` | 影响面：符号的反向依赖 |
 | `kg_doc_search` | 文档全文检索 |
 | `kg_troubleshoot` | 问题排查：症状 → 图+文档双路召回 → 疑点排序 |
+| `kg_context` | 可信上下文（只读 `trust add` 登记根的 AGENTS.md/SOUL.md） |
+
+写工具——**仅 `serve --enable-write` 启用**：`kg_feedback`（查询反馈；经代理转达的判定按非权威 `agent_relay` 来源落库）与 `kg_note`（笔记 submit/amend/withdraw/accept；提交的陈述一律 `proposed`）。
 
 **Agent 推荐用法**：先 `kg_domain_map` 建立全景 → `kg_explore` 检索 → `kg_read(ev_id)` 读固化原文 → 回答引用**路径 + ev_id**；`refused=true` 时如实说明，不要编造。
 
@@ -304,7 +343,7 @@ domimap/
 
 ## 已知限制
 
-- **评测状态**：全部基准数字为同会话开发者评测；冻结独立确认未执行，`make release-check` 在此之前按设计保持失败
+- **评测状态**：41/49 验收案例 verified（M0–M3 阶段门 2026-10-27 实测通过）；剩余 8 例为外部条件——三个客户端阻塞（Codex 账号模型封锁、ZCode 待用户开新会话、DSH 可执行未定位/余额）与冻结四竞品确认比较。基准数字仍为同会话开发者评测，`make release-check` 在确认比较完成前按设计保持失败
 - **跨语差距（已大幅收窄）**：纯 BM25 无法把中文查询匹配到英文内容；可选嵌入泳道 + 文档分段把公开语料检索从 50→70/140——答案层复测仍在进行
 - **同名方法**：不同类的同名方法共享一个节点（服务级命名取舍）
 - **源更新**：增量更新需手动 `domimap update`（尚无文件监听）

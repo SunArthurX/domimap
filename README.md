@@ -18,9 +18,13 @@ domimap is a local-first knowledge retrieval engine that builds a queryable doma
 | **Hybrid retrieval** | BM25 lexical + graph expansion + domain seeds (+ optional local embeddings) |
 | **Evidence citation** | Every result carries a file path + immutable evidence ID |
 | **Immutable evidence** | Source edits/deletions never break old citations |
-| **Knowledge timeline** | Content-era extraction (explicit dates/versions, not file mtime) |
+| **Knowledge timeline** | Content-era extraction (explicit dates/versions, not file mtime); expired/superseded docs are ineligible by default, `--as-of` for historical ranges |
 | **Honest refusal** | Four refusal gates — no near-name guessing, no hallucinated hits |
-| **MCP integration** | Native MCP stdio server (6 `kg_*` tools) for AI clients |
+| **Knowledge loop** | Save notes with typed claims → build detects changed support → review queue (`recheck`) → confirmed citations; stale claims are flagged in search |
+| **Trusted context** | AGENTS.md/SOUL.md load only from explicitly registered roots (`trust add`), with nested-scope resolution and change detection |
+| **Workspace lifecycle** | Source identity survives moves (`rebind`); whole-workspace export/restore with per-file checksums |
+| **Client connect** | One-command native setup for Claude Code / Codex / ZCode / DSH (`domimap connect`), idempotent with backups |
+| **MCP integration** | Native MCP stdio server (7 read-only `kg_*` tools; 2 write tools behind `--enable-write`) |
 | **Zero core dependencies** | Pure Python stdlib; optional deps only enhance |
 
 ## Quick Start
@@ -55,6 +59,13 @@ python3 -m domimap update -o out/idx                                # incrementa
 # Search (Chinese & English)
 python3 -m domimap query "订单改价 changePrice" -g out/idx/graph.json
 python3 -m domimap query "ai_resource 表 定义 写入" -g out/idx/graph.json
+python3 -m domimap doc "灰度发布 规范" -g out/idx/graph.json        # doc lane (same params as MCP)
+python3 -m domimap query "灰度发布" --as-of 2026-01-01 -g out/idx/graph.json  # historical range
+
+# Domain map / impact / scenario cards
+python3 -m domimap domain -g out/idx/graph.json
+python3 -m domimap impact "OrderService" -g out/idx/graph.json      # causal edges only, partial-flagged, --max-nodes
+python3 -m domimap scenario req "订单改价 需要防并发" -g out/idx/graph.json
 
 # Read evidence by ID (immutable — survives source changes)
 python3 -m domimap read <evidence_id> --store out/idx/store.db
@@ -69,6 +80,36 @@ python3 -m domimap schema
 
 # Web UI (loopback only)
 python3 -m domimap ui -g out/idx/graph.json --port 8080
+```
+
+### Knowledge & workspace lifecycle
+
+```bash
+# Notes with typed claims; amend needs --expected-revision (optimistic concurrency)
+python3 -m domimap note submit --body "改价必须带版本号" --claims '[{"type":"decision","statement":"...","evidence":[]}]' -g out/idx/graph.json
+python3 -m domimap note amend <note_id> --body "..." --expected-revision 1 -g out/idx/graph.json
+python3 -m domimap recheck list -g out/idx/graph.json     # claims whose support changed after a rebuild
+python3 -m domimap recheck confirm <note_id> 0 -g out/idx/graph.json
+
+# Markdown interop with conflict preview, and knowledge backup/restore
+python3 -m domimap kb export out/notes-md -g out/idx/graph.json
+python3 -m domimap kb import out/notes-md/<note>.md --preview -g out/idx/graph.json
+python3 -m domimap kb backup out/kb-snapshot -g out/idx/graph.json
+
+# Trusted AGENTS.md/SOUL.md roots (never auto-trusted from scanned sources)
+python3 -m domimap trust add myrules ~/my-rules -g out/idx/graph.json
+python3 -m domimap context -g out/idx/graph.json
+
+# Whole workspace (evidence store + graph + source registry + knowledge) as a checksummed bundle
+python3 -m domimap export-workspace out/idx out/backup-dir
+python3 -m domimap restore-workspace out/backup-dir out/restored
+
+# Source root moved? Logical identity (sids, node IDs) stays stable
+python3 -m domimap rebind <label> /new/path -o out/idx
+
+# Native client setup (idempotent, backed up, managed remove)
+python3 -m domimap connect claude -g out/idx/graph.json   # also: codex | zcode | dsh
+python3 -m domimap clients                                # per-client diagnostics
 ```
 
 ### Optional LLM enrichment (post-build, off by default)
@@ -120,6 +161,9 @@ Connect **Claude Code / ZCode / Codex / DSH** (per-client setup in [docs/clients
 | `kg_impact` | Impact analysis: reverse dependencies of a symbol |
 | `kg_doc_search` | Full-text document search |
 | `kg_troubleshoot` | Symptom → graph+docs dual recall → ranked suspects |
+| `kg_context` | Trusted AGENTS.md/SOUL.md context (only from roots registered via `trust add`) |
+
+Write tools — **only with `serve --enable-write`**: `kg_feedback` (record query feedback; relayed verdicts are stored as non-authoritative `agent_relay`) and `kg_note` (submit/amend/withdraw/accept notes; claims stay `proposed`).
 
 **Recommended agent loop**: `kg_domain_map` for the big picture → `kg_explore` to search → `kg_read(ev_id)` for the immutable source → cite **path + ev_id**; on `refused=true`, say so instead of guessing.
 
@@ -305,7 +349,7 @@ domimap/
 
 ## Known Limitations
 
-- **Evaluation status**: all benchmark numbers are same-session developer evaluations; the frozen independent confirmation run has not been executed and `make release-check` fails by design until it is
+- **Evaluation status**: 41/49 acceptance cases verified (M0–M3 stage gates passed 2026-10-27); remaining 8 are external — 3 clients blocked (Codex account model lockout, ZCode awaiting a user session, DSH binary/balance) and the frozen four-competitor confirmation. All benchmark numbers remain same-session developer evaluations; `make release-check` fails by design until the confirmation run
 - **Cross-lingual gap (mostly closed)**: pure-BM25 could not match Chinese queries to English content; the optional embedding lane + doc chunking lifted public-corpus retrieval from 50→70/140 — answer-layer reruns still pending
 - **Same-name methods**: methods with identical names in different classes share a node (service-level naming)
 - **Source updates**: incremental updates are manual (`domimap update`; no file watcher yet)

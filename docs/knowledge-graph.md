@@ -104,7 +104,7 @@ PDF*/DOCX* TS/JS/Vue                                            │
 | 入口 | 命令/工具 |
 |---|---|
 | CLI | `domimap build / query / read / impact / domain / serve / ui / doctor` |
-| MCP stdio（6 工具） | `kg_explore`、`kg_read`、`kg_domain_map`、`kg_impact`、`kg_doc_search`、`kg_troubleshoot` |
+| MCP stdio（7 只读工具） | `kg_explore`、`kg_read`、`kg_domain_map`、`kg_impact`、`kg_doc_search`、`kg_troubleshoot`、`kg_context`（可信上下文）；写工具 `kg_feedback`/`kg_note` 仅 `serve --enable-write` 启用（2026-10-26 起） |
 | Web UI | `domimap ui --port 8080` |
 | 场景卡 | 需求识别 / 问题排查（`scenario.py`） |
 
