@@ -52,9 +52,9 @@ class TestRocketMQ(unittest.TestCase):
     def test_pub_sub_edges(self):
         g = G()
         self.assertTrue(find(g, "Topic", "trade-price-changed"))
-        self.assertTrue(has_edge(g, "mth:order-service:OrderPriceService.changePrice(Long,BigDecimal)", "PUBLISHES", "topic:trade-price-changed"))
-        self.assertTrue(has_edge(g, "topic:trade-price-changed", "SUBSCRIBES", "cls:PriceSyncListener") or
-                        has_edge(g, "topic:trade-price-changed", "SUBSCRIBES", "svc:item-service"))
+        self.assertTrue(has_edge(g, "mth:order-service:OrderPriceService.changePrice(Long,BigDecimal)", "PUBLISHES", "topic:rocketmq:trade-price-changed"))
+        self.assertTrue(has_edge(g, "topic:rocketmq:trade-price-changed", "SUBSCRIBES", "cls:PriceSyncListener") or
+                        has_edge(g, "topic:rocketmq:trade-price-changed", "SUBSCRIBES", "svc:item-service"))
 
 class TestDubbo(unittest.TestCase):
     def test_rpc_edge(self):

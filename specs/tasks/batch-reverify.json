@@ -58,7 +58,12 @@
     "domimap/lite_scan.py",
     "domimap/mcp.py",
     "domimap/service.py",
-    "domimap/store.py"
+    "domimap/store.py",
+    "specs/tasks/topic-cluster.json",
+    "specs/tasks/topic-cluster.md",
+    "specs/tasks/workspace-policy.json",
+    "specs/tasks/workspace-policy.md",
+    "tests/test_workspace_policy.py"
   ],
   "test_files": [
     "tests/test_spec_contracts.py"

@@ -58,7 +58,7 @@ COMMANDS = {
     "AC-R12-02": [PY, "-B", "-c",
                   "import json; d=json.load(open('out/verification/m5-ablation.json')); assert d['results']"],
     # --structural：只做结构+任务 diff 范围检查（R13-01 语义），不做全量证据指纹校验（批内自锁）
-    "AC-R13-01": [PY, "-B", "scripts/check_specs.py", "--structural", "--task", "specs/tasks/batch-reverify.json", "--base", "f81ee47"],
+    "AC-R13-01": [PY, "-B", "scripts/check_specs.py", "--structural", "--task", "specs/tasks/batch-reverify.json", "--base", "1dccb67"],
     "AC-R13-02": [PY, "-B", "scripts/check_release_behavior.py"],
     "AC-R14-02": [PY, "-B", "-m", "unittest", "tests.test_benchmark_metrics", "tests.test_release_gate", "-v"],
 }

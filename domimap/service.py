@@ -163,37 +163,81 @@ class AppService:
             if not roots:
                 return {"roots": [], "items": [], "text": "", "changed": [], "truncated": False, "dropped": [],
                         "scope": scope or "", "note": "未登记可信根（domimap trust add LABEL PATH）"}
-            if root is None and len(roots) > 1:
+            # RV04b 分层：workspace 基线（至多一个）+ 目标 repo 根。多根歧义只在 repo 层判定
+            # （workspace 不是"又一个根"，是基线层，不参与歧义）。
+            workspace = next((r for r in roots if r.get("level") == "workspace"), None)
+            repo_roots = [r for r in roots if r.get("level", "repo") == "repo"]
+            if root is None and len(repo_roots) > 1:
                 raise ServiceError(
                     "ambiguous_root",
-                    "登记了多个可信根，须指定 root（候选：%s）；不同仓库的规则不得互相串用"
-                    % ", ".join(r["label"] for r in roots))
-            target = roots[0] if root is None else next(
-                (r for r in roots if r["label"] == root), None)
+                    "登记了多个仓级可信根，须指定 root（候选：%s）；不同仓库的规则不得互相串用"
+                    % ", ".join(r["label"] for r in repo_roots))
+            if root is None and len(repo_roots) == 1 and workspace is None:
+                target = repo_roots[0]
+            elif root is None and len(repo_roots) == 1:
+                target = repo_roots[0]
+            elif root is None and workspace is not None and not repo_roots:
+                target = workspace
+            else:
+                target = next((r for r in roots if r["label"] == root), None)
             if target is None:
                 raise ServiceError("invalid_params", "未登记的可信根：%s" % root)
-            items, blocks, changed, dropped, truncated = [], [], [], [], False
-            limit_hit = False
-            r = target
-            if not os.path.isdir(r["path"]):
-                raise ServiceError("invalid_params", "可信根目录不存在：%s" % r["path"])
-            try:
-                out = _ctx.load_context(r["path"], trusted=[r["path"]], budget=budget, scope=scope)
-            except PermissionError as e:
-                raise ServiceError("invalid_params", str(e))
-            truncated = truncated or out["truncated"]
-            limit_hit = limit_hit or out.get("limit_hit", False)
-            dropped += ["%s/%s" % (r["label"], d) for d in out["dropped"]]
-            for i in out["items"]:
-                key = "context_sha:%s/%s" % (r["label"], i["path"])
-                prev = store.meta_get(key)
-                if prev != i["sha256"]:
-                    changed.append("%s/%s" % (r["label"], i["path"]))
-                    store.meta_set(key, i["sha256"])
-                items.append(dict(i, root=r["label"]))
-            blocks.append(_ctx.render(out["items"], label=r["label"]))
-            return {"roots": roots, "root": r["label"], "items": items,
-                    "text": "\n".join(b for b in blocks if b),
+            target_is_ws = target.get("level") == "workspace"
+
+            items, changed, dropped, truncated, limit_hit = [], [], [], False, False
+
+            def load_layer(rec, level):
+                nonlocal truncated, limit_hit
+                if not os.path.isdir(rec["path"]):
+                    raise ServiceError("invalid_params", "可信根目录不存在：%s" % rec["path"])
+                try:
+                    out = _ctx.load_context(rec["path"], trusted=[rec["path"]],
+                                            budget=max(1, budget // 2 if (workspace and not target_is_ws) else budget),
+                                            scope=scope)
+                except PermissionError as e:
+                    raise ServiceError("invalid_params", str(e))
+                for i in out["items"]:
+                    i["level"] = level
+                    key = "context_sha:%s/%s" % (rec["label"], i["path"])
+                    if store.meta_get(key) != i["sha256"]:
+                        changed.append("%s/%s" % (rec["label"], i["path"]))
+                        store.meta_set(key, i["sha256"])
+                    items.append(dict(i, root=rec["label"]))
+                dropped.extend("%s/%s" % (rec["label"], d) for d in out["dropped"])
+                truncated = truncated or out["truncated"]
+                limit_hit = limit_hit or out.get("limit_hit", False)
+                return out
+
+            layers = []
+            if workspace is not None and not target_is_ws:
+                layers.append((workspace, "workspace", load_layer(workspace, "workspace")))
+            layers.append((target, "workspace" if target_is_ws else "repo", load_layer(target, "workspace" if target_is_ws else "repo")))
+
+            # RV04b 优先序：同类别（AGENTS/SOUL）仓级覆盖工作区——被覆盖项标 superseded_by，不拼接
+            precedence = []
+            if workspace is not None and not target_is_ws:
+                precedence.append("workspace:%s" % workspace["label"])
+            precedence.append("%s:%s" % ("workspace" if target_is_ws else "repo", target["label"]))
+            repo_kinds_effective = {i["kind"] for i in items
+                                    if i["level"] == "repo" and i.get("effective")}
+            for i in items:
+                if i["level"] == "workspace" and i.get("effective") and i["kind"] in repo_kinds_effective:
+                    i["effective"] = False
+                    i["superseded_by"] = "repo:%s" % target["label"]
+
+            blocks = []
+            for rec, level, out in layers:
+                eff = [i for i in items if i["root"] == rec["label"] and i.get("effective")]
+                if eff:
+                    blocks.append("## [%s] %s" % (level.upper(), rec["label"]))
+                    blocks.append(_ctx.render(eff, label=rec["label"]))
+            superseded = [i for i in items if not i.get("effective")]
+            if superseded:
+                blocks.append("## 已被仓级取代（不拼接）")
+                blocks.extend("- %s/%s ← %s" % (i["root"], i["path"], i.get("superseded_by", "-"))
+                              for i in superseded)
+            return {"roots": roots, "root": target["label"], "precedence": precedence,
+                    "items": items, "text": "\n".join(b for b in blocks if b),
                     "changed": changed, "truncated": truncated, "dropped": dropped,
                     "limit_hit": limit_hit, "scope": scope or ""}
         finally:

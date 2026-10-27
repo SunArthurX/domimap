@@ -227,14 +227,26 @@ class EvidenceStore:
             self.db.execute("DELETE FROM meta WHERE key=?", (key,))
 
     @_synchronized
-    def register_trusted_root(self, label, path):
-        """显式登记可信上下文根（AGENTS.md/SOUL.md 只从这里读）。路径须为现存目录；按 realpath 持久化。"""
+    def register_trusted_root(self, label, path, level="repo"):
+        """显式登记可信上下文根（AGENTS.md/SOUL.md 只从这里读）。
+
+        level（RV04b）：repo=仓级规则（默认，可多个）；workspace=工作区基线（至多一个，
+        第二个不同路径的 workspace 登记拒绝——分层必须无歧义）。优先序见 service.trusted_context。
+        """
         if not label or "/" in label or label.startswith("."):
             raise ValueError("非法标签：%r" % (label,))
+        if level not in ("repo", "workspace"):
+            raise ValueError("level 须为 repo 或 workspace：%r" % (level,))
         real = os.path.realpath(path)
         if not os.path.isdir(real):
             raise FileNotFoundError("可信根不存在或不是目录：%s" % path)
-        rec = {"label": label, "path": real, "registered_at": time.time()}
+        if level == "workspace":
+            for r in self.trusted_roots():
+                if r.get("level") == "workspace" and r["path"] != real:
+                    raise ValueError(
+                        "已有工作区基线 %s（%s）：分层必须唯一，先 trust remove %s 再登记新的"
+                        % (r["label"], r["path"], r["label"]))
+        rec = {"label": label, "path": real, "level": level, "registered_at": time.time()}
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO meta VALUES (?,?)",
                             ("trusted_root:" + label, json.dumps(rec, ensure_ascii=False)))

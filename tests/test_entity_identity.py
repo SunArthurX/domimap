@@ -125,5 +125,81 @@ class TestTableIdentity(unittest.TestCase):
                     self.assertIn("(", n["id"], "方法 ID 必须携带完整参数签名：%s" % n["id"])
 
 
+TOPIC_SEND = """package com.%(pkg)s.pub;
+import org.apache.rocketmq.spring.core.RocketMQTemplate;
+public class Pub {
+    private RocketMQTemplate rocketMQTemplate;
+    public void emit() { rocketMQTemplate.syncSend("%(topic)s", "m"); }
+}
+"""
+KAFKA_LISTEN = """package com.%(pkg)s.sub;
+import org.springframework.kafka.annotation.KafkaListener;
+public class K {
+    @KafkaListener(topics = "%(topic)s")
+    public void on(String m) { }
+}
+"""
+RMQ_LISTEN = """package com.%(pkg)s.sub;
+import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
+@RocketMQMessageListener(topic = "%(topic)s", consumerGroup = "g")
+public class L {
+    public void onMessage(String m) { }
+}
+"""
+
+
+def _topic_repo(base, pkg, topic, files):
+    root = os.path.join(base, pkg)
+    os.makedirs(os.path.join(root, "src"), exist_ok=True)
+    open(os.path.join(root, "pom.xml"), "w").write("<project/>")
+    for name, text in files.items():
+        open(os.path.join(root, "src", name), "w").write(text)
+    return root
+
+
+class TestTopicClusterIdentity(unittest.TestCase):
+    def test_same_cluster_pubsub_joins_with_explicit_basis(self):
+        with tempfile.TemporaryDirectory(prefix="dm-rv02b-") as tmp:
+            a = _topic_repo(tmp, "alpha", "trade-events",
+                            {"Pub.java": TOPIC_SEND % {"pkg": "alpha", "topic": "trade-events"}})
+            b = _topic_repo(tmp, "beta", "trade-events",
+                            {"L.java": RMQ_LISTEN % {"pkg": "beta", "topic": "trade-events"}})
+            for repos in ([a, b], [b, a]):
+                g = _scan_and_build(repos)
+                nodes = [n for n in g.nodes.values() if n["kind"] == "Topic"]
+                self.assertEqual(len(nodes), 1, "同集群（rocketmq）同名主题应连接为一个节点")
+                n = nodes[0]
+                self.assertTrue(n["id"].startswith("topic:rocketmq:"), n["id"])
+                self.assertEqual(sorted(n["meta"]["services"]), ["alpha", "beta"],
+                                 "参与方列表确定且与构建顺序无关")
+                self.assertTrue(n["meta"].get("shared_basis"), "共享必须有明确依据说明")
+                pub = [e for e in g.edges if e["kind"] == "PUBLISHES"]
+                sub = [e for e in g.edges if e["kind"] == "SUBSCRIBES"]
+                self.assertEqual(len(pub), 1); self.assertEqual(len(sub), 1)
+
+    def test_same_name_different_cluster_stays_isolated(self):
+        with tempfile.TemporaryDirectory(prefix="dm-rv02b-") as tmp:
+            a = _topic_repo(tmp, "alpha", "trade-events",
+                            {"Pub.java": TOPIC_SEND % {"pkg": "alpha", "topic": "trade-events"}})
+            b = _topic_repo(tmp, "beta", "trade-events",
+                            {"K.java": KAFKA_LISTEN % {"pkg": "beta", "topic": "trade-events"}})
+            g = _scan_and_build([a, b])
+            topics = sorted(n["id"] for n in g.nodes.values() if n["kind"] == "Topic")
+            self.assertEqual(topics, ["topic:kafka:trade-events", "topic:rocketmq:trade-events"],
+                             "跨数据源（消息集群）同名主题必须保持独立节点")
+            between = [e for e in g.edges if e["src"] in topics and e["dst"] in topics]
+            self.assertEqual(between, [], "不同集群之间不得有任何共享边")
+
+    def test_topic_identity_order_independent(self):
+        with tempfile.TemporaryDirectory(prefix="dm-rv02b-") as tmp:
+            a = _topic_repo(tmp, "alpha", "t", {"Pub.java": TOPIC_SEND % {"pkg": "alpha", "topic": "t"}})
+            b = _topic_repo(tmp, "beta", "t", {"L.java": RMQ_LISTEN % {"pkg": "beta", "topic": "t"}})
+            g1, g2 = _scan_and_build([a, b]), _scan_and_build([b, a])
+            key = lambda g: sorted((n["id"], n["meta"].get("services") and tuple(n["meta"]["services"]),
+                                    tuple(sorted(str(sorted(e.items())) for e in g.edges)))
+                                   for n in g.nodes.values() if n["kind"] == "Topic")
+            self.assertEqual(key(g1), key(g2), "Topic 节点/出处/边与构建顺序全等")
+
+
 if __name__ == "__main__":
     unittest.main()

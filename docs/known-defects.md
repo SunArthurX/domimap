@@ -33,9 +33,9 @@
 | RV | 复核结论 | 处理与回归 |
 |---|---|---|
 | RV01 构建中断混代/误报 no-op | 成立（两个中断反例复现） | 已修 generation-consistency：代绑定 sources 映射、EvidenceResolver 按图 sha 定位所属代解析、manifest 发布成功后落盘；回归 tests.test_generation_consistency |
-| RV02 重载/跨仓同名表碰撞 | 成立 | 已修 entity-identity：方法签名 ID、表/列按声明方隔离、引用 AMBIGUOUS、顺序无关；回归 tests.test_entity_identity |
+| RV02 重载/跨仓同名表碰撞 | 成立 | 已修 entity-identity：方法签名 ID、表/列按声明方隔离、引用 AMBIGUOUS、顺序无关；**2026-10-28 topic-cluster 补齐遗留半项**：Topic 按消息集群（数据源家族）隔离 `topic:<cluster>:<name>`，同集群同名连接（共享依据显式），跨集群同名独立无共享边；回归 tests.test_entity_identity::TestTopicClusterIdentity |
 | RV03 审定无版本约束/审计 | 成立（旧 accept 批准新内容复现） | 已修 adjudication-contract：expected_revision+statement 绑定、review_events 审计、MCP 审定须 DOMIMAP_MCP_ADJUDICATE；回归 tests.test_adjudication_contract |
-| RV04 上下文跨根串用 | 成立（两根 AGENTS 同时 effective 拼接） | 已修 context-root-protocol：root 选择/ambiguous_root/文件数与时限；回归 tests.test_context_and_protocol |
+| RV04 上下文跨根串用 | 成立（两根 AGENTS 同时 effective 拼接） | 已修 context-root-protocol：root 选择/ambiguous_root/文件数与时限；**2026-10-28 workspace-policy 补齐分层**：workspace 基线（至多一个）+ 仓级显式优先序（同类别仓级覆盖，superseded_by 不拼接，precedence 数组）；回归 tests.test_workspace_policy |
 | RV05 业务错误 isError:false | 成立（kg_note 冲突返回成功） | 已修：call() 统一结构化错误映射；initialize 版本协商；回归同上 |
 | RV06 证据刷新/过度认定 | 成立（三例） | 已修 evidence-honesty：客户端会话不刷指纹改降级；AC-R10-02/R12-02/F1-C1-01/02 如实退回 implementing |
 | RV07 发布未绑门槛 | 成立 | 已修 release-gate：pypi 增 verify+release-gate 作业（当前必然失败=正确），publish 核对工件哈希 |

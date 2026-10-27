@@ -72,6 +72,38 @@ class Graph:
             return [nid for nid, _ in cands]
         return [nid for nid, a in cands if a == argc]
 
+    @staticmethod
+    def _topic_cluster(prov):
+        """消息集群 = 声明的数据源家族（RV02b）：rocketmq/kafka/rabbit/jms/stream；无法判定 → unknown。"""
+        p = (prov or "").lower()
+        if "rocketmq" in p:
+            return "rocketmq"
+        for fam in ("kafka", "rabbit", "jms", "stream"):
+            if fam in p:
+                return fam
+        return "unknown"
+
+    def _topic_declare(self, rec):
+        """Topic 按消息集群隔离（RV02b）：ID=topic:<cluster>:<name>。
+
+        同集群同名跨服务连接为一个节点——共享依据=「相同声明的数据源家族 + 相同主题名」（pub/sub 按名对接
+        的真实机制），参与方服务列表排序确定（顺序无关）；不同集群同名保持独立，之间无任何共享边。
+        """
+        cluster = self._topic_cluster(rec.get("prov"))
+        name = rec["topic"]
+        tid = "topic:%s:%s" % (cluster, name)
+        existing = self.nodes.get(tid)
+        if existing is None:
+            self.add_node(tid, "Topic", name, rec["file"],
+                          {"cluster": cluster, "services": [],
+                           "shared_basis": "same declared datasource family (%s) + same topic name" % cluster,
+                           **self._sid(rec)},
+                          conf=rec.get("conf", "EXTRACTED"), prov=rec.get("prov", "core"))
+            existing = self.nodes[tid]
+        services = set(existing["meta"].get("services") or []) | {rec["service"]}
+        existing["meta"]["services"] = sorted(services)  # 确定性：与构建顺序无关
+        return tid
+
     def _tbl_declare(self, service, name, file, meta, conf="EXTRACTED", prov="sql:ddl"):
         """表/列按声明方服务隔离（RV02）：tbl:<svc>:<name>；同名跨仓不再合并，引用经 _tbl_ref 显式连接。"""
         tid = "tbl:%s:%s" % (service, name)
@@ -174,9 +206,9 @@ class Graph:
                 if n["kind"] == "Class" and n["name"] == en["cls"]:
                     self.add_edge(n["id"], tid, "MAPS_TO", en["conf"], en["prov"])
                     break
-        # MQ Topic：主题名即消息集群（发布/订阅按名对接是真实机制，保持全局名）；处理顺序排序使出处与构建顺序无关
+        # MQ Topic：按消息集群隔离（RV02b）——同集群同名连接（显式共享依据），跨集群同名独立
         for t in sorted(R["topics"], key=lambda x: (x["topic"], x["service"], x["file"])):
-            tid = self.add_node("topic:" + t["topic"], "Topic", t["topic"], t["file"], {}, conf=t["conf"], prov=t["prov"])
+            tid = self._topic_declare(t)
             mids = self._mth_candidates(t["service"], t.get("cls"), t["by"], t.get("argc", -1))
             src = mids[0] if len(mids) == 1 else ("svc:" + t["service"])
             if t["dir"] == "PUBLISHES":

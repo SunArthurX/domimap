@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "workspace-policy",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/workspace-policy.md",
+  "requirements": [
+    "F3",
+    "R08"
+  ],
+  "acceptance_cases": [
+    "AC-F3-01"
+  ],
+  "files": [
+    "domimap/store.py",
+    "domimap/service.py",
+    "domimap/mcp.py",
+    "domimap/__main__.py",
+    "tests/test_workspace_policy.py",
+    "specs/tasks/workspace-policy.json",
+    "specs/tasks/workspace-policy.md"
+  ],
+  "test_files": [
+    "tests/test_workspace_policy.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_workspace_policy.py -v",
+    "make verify"
+  ],
+  "rollback": "revert store/service/mcp/__main__ 本片差异；trusted_root 记录的 level 键被旧代码忽略。"
+}

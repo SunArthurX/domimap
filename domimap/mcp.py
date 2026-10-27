@@ -287,8 +287,10 @@ class Server:
             ctx = self.svc.trusted_context(scope=args.get("scope") or None,
                                            root=args.get("root") or None)  # RV04：目标根选择
             head = {"roots": [r["label"] for r in ctx["roots"]], "scope": ctx["scope"],
+                    "precedence": ctx.get("precedence"),
                     "items": [{"root": i["root"], "path": i["path"], "sha256": i["sha256"][:12],
-                               "effective": bool(i.get("effective"))} for i in ctx["items"]],
+                               "effective": bool(i.get("effective")), "level": i.get("level"),
+                               "superseded_by": i.get("superseded_by")} for i in ctx["items"]],
                     "changed": ctx["changed"], "truncated": ctx["truncated"], "dropped": ctx["dropped"]}
             if ctx.get("note"):
                 head["note"] = ctx["note"]

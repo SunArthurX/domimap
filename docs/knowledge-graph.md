@@ -29,7 +29,7 @@ PDF*/DOCX* TS/JS/Vue                                            │
 | `SqlStmt` | `sql:` | 一条 SQL 语句（MyBatis iface.id） | `synth:mybatis` | DDL 语句带语义加权 |
 | `Table` | `tbl:` | 数据库表，按**声明方服务**隔离 `tbl:<svc>:<name>`（DDL/JPA 为声明；mapper 引用按名解析：单候选连接、多候选 AMBIGUOUS、零候选本服务 `unresolved` 节点，RV02） | `sql:ddl` / `synth:mybatis` | `via` 来源标记 |
 | `Column` | `col:` | 表列，随所属表作用域 `col:<svc>:<table>.<col>`（DDL/JPA 声明） | `sql:ddl` | — |
-| `Topic` | `topic:` | MQ 主题 | `java` | — |
+| `Topic` | `topic:` | MQ 主题，按**消息集群**（声明的数据源家族）隔离 `topic:<cluster>:<name>`（RV02b：同集群同名连接——共享依据=相同数据源家族+同名；跨集群同名独立无共享边） | `java` | cluster/services/shared_basis |
 | `Doc` | `doc:` | 文档（md/html/pdf*/docx*；front-matter 可带时间语义） | `doc:ingest` | `valid_until`、`superseded_by` |
 | `Page` | — | 前端页面（TS/JS/Vue 扫描） | `core` | — |
 | `Domain` | — | 领域（seeds.json 种子打标） | `core` | 域聚合入口 |

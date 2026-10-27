@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "topic-cluster",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/topic-cluster.md",
+  "requirements": [
+    "R01",
+    "R09"
+  ],
+  "acceptance_cases": [
+    "AC-R01-01",
+    "AC-R09-02"
+  ],
+  "files": [
+    "domimap/graph.py",
+    "tests/test_entity_identity.py",
+    "tests/test_golden.py",
+    "docs/knowledge-graph.md",
+    "specs/tasks/topic-cluster.json",
+    "specs/tasks/topic-cluster.md"
+  ],
+  "test_files": [
+    "tests/test_entity_identity.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_entity_identity.py -v",
+    "make verify"
+  ],
+  "rollback": "revert graph.py 本片差异并重建图；golden 断言随回退。"
+}

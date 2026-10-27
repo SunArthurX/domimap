@@ -355,9 +355,10 @@ def cmd_trust(args):
     try:
         if args.action == "add":
             if not args.label or not args.path:
-                print("用法：domimap trust add LABEL PATH -g 图"); sys.exit(2)
+                print("用法：domimap trust add LABEL PATH [--workspace] -g 图"); sys.exit(2)
             try:
-                rec = store.register_trusted_root(args.label, args.path)
+                rec = store.register_trusted_root(args.label, args.path,
+                                                  level="workspace" if args.workspace else "repo")
             except (ValueError, FileNotFoundError) as e:
                 print("trust add: %s" % e); sys.exit(4)
             from domimap.context import load_context
@@ -383,7 +384,7 @@ def cmd_trust(args):
                     files = ", ".join(i["path"] for i in out["items"]) or "无规则文件"
                 except PermissionError as e:
                     files = "不可读：%s" % e
-                print("[trust] %-16s %s  (%s)" % (r["label"], r["path"], files))
+                print("[trust] %-10s %-16s %s  (%s)" % (r.get("level", "repo"), r["label"], r["path"], files))
     finally:
         store.close()
 
@@ -990,7 +991,10 @@ def main():
     rc.add_argument("claim_idx", nargs="?", type=int); rc.set_defaults(fn=cmd_recheck)
     tr = with_g(sub.add_parser("trust", help="可信上下文根：add LABEL PATH | list | remove LABEL"))
     tr.add_argument("action", choices=["add", "list", "remove"]); tr.add_argument("label", nargs="?")
-    tr.add_argument("path", nargs="?"); tr.set_defaults(fn=cmd_trust)
+    tr.add_argument("path", nargs="?")
+    tr.add_argument("--workspace", action="store_true",
+                    help="登记为工作区基线（至多一个；同类别规则被仓级覆盖，优先序 workspace<repo）")
+    tr.set_defaults(fn=cmd_trust)
     cx = with_g(sub.add_parser("context", help="查看当前生效的 AGENTS.md/SOUL.md 可信上下文"))
     cx.add_argument("--scope", default=None, help="任务所在根内相对目录（嵌套规则取最具体一层）")
     cx.add_argument("--root", default=None, help="目标可信根标签（登记多个根时必填，不串用）")
