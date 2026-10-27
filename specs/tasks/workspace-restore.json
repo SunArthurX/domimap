@@ -28,7 +28,7 @@
   "verification": [
     "python3 -B -m unittest tests.test_workspace_restore tests.test_knowledge_safety tests.test_evidence_store -v",
     "make verify",
-    "python3 -B scripts/check_specs.py --task specs/tasks/workspace-restore.json --base 557d9c8"
+    "python3 -B scripts/check_specs.py --task specs/tasks/workspace-restore.json --base aedc847"
   ],
   "rollback": "删除 workspace.py 与两个 CLI 子命令；store._gen_path 回退为仅绝对路径（已恢复到别处的工作区将无法定位 active 代，需重建）。"
 }

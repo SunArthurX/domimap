@@ -37,7 +37,7 @@
   "verification": [
     "python3 -B -m unittest tests.test_knowledge_entries tests.test_m3_knowledge tests.test_m3_r07 tests.test_mcp_write_gate -v",
     "make verify",
-    "python3 -B scripts/check_specs.py --task specs/tasks/knowledge-entries.json --base aa19445"
+    "python3 -B scripts/check_specs.py --task specs/tasks/knowledge-entries.json --base 322e0b1"
   ],
   "rollback": "revert 本片差异；无数据迁移。"
 }

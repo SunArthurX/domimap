@@ -29,7 +29,7 @@
   "verification": [
     "python3 -B -m unittest tests.test_app_service tests.test_m2_shared tests.test_ui_workbench tests.test_production_boundaries -v",
     "make verify",
-    "python3 -B scripts/check_specs.py --task specs/tasks/app-service.json --base a8d865b"
+    "python3 -B scripts/check_specs.py --task specs/tasks/app-service.json --base 75b9f9a"
   ],
   "rollback": "revert 本片差异（三入口回到各自装配）；无数据迁移。"
 }

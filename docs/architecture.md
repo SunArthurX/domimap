@@ -2,7 +2,7 @@
 
 2026-10-24 状态说明：下文保留目标架构，不能将旧的“尚未提供”描述当作当前源码清单。当前实现审计、已验证重构、兼容边界和剩余生产缺口见 [生产化重构审计](production-readiness.md)；规范性要求仍以 specs 为准。
 
-2026-10-27 增补（漂移纠正二期 T0–T15，提交 ce3912d..9244bf8）：目标架构中的关键层已按规范落地——
+2026-10-27 增补（漂移纠正二期 T0–T15，提交 db325b9..b3103b0）：目标架构中的关键层已按规范落地——
 ① 所有 build 入口共用一条证据契约（`batch.build_many`：扫描单次读字节即固化，普通单仓 build 同样产出 store.db/不可变代/manifest）；② 显式来源身份（manifest 登记 label/root/service_prefix，节点 meta.sid，`EvidenceResolver` 按 sid 解析证据，`domimap rebind` 重绑物理路径而逻辑身份不变）；③ 派生产物（graph.json/coverage/manifest）原子发布并以内容哈希做增量与一致性校验；④ `domimap/workspace.py` 整库导出/恢复（逐文件 sha256 校验、失败不留半成品）；⑤ `domimap/service.py` `AppService` 是三入口（CLI/MCP/UI）唯一的装配与默认参数点（查询/文档检索/影响面预算/错误映射/热重载/as_of/可信上下文/知识写入口）；⑥ F3 可信上下文显式登记（`trust add`，嵌套 scope 裁决，MCP `kg_context` 桥接）；⑦ R06 原义复核闭环（发布后扫描依据变化→`review_pending`→检索面 stale→`recheck confirm` 绑定新证据）；⑧ `domimap/clients.py` 四客户端原生配置生成/幂等接入/受管撤销。各切片契约与证据见 specs/tasks/ 对应任务规格。
 
 日期：2026-10-16。状态：**待实施设计**，随[生产主计划](roadmap.md)执行。下面的路径、模块、字段和工具均为目标契约，除明确注明外当前 v0.4.0 尚未提供。

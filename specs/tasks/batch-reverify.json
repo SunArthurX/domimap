@@ -23,7 +23,7 @@
   "verification": [
     "python3 -B scripts/reverify_cases.py",
     "make verify",
-    "python3 -B scripts/check_specs.py --task specs/tasks/batch-reverify.json --base abc545d"
+    "python3 -B scripts/check_specs.py --task specs/tasks/batch-reverify.json --base f0c7c18"
   ],
   "rollback": "progress.json 回退（旧证据在 historical_evidence）；新增 out/verification/rerun-2026-10-26-drift2/ 可删；脚本无产品行为影响。"
 }

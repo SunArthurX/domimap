@@ -39,7 +39,7 @@
   "verification": [
     "python3 -B -m unittest tests.test_hygiene_batch tests.test_ui_workbench -v",
     "make verify",
-    "python3 -B scripts/check_specs.py --task specs/tasks/hygiene-batch.json --base a54d789"
+    "python3 -B scripts/check_specs.py --task specs/tasks/hygiene-batch.json --base a703694"
   ],
   "rollback": "逐项 revert；user_version 标记留在库中无害（旧版本忽略）。"
 }

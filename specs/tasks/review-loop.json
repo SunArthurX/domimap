@@ -35,7 +35,7 @@
   "verification": [
     "python3 -B -m unittest tests.test_review_loop tests.test_m3_review tests.test_m3_r07 tests.test_knowledge_safety -v",
     "make verify",
-    "python3 -B scripts/check_specs.py --task specs/tasks/review-loop.json --base e463316"
+    "python3 -B scripts/check_specs.py --task specs/tasks/review-loop.json --base 1a30615"
   ],
   "rollback": "revert 本片差异；knowledge.db 的 review_pending.new_evkey 列可保留（旧代码忽略）；review_pending/baselines 行为机器派生可清空。"
 }

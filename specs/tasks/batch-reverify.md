@@ -20,7 +20,7 @@
 
 ## 验证
 
-`python3 -B scripts/reverify_cases.py`（34 条全绿才提升）→ `python3 -B scripts/refresh_evidence.py batch-reverify abc545d`（两遍）→ `make verify`。
+`python3 -B scripts/reverify_cases.py`（34 条全绿才提升）→ `python3 -B scripts/refresh_evidence.py batch-reverify f0c7c18`（两遍）→ `make verify`。
 
 ## 回滚
 

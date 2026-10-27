@@ -31,7 +31,7 @@
   "verification": [
     "python3 -B -m unittest tests.test_mcp_write_gate tests.test_mcp_desc tests.test_feedback tests.test_production_boundaries tests.test_schema -v",
     "make verify",
-    "python3 -B scripts/check_specs.py --task specs/tasks/mcp-write-gate.json --base 6c0c294"
+    "python3 -B scripts/check_specs.py --task specs/tasks/mcp-write-gate.json --base b6f4a8b"
   ],
   "rollback": "revert 本片 mcp.py/__main__.py/feedback.py/ui.py/schema.json 差异；已以 agent_relay 落库的 feedback 行保留（SOURCE_VALUES 回退前需先迁移或删除这些行，否则 submit 校验拒绝该来源值）。"
 }

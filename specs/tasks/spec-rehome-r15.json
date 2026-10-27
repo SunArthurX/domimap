@@ -43,7 +43,7 @@
   "verification": [
     "python3 -B -m unittest tests.test_spec_contracts -v",
     "make spec-check",
-    "python3 -B scripts/check_specs.py --task specs/tasks/spec-rehome-r15.json --base b868a42"
+    "python3 -B scripts/check_specs.py --task specs/tasks/spec-rehome-r15.json --base 1bd024c"
   ],
   "rollback": "反向重命名 AC-R15-0N→AC-R06-0(N+2)、删除 R15 条目、恢复 R06 cases 为 7 条；证据文件 out/verification/AC-R15-*.json 删除，progress 指回 AC-R06-0N.json；无代码/数据迁移。"
 }

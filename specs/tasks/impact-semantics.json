@@ -30,7 +30,7 @@
   "verification": [
     "python3 -B -m unittest tests.test_impact_semantics tests.test_app_service tests.test_golden tests.test_m2_shared -v",
     "make verify",
-    "python3 -B scripts/check_specs.py --task specs/tasks/impact-semantics.json --base 713dbf3"
+    "python3 -B scripts/check_specs.py --task specs/tasks/impact-semantics.json --base 2450f93"
   ],
   "rollback": "revert 本片差异；无数据迁移（图格式不变）。"
 }

@@ -2,7 +2,7 @@
 
 日期：2026-10-16。状态：**当前唯一主计划**。
 
-> **2026-10-27 进度快照**（漂移纠正二期完成，提交 ce3912d..9244bf8 已推送，CI 六作业全绿 macOS/Linux × Python 3.9–3.13）：49 个验收案例中 **41 例 verified**（每例当前源指纹 + 哈希工件）；**M0–M3 阶段门实测通过**并汇总 verified。剩余 8 例为外部条件：AC-F1-C2-*（Codex 账号模型封锁，2026-10-27 探测仍在）、AC-F1-C3-*（待用户开新 ZCode 会话；`domimap connect zcode` 已可用）、AC-F1-C4-*（DSH 可执行未定位/模型余额）、AC-F3-02（四客户端人设生效验证）、AC-R14-01（dev 包 hit@5=0.644 低于 0.80 绝对底线）。`make release-check` 按规范保持拒绝直到 M4/M5 完成。逐例状态见 [specs/progress.json](../specs/progress.json)，交接见 out/handoff.md。
+> **2026-10-27 进度快照**（漂移纠正二期完成，提交 db325b9..b3103b0 已推送，CI 六作业全绿 macOS/Linux × Python 3.9–3.13）：49 个验收案例中 **41 例 verified**（每例当前源指纹 + 哈希工件）；**M0–M3 阶段门实测通过**并汇总 verified。剩余 8 例为外部条件：AC-F1-C2-*（Codex 账号模型封锁，2026-10-27 探测仍在）、AC-F1-C3-*（待用户开新 ZCode 会话；`domimap connect zcode` 已可用）、AC-F1-C4-*（DSH 可执行未定位/模型余额）、AC-F3-02（四客户端人设生效验证）、AC-R14-01（dev 包 hit@5=0.644 低于 0.80 绝对底线）。`make release-check` 按规范保持拒绝直到 M4/M5 完成。逐例状态见 [specs/progress.json](../specs/progress.json)，交接见 out/handoff.md。
 
 本计划替代第三版 v0.5–v0.8 路线的阶段安排；[四项能力说明](capabilities.md)保留为详细需求，[WP1 执行单](implementation/source-identity.md)作为 M1 的输入。本文管理交付顺序；[产品规格](../specs/product.md)、[开发约束](../specs/workflow.md)与[比较协议](../specs/benchmark.md)规定不可绕过的目标和验收，冲突应先明确修订。历史评审、实验和哈希链保持原义。
 

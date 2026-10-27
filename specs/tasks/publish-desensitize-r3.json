@@ -13,14 +13,34 @@
   ],
   "files": [
     "CHANGELOG.md",
+    "docs/architecture.md",
+    "docs/roadmap.md",
     "scripts/publish_scan.sh",
     "scripts/reverify_cases.py",
+    "specs/tasks/app-service.json",
+    "specs/tasks/atomic-publish.json",
+    "specs/tasks/batch-reverify.json",
+    "specs/tasks/batch-reverify.md",
+    "specs/tasks/capture-unification.json",
     "specs/tasks/ci-local-artifact-guard.md",
+    "specs/tasks/connect-clients.json",
     "specs/tasks/drift-correction-c0.md",
     "specs/tasks/drift-correction-c7.md",
+    "specs/tasks/hygiene-batch.json",
+    "specs/tasks/impact-semantics.json",
+    "specs/tasks/knowledge-entries.json",
+    "specs/tasks/manifest-bounds.json",
+    "specs/tasks/mcp-write-gate.json",
     "specs/tasks/retrieval-evolution-pilot.md",
     "specs/tasks/retrieval-evolution-replay.md",
     "specs/tasks/retrieval-identifier-boost-scope.md",
+    "specs/tasks/review-loop.json",
+    "specs/tasks/source-identity.json",
+    "specs/tasks/spec-rehome-r15.json",
+    "specs/tasks/spec-rehome-r15.md",
+    "specs/tasks/time-policy.json",
+    "specs/tasks/trusted-context.json",
+    "specs/tasks/workspace-restore.json",
     "tests/test_drift_correction.py",
     "tests/test_identifier_ranking.py"
   ],
@@ -29,5 +49,5 @@
     "tests/test_identifier_ranking.py"
   ],
   "kind": "umbrella",
-  "reason": "跨 5 个并行切片任务清单的统一字符串去敏感（公司名/个人路径/内部文档标题）+ 对应测试与复验脚本；非产品行为变更"
+  "reason": "跨 5 个并行切片任务清单的统一字符串去敏感（公司名/个人路径/内部文档标题）+ 对应测试与复验脚本；含历史重写后 20 个清单/文档的 --base 哈希对齐；非产品行为变更"
 }

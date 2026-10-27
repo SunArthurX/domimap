@@ -37,7 +37,7 @@
   "verification": [
     "python3 -B -m unittest tests.test_time_policy tests.test_m2_f4 tests.test_age_decay_intent tests.test_m2_context_time -v",
     "make verify",
-    "python3 -B scripts/check_specs.py --task specs/tasks/time-policy.json --base 7b18edb"
+    "python3 -B scripts/check_specs.py --task specs/tasks/time-policy.json --base 7c33351"
   ],
   "rollback": "revert 本片差异；图需重建以回到 mtime 纪元（节点 meta.era_source）。"
 }

@@ -37,7 +37,7 @@ R06 在 docs/roadmap.md:86、:143 的定义是"依据变化定位到陈述，复
 3. 三个规范 JSON 改写（脚本化，保持 indent=2 / ensure_ascii=False）。
 4. docs/roadmap.md 两处。
 5. out/verification/AC-R15-0N.json 由旧文件派生（case_id 更新）。
-6. `python3 -B scripts/refresh_evidence.py spec-rehome-r15 b868a42` 两遍 → `make verify`。
+6. `python3 -B scripts/refresh_evidence.py spec-rehome-r15 1bd024c` 两遍 → `make verify`。
 
 ## 验证
 
