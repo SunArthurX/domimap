@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "concurrent-diagnosis-row",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/concurrent-diagnosis-row.md",
+  "requirements": [
+    "R15"
+  ],
+  "acceptance_cases": [
+    "AC-R15-05"
+  ],
+  "files": [
+    "domimap/diagnosis.py",
+    "tests/test_diagnosis.py",
+    "specs/tasks/concurrent-diagnosis-row.json",
+    "specs/tasks/concurrent-diagnosis-row.md"
+  ],
+  "test_files": [
+    "tests/test_diagnosis.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_diagnosis -v",
+    "make verify"
+  ],
+  "rollback": "revert diagnosis.py 本片差异；回归测试随删。"
+}

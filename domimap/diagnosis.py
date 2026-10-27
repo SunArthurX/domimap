@@ -488,14 +488,26 @@ def diagnose(graph_path, searcher, event_id=None, cluster_id=None, query_text=No
                 (cluster_id + input_digest).encode("utf-8")).hexdigest()[:24]
             status = "created"
             ai_status = "none"
-            with db:
-                db.execute(
-                    "INSERT INTO diagnoses VALUES (?,?,?,?,?,?,?,?,?)",
-                    (diagnosis_id, cluster_id, event["event_id"], time.time(),
-                     input_digest, _canonical(pack), "none", None, None))
-                db.execute(
-                    "UPDATE issue_clusters SET status='diagnosed' WHERE cluster_id=?",
-                    (cluster_id,))
+            try:
+                with db:
+                    db.execute(
+                        "INSERT INTO diagnoses VALUES (?,?,?,?,?,?,?,?,?)",
+                        (diagnosis_id, cluster_id, event["event_id"], time.time(),
+                         input_digest, _canonical(pack), "none", None, None))
+                    db.execute(
+                        "UPDATE issue_clusters SET status='diagnosed' WHERE cluster_id=?",
+                        (cluster_id,))
+            except sqlite3.IntegrityError:
+                # 同簇同输入的确定性 dg:id：并发诊断时另一线程可能已先建行
+                # （CI ubuntu-3.9 实跑暴露）——读回复用，不向调用方冒异常。
+                row = db.execute(
+                    "SELECT diagnosis_id, pack_json, ai_status FROM diagnoses"
+                    " WHERE cluster_id=? AND input_digest=?",
+                    (cluster_id, input_digest)).fetchone()
+                if not row:
+                    raise
+                pack = json.loads(row[1])
+                diagnosis_id, status, ai_status = row[0], "reused", row[2]
         if use_ai:
             # AI 尝试与规则缓存分离：reused 后仍可显式触发 AI（F05）
             ai_input = hashlib.sha256(_canonical(

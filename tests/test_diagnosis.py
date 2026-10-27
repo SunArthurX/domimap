@@ -21,6 +21,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
 from domimap import lite_scan as ls  # noqa: E402
+from domimap import diagnosis
 from domimap.diagnosis import build_clusters, diagnose, list_issues  # noqa: E402
 from domimap.graph import Graph, load_seeds  # noqa: E402
 from domimap.observation import Recorder  # noqa: E402
@@ -294,6 +295,48 @@ class TestDriftC4Contract(unittest.TestCase):
         self.assertEqual(len(calls), 1, "并发同输入只允许一次模型调用")
         self.assertNotIn("IntegrityError", outcomes)
         self.assertIn("ok", outcomes)
+
+    def test_concurrent_diagnosis_row_conflict_reads_back_reused(self):
+        """CI（ubuntu-3.9）实跑暴露的并发缺陷：同簇同输入的诊断行 ID 确定性相同，
+        后到 INSERT 撞主键——必须读回复用（reused），不得向调用方抛 IntegrityError。"""
+        ev = self._event_with_feedback(text="并发诊断行冲突")
+        real_connect = diagnosis._connect
+        inner_holder = {}
+
+        class WrappedDB:
+            def __init__(self, inner):
+                self._inner = inner
+                self._injected = False
+
+            def execute(self, sql, *a):
+                if sql.startswith("INSERT INTO diagnoses") and not self._injected:
+                    self._injected = True  # 模拟另一线程抢先写入同 ID 行后本线程才 INSERT
+                    with self._inner:
+                        self._inner.execute(sql, *a)
+                    raise diagnosis.sqlite3.IntegrityError(
+                        "UNIQUE constraint failed: diagnoses.diagnosis_id")
+                return self._inner.execute(sql, *a)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return self._inner.__exit__(*exc)
+
+            def __getattr__(self, name):
+                return getattr(self._inner, name)
+
+        def fake_connect(*a, **kw):
+            inner_holder["db"] = real_connect(*a, **kw)
+            return WrappedDB(inner_holder["db"])
+
+        diagnosis._connect = fake_connect
+        try:
+            out = diagnose(self.gp, self.s, event_id=ev)
+        finally:
+            diagnosis._connect = real_connect
+        self.assertEqual(out["status"], "reused", out["status"])
+        self.assertEqual(out["ai_status"], "none")
 
     def test_scope_and_version_separate_clusters(self):
         # probes.json: scope_cluster_collision
