@@ -63,7 +63,18 @@
     "specs/tasks/topic-cluster.md",
     "specs/tasks/workspace-policy.json",
     "specs/tasks/workspace-policy.md",
-    "tests/test_workspace_policy.py"
+    "tests/test_workspace_policy.py",
+    "benchmarks/runners/ablation_local.py",
+    "specs/tasks/ablation-rerun.json",
+    "specs/tasks/ablation-rerun.md",
+    "CHANGELOG.md",
+    "domimap/ui.py",
+    "specs/tasks/product-ui-flow-ux.json",
+    "specs/tasks/product-ui-flow-ux.md",
+    "README.md",
+    "README.zh-CN.md",
+    "docs/production-readiness.md",
+    "docs/roadmap.md"
   ],
   "test_files": [
     "tests/test_spec_contracts.py"
@@ -74,5 +85,5 @@
     "python3 -B scripts/check_specs.py --task specs/tasks/batch-reverify.json --base f0c7c18"
   ],
   "rollback": "progress.json 回退（旧证据在 historical_evidence）；新增 out/verification/rerun-2026-10-26-drift2/ 可删；脚本无产品行为影响。",
-  "reason": "跨切片证据治理伞：批量重验指纹失效案例 + 登记本轮 RV01-RV08 修复的全部变更文件（产品代码变更由各独立切片 manifest 承担契约与测试；本伞仅为 AC-R13-01 全 diff 范围检查）"
+  "reason": "跨切片证据治理伞：批量重验指纹失效案例 + 登记评审修复/补齐/文档同步的全部变更文件（产品代码变更由各独立切片 manifest 承担契约与测试；本伞仅为 AC-R13-01 全 diff 范围检查）"
 }

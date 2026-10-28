@@ -55,8 +55,10 @@ COMMANDS = {
     "AC-R11-02": ["bash", "scripts/publish_scan.sh", "origin/main"],
     # 必须带 dev 图环境变量：缺省图不存在时 run.py 仍 exit 0（空跑），那不是完成证据
     "AC-R12-01": ["bash", "-c", "DOMIMAP_DEV_GRAPH=out/dev-ws/graph.json %s -B benchmarks/real_tasks/run.py" % PY],
-    "AC-R12-02": [PY, "-B", "-c",
-                  "import json; d=json.load(open('out/verification/m5-ablation.json')); assert d['results']"],
+    # RV06 修复后：当前源码真实重跑三配置消融（结果绑定源码/图/题集哈希），不再只查旧报告非空
+    "AC-R12-02": ["bash", "-c",
+                  "python3 -B benchmarks/runners/ablation_local.py -g out/dev-abl/graph.json "
+                  "-o out/verification/m5-ablation-v2.json"],
     # --structural：只做结构+任务 diff 范围检查（R13-01 语义），不做全量证据指纹校验（批内自锁）
     "AC-R13-01": [PY, "-B", "scripts/check_specs.py", "--structural", "--task", "specs/tasks/batch-reverify.json", "--base", "1dccb67"],
     "AC-R13-02": [PY, "-B", "scripts/check_release_behavior.py"],

@@ -2,7 +2,7 @@
 
 日期：2026-10-24。审计基线：d7802de；开始时有未提交的工作台 UI/测试/CHANGELOG 改动，予以保留。实施契约见 [production-boundaries](../specs/tasks/production-boundaries.md)。本报告是当前代码审阅，不替代产品规格、验收或独立比较。
 
-> **2026-10-27 复核**：下表四个 P0 切片已全部落地（捕获统一=D10 关闭 / 来源身份=D11 关闭 / 原子发布=D12 关闭 / 整库导出恢复），P1 的公共应用服务、可选格式与真实客户端重验、发布管线硬化（`scripts/publish_scan.sh` 净化扫描 + Actions 钉 SHA + CI 3.9–3.13 矩阵）与本轮批注中列出的项均已完成；41/49 案例 verified、M0–M3 verified。剩余缺口即外部条件三项：四客户端真实会话（Claude 已实测关闭 AC-F1-C1-01/02；Codex/DSH 账号与余额阻塞、ZCode 待用户会话）、24h 长跑与迁移演练、四竞品正式比较（R14）。详见 out/handoff.md 与 [roadmap 进度快照](roadmap.md)。
+> **2026-10-28 复核**：下表四个 P0 切片已全部落地（捕获统一=D10 关闭 / 来源身份=D11 关闭 / 原子发布=D12 关闭 / 整库导出恢复），P1 的公共应用服务、可选格式与真实客户端重验、发布管线硬化（`scripts/publish_scan.sh` 净化扫描 + Actions 钉 SHA + CI 3.9–3.13 矩阵）与本轮批注中列出的项均已完成；评审 RV01–RV08 八项修复完成（含 RV06 诚实降级与补验）。**38/49 案例 verified**（2026-10-28：AC-R12-02 以当前源码消融重验——benchmarks/runners/ablation_local.py 三配置同题集同预算，结果 out/verification/m5-ablation-v2.json 绑定源码/图/题集哈希，如实含弱点；AC-F1-C1-01/02 以当前源码真实 Claude 会话重验）；AC-R10-02（24h 负载+真实迁移）维持 implementing。剩余缺口=外部条件：Codex/DSH 账号与余额、ZCode 待用户会话、24h 长跑、四竞品正式比较（R14）。详见 out/handoff.md 与 [roadmap 进度快照](roadmap.md)。
 
 ## 从用户结果推导架构
 

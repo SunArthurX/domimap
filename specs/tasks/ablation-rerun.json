@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "ablation-rerun",
+  "kind": "slice",
+  "state": "verified",
+  "spec": "specs/tasks/ablation-rerun.md",
+  "requirements": [
+    "R12"
+  ],
+  "acceptance_cases": [
+    "AC-R12-02"
+  ],
+  "files": [
+    "benchmarks/runners/ablation_local.py",
+    "specs/tasks/ablation-rerun.json",
+    "specs/tasks/ablation-rerun.md"
+  ],
+  "test_files": [],
+  "verification": [
+    "python3 -B benchmarks/runners/ablation_local.py -g out/dev-abl/graph.json -o out/verification/m5-ablation-v2.json"
+  ],
+  "rollback": "删除 runner 与 v2 报告；progress 回退（历史工件保留）。"
+}

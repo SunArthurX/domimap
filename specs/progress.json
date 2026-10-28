@@ -601,7 +601,7 @@
       ]
     },
     "AC-R12-02": {
-      "state": "implementing",
+      "state": "verified",
       "evidence": [
         "out/verification/rerun-2026-10-26-drift2/cases/AC-R12-02.json"
       ],
@@ -613,16 +613,18 @@
         "out/verification/rerun-2026-10-26-drift2/cases/AC-R12-02.json",
         "out/verification/rerun-2026-10-26-drift2/cases/AC-R12-02.json",
         "out/verification/rerun-2026-10-26-drift2/cases/AC-R12-02.json",
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R12-02.json",
         "out/verification/AC-R12-02.json"
       ],
-      "invalidation_reason": "RV06：当前源码的消融未重跑；旧报告非空不构成当前证据——如实 implementing"
+      "invalidation_reason": "RV06 降级已于 2026-10-28 解除：当前源码以 benchmarks/runners/ablation_local.py 在新建 dev 图（out/dev-abl，270210 节点/45 仓，新 ID 格式）重跑三配置消融（同题集 dev-gold-v2.1 33 题/同预算 top_k=5），证据 out/verification/m5-ablation-v2.json 绑定源码指纹/图与题集 sha；结果如实（Hit@5 0.5172，负例 0/4 未拒答）——负例表现弱是真实结果，记录在案，不构成对外宣称"
     },
     "AC-R13-01": {
       "state": "verified",
       "evidence": [
-        "out/verification/rerun-2026-10-26-drift2/cases/AC-R13-01.json"
+        "out/verification/AC-R13-01.json"
       ],
       "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R13-01.json",
         "out/verification/rerun-2026-10-26-drift2/cases/AC-R13-01.json",
         "out/verification/AC-R13-01.json",
         "out/verification/rerun-2026-10-26-drift2/cases/AC-R13-01.json",
@@ -655,9 +657,10 @@
     "AC-R14-02": {
       "state": "verified",
       "evidence": [
-        "out/verification/rerun-2026-10-26-drift2/cases/AC-R14-02.json"
+        "out/verification/AC-R14-02.json"
       ],
       "historical_evidence": [
+        "out/verification/rerun-2026-10-26-drift2/cases/AC-R14-02.json",
         "out/verification/rerun-2026-10-26-drift2/cases/AC-R14-02.json",
         "out/verification/rerun-2026-10-26-drift2/cases/AC-R14-02.json",
         "out/verification/rerun-2026-10-26-drift2/cases/AC-R14-02.json",

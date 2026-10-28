@@ -349,7 +349,7 @@ domimap/
 
 ## Known Limitations
 
-- **Evaluation status**: 41/49 acceptance cases verified (M0–M3 stage gates passed 2026-10-27); remaining 8 are external — 3 clients blocked (Codex account model lockout, ZCode awaiting a user session, DSH binary/balance) and the frozen four-competitor confirmation. All benchmark numbers remain same-session developer evaluations; `make release-check` fails by design until the confirmation run
+- **Evaluation status**: 38/49 verified（2026-10-28：AC-R12-02 以当前源码消融重验、AC-F1-C1-01/02 以当前源码真实 Claude 会话重验；AC-R10-02 维持 implementing 待 24h 负载）; remaining 11 are external — 3 clients blocked (Codex account model lockout, ZCode awaiting a user session, DSH binary/balance), the 24h mixed-load + real-migration drill, and the frozen four-competitor confirmation. All benchmark numbers remain same-session developer evaluations; `make release-check` fails by design until the confirmation run
 - **Cross-lingual gap (mostly closed)**: pure-BM25 could not match Chinese queries to English content; the optional embedding lane + doc chunking lifted public-corpus retrieval from 50→70/140 — answer-layer reruns still pending
 - **Same-name methods**: methods with identical names in different classes share a node (service-level naming)
 - **Source updates**: incremental updates are manual (`domimap update`; no file watcher yet)

@@ -123,6 +123,9 @@ class TestUiWorkbench(unittest.TestCase):
         code, hdrs, body = self._get(path, headers)
         return code, json.loads(body) if body else {}
 
+    def _get_body(self):
+        return self._get("/")
+
     # ---------- 页面 ----------
 
     def test_page_is_workbench_and_enumerates_all_workflows(self):
@@ -215,6 +218,24 @@ class TestUiWorkbench(unittest.TestCase):
         self.assertTrue(d.get("reason"), "不可用时必须给出原因，不冒充内容")
         code, d = self._jget("/api/read")
         self.assertEqual(code, 400)
+
+    def test_stats_includes_graph_fingerprint(self):
+        # 终端回场感知依赖：stats 必须含图文件指纹（mtime/size），不能只报内存图
+        code, d = self._jget("/api/stats")
+        self.assertEqual(code, 200)
+        self.assertIn("graph_mtime", d)
+        self.assertIn("graph_size", d)
+        self.assertIsNotNone(d["graph_mtime"])
+
+    def test_page_has_flow_ux_features(self):
+        # 流程 UX 四件套：快速开始示例、骨架样式、跨工作流链路函数、回场横幅
+        _, _, html = self._get_body()
+        self.assertIn("快速开始", html)
+        self.assertIn("dm-wb-seen", html)
+        self.assertIn(".skel", html)
+        self.assertIn("gotoFlow", html)
+        self.assertIn("graphstale", html)
+        self.assertIn("graph_mtime", html)
 
     def test_stats_endpoint_shape(self):
         code, d = self._jget("/api/stats")

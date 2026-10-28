@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### 工作台流程 UX 优化（2026-10-28，体验官走查）
+
+- 按用户旅程五阶段走查出 4 个流程断点并全部修复（计划立档 specs/tasks/product-ui-flow-ux.md）：①首次进入——检索问答加"快速开始"示例条（3 个真实示例 chip 即填即跑，使用后收起并持久化）；②等待——运行中结果区骨架 shimmer（reduced-motion 关闭，数据到达/失败即清除）；③结果→下一步——跨工作流链路闭环：Table/Method/Class/Service 候选行加"影响面"一键链（跳转+预填+自动运行），影响面起点行加"检索"回查；④终端回场——window focus 时以图文件 mtime/size 指纹（/api/stats 新增 graph_mtime/graph_size，内存图不可靠）检测工作区重建，显示"图已更新——点击刷新"横幅。顺带恢复并行提交中丢失的页脚快捷键样式（#cheat/.kbd）。Playwright 逐流程验证全过、14 工作流零失败、契约 27/27 绿。
+
+### 工作台 Apple 风格生产化改版（2026-10-28）
+
+- 设计令牌整体切换 Apple 体系：#f5f5f7 底/#1d1d1f 主文本/#86868b 次要/#0071e3 按钮蓝；暗色 #111113 底/#1d1d1f 面/#0a84ff 蓝/发丝白线。主按钮 980px 官方胶囊（按压 scale(.97)）、输入框 10px 圆角 + 蓝色聚焦环、面板 14px 大圆角双层软阴影、节点卡 12px 圆角去左彩条改类型色点徽章（含暗色套）、目录 macOS 圆角行 + 蓝色选中态 + 毛玻璃、页眉 saturate(180%) blur(20px) 毛玻璃 + 19px/-0.02em 标题、命令块 #1d1d1f 深色面板。生产细节：::selection 蓝色选区、@media print 仅出结果面板、滚动条圆胶囊（双模式）、徽章胶囊化、cubic-bezier(.25,.1,.25,1) 统一动效曲线（respect prefers-reduced-motion）。14 工作流全流程零失败、契约测试 25/25 绿。
+
 ### 漂移纠正二期（2026-10-26 全项目漂移审计 → docs/superpowers/plans/2026-10-26-drift-analysis-and-priorities.md，T1–T15）
 
 - T1 spec-rehome-r15：R06 回归原义"依据变化→定位陈述→复核队列"（AC-R06-01/02）；检索反馈闭环五案例迁册为 R15「检索质量反馈与受控进化」（AC-R15-01..05，文本逐字不变、连续归位）。`check_specs.REQUIREMENTS` 显式需求集 21→22（精确相等守卫保留）；product.md/roadmap 同步；12 份历史任务 manifest 与守账测试改用新 ID；证据按新 case_id 真实重跑定稿。
