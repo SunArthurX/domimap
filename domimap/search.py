@@ -5,6 +5,7 @@ graphify 的 trigram/IDF 思想 lite 版：不做 trigram 倒排（规模小）�
 import json
 import math
 import os
+import re
 from collections import Counter, defaultdict
 
 from .tokenize import tokenize
@@ -47,12 +48,16 @@ class Searcher:
         self._dl_sum = 0
         self.avgdl = 1.0
         self.extra = {}  # 人工知识等非机器图节点（R05：重建不丢，查询时挂载）
-        if cache_path and self._load_cache(cache_path):
+        self.cjk4 = set()  # 正文里真实出现过的连续四字，用来判断长词是不是整段存在
+        self._cjk4_ready = False
+        if cache_path and self._load_idxdb(cache_path):
+            pass
+        elif cache_path and self._load_cache(cache_path):
             pass
         else:
             self._build()
             if cache_path and getattr(g, "sig", None):
-                self._save_cache(cache_path)
+                self._persist_idxdb(cache_path)
         # 语义桥磁盘缓存（可选层；未启用不读不写）
         self._bridge_cache = (cache_path + ".bridge.json") if cache_path else None
         if self._bridge_cache:
@@ -71,6 +76,51 @@ class Searcher:
             if gp:
                 from .embedding import load_store, store_path_for
                 self.emb_store = load_store(store_path_for(gp))
+
+    def _note_cjk4(self, text):
+        for run in re.findall(r"[\u4e00-\u9fff]{4,}", text or ""):
+            self.cjk4.update(run[i:i + 4] for i in range(len(run) - 3))
+
+    def _ensure_cjk4(self):
+        if self._cjk4_ready:
+            return
+        self.cjk4 = set()
+        for n in self.g.nodes.values():
+            self._note_cjk4(self._node_text(n))
+        for n in self.extra.values():
+            self._note_cjk4(self._node_text(n))
+        self._cjk4_ready = True
+
+    def _phrase_absent(self, text, matched):
+        """整段不在、只靠散落二字加上通用词命中时才拒答。
+
+        「价格同步监听」这类查询的二字本身就是检索词，不在这里拒。
+        「量子纠缠玄学术语毫无关系」没有任何二字命中，留给覆盖率门。
+        「冷链温控巡检 规则 配置」：长词的二字散落在别处，剩下的只有规则/配置。
+        """
+        runs = re.findall(r"[\u4e00-\u9fff]{6,}", text or "")
+        if not runs or not matched:
+            return False
+        self._ensure_cjk4()
+        unsupported = []
+        for run in runs:
+            if all(run[i:i + 4] in self.cjk4 for i in range(len(run) - 3)):
+                return False
+            unsupported.append(run)
+        noise = set()
+        for run in unsupported:
+            noise.update(run[i:i + 2] for i in range(len(run) - 1))
+        if not (matched & noise):
+            return False
+        rest = matched - noise
+        return (not rest) or rest <= GENERIC_UNITS
+
+    def _ident_in_graph(self, ident):
+        low = ident.lower()
+        if any(low in token for token in self.df):
+            return True
+        nodes = list(self.g.nodes.values()) + list(self.extra.values())
+        return any(low in (n.get("name") or "").lower() for n in nodes)
 
     def _node(self, nid):
         return self.g.nodes.get(nid) or self.extra[nid]
@@ -92,6 +142,7 @@ class Searcher:
                                "conf": "LLM" if llm_origin else "HUMAN",
                                "prov": "knowledge:llm" if llm_origin else "knowledge"}
             self._index_one(nid)
+            self._note_cjk4(note["body"])
 
     def _index_one(self, nid):
         n = self.extra[nid]
@@ -110,6 +161,43 @@ class Searcher:
                     and d.get("graph_mtime") == sig["mtime"] and d.get("graph_size") == sig["size"]
                     and d.get("node_count") == len(self.g.nodes))
 
+    def _restore_chunk_nodes(self):
+        from .chunking import expand_node
+        for nid, n in self.g.nodes.items():
+            if n.get("kind") in ("Doc", "Knowledge", "SqlStmt"):
+                for cid, cn in expand_node(nid, n):
+                    if cn is not None:
+                        self.extra[cid] = cn
+
+    def _idxdb_file(self, cache_path):
+        from .idxdb import idxdb_path
+        return idxdb_path(cache_path)
+
+    def _load_idxdb(self, cache_path):
+        """命中 SQLite 倒排时不把 posting 装进内存。图指纹不一致则当未命中。"""
+        from .idxdb import IdxDB, LazyDocs, LazyIndex
+        path = self._idxdb_file(cache_path)
+        if not os.path.exists(path):
+            return False
+        store = IdxDB(path)
+        if not store.matches(getattr(self.g, "sig", None), len(self.g.nodes)):
+            store.close()
+            return False
+        self._idxdb = store
+        self.df = Counter(store.vocabulary())
+        self.N, self.avgdl = store.stats()
+        self._dl_sum = self.avgdl * max(1, self.N)
+        self.docs = LazyDocs(store)
+        self.index = LazyIndex(store)
+        self._restore_chunk_nodes()
+        return True
+
+    def _persist_idxdb(self, cache_path):
+        from .idxdb import write_idx_db
+        write_idx_db(self._idxdb_file(cache_path), self.docs, self.index, self.N, self.avgdl,
+                     self.g.sig, len(self.g.nodes))
+        self._load_idxdb(cache_path)
+
     def _load_cache(self, path):
         """命中条件：schema 版本一致 + 图文件 mtime/size/节点数指纹一致（否则重建）。"""
         try:
@@ -125,13 +213,7 @@ class Searcher:
         self.N = d["N"]
         self._dl_sum = sum(sum(c.values()) for c in self.docs.values())
         self.avgdl = max(1.0, self._dl_sum / max(1, self.N))
-        # 恢复索引层分段的 extra 注册（chunk id 只存在于 docs/index，_node 渲染需要节点体）
-        from .chunking import expand_node
-        for nid, n in self.g.nodes.items():
-            if n.get("kind") in ("Doc", "Knowledge", "SqlStmt"):
-                for cid, cn in expand_node(nid, n):
-                    if cn is not None:
-                        self.extra[cid] = cn
+        self._restore_chunk_nodes()
         return True
 
     def _save_cache(self, path):
@@ -151,6 +233,11 @@ class Searcher:
             parts.append(n["meta"].get("text", "")[:50000])
         if n["kind"] == "SqlStmt":
             parts.append(n["meta"].get("sql", ""))
+        if n["kind"] in ("Table", "Column"):
+            parts.append(n["meta"].get("comment", ""))
+            cc = n["meta"].get("col_comments") or {}
+            if isinstance(cc, dict):
+                parts.append(" ".join(str(v) for v in cc.values()))
         if n["kind"] == "Class":
             # 类注释关键词：业务中文查询与代码节点之间的词面桥（第 5 步诊断驱动）
             parts.append(n["meta"].get("comment", ""))
@@ -281,6 +368,324 @@ class Searcher:
         """注入查询期嵌入后端工厂（测试/自定义后端；None=默认 local/api 按环境）。"""
         self.emb_backend_factory = factory
 
+    def _score_matched(self, matched, qt, qt_orig, weak_tokens, cov, domain, as_of):
+        """词法候选打分。返回 (候选 id 集, 按分排序的 (score, nid))。"""
+        cand = set()
+        for t in matched:
+            cand |= self.index.get(t, set())
+        import time as _t
+        clock = as_of if as_of is not None else _t.time()
+        scored = []
+        for nid in cand:
+            if not self._keep_candidate(nid, domain, as_of, clock):
+                continue
+            s = self._score(qt, nid, name_tokens=qt_orig, weak_tokens=weak_tokens) * cov * cov
+            if s > 0:
+                scored.append((s, nid))
+        scored.sort(reverse=True)
+        return cand, scored
+
+    def _refusal_for_gap(self, cov, scored, strong, min_cov, domain):
+        """覆盖率、空候选、无强信号三种拒答。条件都不成立时返回 None。"""
+        if not (cov < min_cov or not scored or not strong):
+            return None
+        if cov < min_cov:
+            text = ("（诚实拒答：查询词覆盖率 %.0f%%，不足 %d%% 阈值。已查 %d 节点；"
+                    "建议换关键词/先 build。）" % (cov * 100, min_cov * 100, self.N))
+            reason = "coverage_below_min"
+        elif not scored:
+            if domain:
+                text = ("（诚实拒答：覆盖率 %.0f%% 达标，但域过滤「%s」后无候选。已查 %d 节点；"
+                        "检查领域值（领域地图可查可用域）或去掉域过滤。）"
+                        % (cov * 100, domain, self.N))
+                reason = "domain_filter_empty"
+            else:
+                text = ("（诚实拒答：覆盖率 %.0f%% 达标，但无强命中候选。已查 %d 节点；"
+                        "建议换关键词/先 build。）" % (cov * 100, self.N))
+                reason = "no_strong_candidate"
+        else:
+            text = ("（诚实拒答：查询无实质词强信号（仅通用词不构成依据），不猜。已查 %d 节点。）"
+                    % (self.N,))
+            reason = "no_strong_candidate"
+        return {"seeds": [], "expanded": [], "text": text, "refused": True,
+                "refusal_reason": reason, "cov": round(cov, 4), "min_cov": min_cov}
+
+    def _keep_candidate(self, nid, domain, as_of, clock):
+        """资格先于排序：被替代、已过期、晚于 as_of 的节点不进候选。非法日期不猜。"""
+        n = self._node(nid)
+        if domain and n["meta"].get("domain") != domain:
+            return False
+        m = n["meta"]
+        if m.get("superseded_by"):
+            return False
+        vu = m.get("valid_until")
+        if vu:
+            import calendar
+            import time as _t
+            try:
+                if calendar.timegm(_t.strptime(vu[:10], "%Y-%m-%d")) < clock:
+                    return False
+            except ValueError:
+                pass
+        if as_of is not None and m.get("first_seen", 0) > as_of:
+            return False
+        return True
+
+    def _lane_of(self, nid):
+        kind = self._node(nid)["kind"]
+        if kind == "Knowledge":
+            return "kn"
+        return "doc" if kind == "Doc" else "code"
+
+    def _lane_prepare(self, pairs):
+        """路内：同文件 ≤2 席，再按路内最高分的 45% 截尾。"""
+        fam, kept = {}, []
+        for s, nid in sorted(pairs, reverse=True):
+            f = self._node(nid)["file"]
+            fam[f] = fam.get(f, 0) + 1
+            if fam[f] <= 2:
+                kept.append((s, nid))
+        if len(kept) >= 2:
+            top = kept[0][0]
+            kept = [kept[0]] + [x for x in kept[1:] if x[0] >= 0.45 * top]
+        return kept
+
+    def _select_hits(self, scored, top_k, query_text, rerank, rerank_pool):
+        """三路保底融合，可选 LLM 重排。返回 (merged, rerank_info)。"""
+        lanes = {"code": [], "doc": [], "kn": []}
+        for s, nid in scored:
+            lanes[self._lane_of(nid)].append((s, nid))
+        lanes = {k: self._lane_prepare(v) for k, v in lanes.items() if v}
+        guaranteed, taken = [], set()
+        for lane, cap in (("code", 2), ("doc", 2), ("kn", 1)):
+            for item in lanes.get(lane, [])[:cap]:
+                guaranteed.append(item)
+                taken.add(item[1])
+        rest = sorted((x for lane in lanes.values() for x in lane if x[1] not in taken),
+                      reverse=True)
+        merged = sorted(guaranteed + rest, reverse=True)[:top_k]
+        gua_ids = {nid for _, nid in guaranteed}
+        in_final = {nid for _, nid in merged}
+        for gsc, gnid in guaranteed:
+            if gnid in in_final:
+                continue
+            for j in range(len(merged) - 1, -1, -1):
+                if merged[j][1] not in gua_ids:
+                    merged[j] = (gsc, gnid)
+                    in_final.add(gnid)
+                    break
+        merged.sort(reverse=True)
+        pool = sorted((x for lane in lanes.values() for x in lane), reverse=True)[:max(20, top_k)]
+        sel_fams = {self._node(nid)["file"].split("/", 1)[0] for _, nid in merged}
+        for sc, nid in pool:
+            fseg = self._node(nid)["file"].split("/", 1)[0]
+            if fseg in sel_fams:
+                continue
+            if (len(merged) >= top_k and sc > merged[-1][0]
+                    and merged[-1][1] not in gua_ids):
+                merged[-1] = (sc, nid)
+            elif len(merged) < top_k:
+                merged.append((sc, nid))
+            else:
+                break
+            sel_fams.add(fseg)
+            merged.sort(reverse=True)
+        rerank_info = None
+        from . import llm_rerank as _lr
+        if _lr.enabled(rerank):
+            flat = sorted((x for lane in lanes.values() for x in lane), reverse=True)
+            if len(flat) > top_k:
+                pool_n = min(int(rerank_pool or _lr.DEFAULT_POOL), _lr.MAX_POOL, len(flat))
+                rr_pool = flat[:pool_n]
+                ordered, rr_note = _lr.rerank(query_text, rr_pool, self._node,
+                                              cache_path=self._rerank_cache)
+                if ordered:
+                    pool_map = {nid: (sc, nid) for sc, nid in rr_pool}
+                    seq = [pool_map[n] for n in ordered][:top_k]
+                    seq_lanes = {self._lane_of(nid) for _, nid in seq}
+                    for lane in lanes:
+                        if lane in seq_lanes:
+                            continue
+                        first = next((pool_map[n] for n in ordered
+                                      if self._lane_of(n) == lane), None)
+                        if first is None:
+                            continue
+                        from collections import Counter as _Cnt
+                        cnt = _Cnt(self._lane_of(nid) for _, nid in seq)
+                        victim = max(cnt, key=cnt.get) if cnt else None
+                        for j in range(len(seq) - 1, -1, -1):
+                            if victim is None or self._lane_of(seq[j][1]) == victim:
+                                seq[j] = first
+                                break
+                    merged = seq
+                    rerank_info = {"pool": len(rr_pool), "note": rr_note}
+        return merged, rerank_info
+
+    def _apply_semantic_bridge(self, enabled_flag, original, orig_units, graph_has_cjk,
+                               is_cjk, cand, scored, cov, strong, qset, qt_orig,
+                               weak_tokens, denom, min_cov, domain, as_of):
+        """可选语义桥。默认关闭时原样返回。日期资格沿用桥内的本地时区换算。"""
+        sem_info, sem_units = None, set()
+        from . import semantic_bridge as _sb
+        if not _sb.enabled(enabled_flag):
+            return sem_info, sem_units, cand, scored, cov, strong
+        orig_denom = {u for u in orig_units if not is_cjk(u)} | \
+                     ({u for u in orig_units if is_cjk(u)} if graph_has_cjk else set())
+        orig_matched = {t for t in orig_denom if t in self.df}
+        orig_cov = (len(orig_matched) / len(orig_denom)) if orig_denom else 0.0
+        if not (orig_cov < SEM_COV_GATE and any(is_cjk(u) for u in orig_units)):
+            return sem_info, sem_units, cand, scored, cov, strong
+        sem_tokens, sem_note = _sb.expand_tokens(original, self.df, cache_path=self._bridge_cache)
+        grounded = [t for t in sem_tokens if t in self.df]
+        if not grounded:
+            return sem_info, sem_units, cand, scored, cov, strong
+        sem_units = set(grounded)
+        sem_info = {"tokens": grounded, "note": sem_note}
+        for t in sem_units:
+            cand |= self.index.get(t, set())
+
+        def eligible(nid):
+            n = self._node(nid)
+            if domain and n["meta"].get("domain") != domain:
+                return False
+            if as_of is not None:
+                m = n["meta"]
+                if m.get("superseded_by"):
+                    return False
+                vu = m.get("valid_until")
+                if vu:
+                    import time as _t
+                    try:
+                        if _t.mktime(_t.strptime(vu[:10], "%Y-%m-%d")) < as_of:
+                            return False
+                    except ValueError:
+                        pass
+                if m.get("first_seen", 0) > as_of:
+                    return False
+            return True
+
+        denom_sem = denom | sem_units
+        matched_sem = {t for t in denom_sem if t in self.df}
+        if cov < min_cov:
+            cov = (len(matched_sem) / len(denom_sem)) if denom_sem else 0
+            strong = strong or bool(matched_sem)
+        scored = []
+        for nid in cand:
+            if not eligible(nid):
+                continue
+            s_sem = self._score(list(qset | sem_units), nid, name_tokens=qt_orig,
+                                weak_tokens=weak_tokens) * cov * cov
+            if s_sem > 0:
+                scored.append((s_sem, nid))
+        scored.sort(reverse=True)
+        return sem_info, sem_units, cand, scored, cov, strong
+
+    def _apply_en_bridge(self, units, denom, cand, scored, cov, strong, qset, sem_units, qt_orig):
+        """覆盖率不足时，用内置中英词表补一次候选。主路径不计这些词。"""
+        from .tokenize import EN_BRIDGE
+        ext_tokens = set()
+        for u in units:
+            ens = EN_BRIDGE.get(u)
+            if ens:
+                ext_tokens.update(ens if not isinstance(ens, str) else [ens])
+        if not ext_tokens:
+            return cand, scored, cov, strong
+        ext_matched = {t for t in ext_tokens if t in self.df}
+        if not ext_matched:
+            return cand, scored, cov, strong
+        for t in ext_matched:
+            cand |= self.index.get(t, set())
+        cov = len(ext_matched) / len(ext_tokens | denom) if (ext_tokens | denom) else 0
+        scored = []
+        for nid in cand:
+            s2_ = self._score(list(qset | ext_matched | sem_units), nid,
+                              name_tokens=qt_orig) * cov * cov
+            if s2_ > 0:
+                scored.append((s2_, nid))
+        scored.sort(reverse=True)
+        return cand, scored, cov, True
+
+    def _fuse_embeddings(self, scored, qset, qt, original, embed):
+        """可选嵌入融合。定义性标识符或代码意图词跳过，避免稀释词法精确命中。"""
+        from . import embedding as _eb
+        embed_info = None
+        if not (_eb.enabled(embed) and self.emb_store):
+            return scored, embed_info
+        code_intent = qset & {"表", "定义", "写入", "位置", "ddl", "建表", "create",
+                              "处理类", "列名", "字段", "哪个类", "哪个服务", "读写"}
+        has_definitive = any(self._name_exact_hit(qt, nid) for _, nid in scored[:10])
+        if has_definitive or code_intent:
+            return scored, {"backend": self.emb_store.get("backend"),
+                            "skipped": "definitive_identifier" if has_definitive else "code_intent"}
+        sem_pairs = _eb.semantic_recall(
+            original, self.emb_store, backend_factory=self.emb_backend_factory,
+            kinds=("Doc", "Knowledge"))
+        if sem_pairs:
+            fused = _eb.fuse_rrf(scored, sem_pairs)
+            if fused:
+                return fused, {"backend": self.emb_store.get("backend"), "sem_top": len(sem_pairs)}
+        return scored, embed_info
+
+    def _reweight_fresh(self, scored, text):
+        """查询带时间词时，按 first_seen 在当前候选里做有界近因加权。只改排序。"""
+        import re
+        if not re.search(r"最新|最近|更新|变更|changelog|change", text, re.I):
+            return scored
+        fss = [self._node(nid)["meta"].get("first_seen") or 0.0 for _, nid in scored[:200]]
+        mx = max(fss) if fss else 0.0
+        mn = min(fss) if fss else 0.0
+        if mx <= mn:
+            return scored
+        return [(s * (0.5 + 0.5 * ((self._node(nid)["meta"].get("first_seen") or 0.0) - mn)
+                      / (mx - mn)), nid) for s, nid in scored]
+
+    def _assemble_result(self, merged, top_k, expand, budget, as_of, sem_info, rerank_info, embed_info):
+        """渲染种子、一跳扩展和覆盖缺口。"""
+        now_ref = as_of if as_of is not None else __import__("time").time()
+
+        def time_note(nid):
+            fs = self._node(nid)["meta"].get("first_seen")
+            if not fs:
+                return "日期未知：不衰减（按最早资格处理）"
+            age_days = max(0.0, (now_ref - fs) / 86400.0)
+            decay = 0.5 ** (age_days / 365.0)
+            return "age=%.0fd decay=%.3f" % (age_days, decay)
+
+        hits = merged[:top_k]
+        seed_ids = [nid for _, nid in hits]
+        seen = set(seed_ids)
+        lines = ["## 种子命中（词法 IDF）"]
+        for idx, (s, nid) in enumerate(hits):
+            node = self._node(nid)
+            node["time_note"] = time_note(nid)
+            lines.append(self._render(node, s, rank=idx + 1))
+        exp_lines = []
+        if expand:
+            lines.append("\n## 一跳扩展（图结构）")
+            for nid in seed_ids:
+                for e in self.g.neighbors(nid) + self.g.neighbors(nid, rev=True)[:4]:
+                    other = self.g.nodes.get(e["dst"] if e["src"] == nid else e["src"])
+                    if not other or other["id"] in seen:
+                        continue
+                    seen.add(other["id"])
+                    exp_lines.append("- %s --%s(%s)--> %s" % (
+                        self.g.nodes[nid]["name"], e["kind"], e["conf"], other["name"]))
+        out = "\n".join(lines + exp_lines)
+        if sem_info:
+            out = "（语义桥扩展：%s）\n%s" % (" ".join(sem_info["tokens"]), out)
+        if len(out) > budget:
+            out = out[:budget] + "\n…(预算截断)"
+        reasons = {}
+        for skipped in (self.coverage.get("skipped") or []):
+            for key in ("解析失败", "旧格式", "大小上限", "越界", "lambda", "未解析"):
+                if key in skipped.get("reason", ""):
+                    reasons[key] = reasons.get(key, 0) + 1
+        return {"seeds": [self._node(n) for n in seed_ids], "expanded_count": len(exp_lines),
+                "text": out, "refused": False,
+                "semantic_bridge": sem_info, "llm_rerank": rerank_info, "embedding": embed_info,
+                "coverage": {"files_scanned": self.coverage.get("files_scanned"),
+                             "skipped": len(self.coverage.get("skipped") or []), "reasons": reasons}}
+
     def query(self, text, top_k=6, expand=True, budget=3800, domain=None, min_cov=0.3, seeds=None,
               as_of=None, semantic=None, rerank=None, rerank_pool=None, embed=None):
         """as_of（epoch 秒）给定时时先做资格筛选：first_seen 晚于 as_of 的节点不进候选（F4）。
@@ -291,9 +696,7 @@ class Searcher:
         import re as _reG
         _o = text.strip()
         if (_reG.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", _o)
-                and not any(_o.lower() in n["name"].lower()
-                            for n in list(self.g.nodes.values())[:200000] + list(self.extra.values()))
-                and not any(_o.lower() in t for t in self.df)):
+                and not self._ident_in_graph(_o)):
             return {"seeds": [], "expanded": [],
                     "text": "（诚实拒答：标识符 %s 在图中不存在。）" % _o, "refused": True,
                     "refusal_reason": "identifier_absent"}
@@ -343,346 +746,38 @@ class Searcher:
                     "text": "（诚实拒答：查询的实质词在图中均不存在，仅命中通用词。）",
                     "refused": True, "refusal_reason": "generic_only",
                     "cov": round(cov, 4), "min_cov": min_cov}
+        if self._phrase_absent(_o, matched):
+            return {"seeds": [], "expanded": [],
+                    "text": "（诚实拒答：查询里的长词在图中没有整段出现，不拿散落的二字凑答案。）",
+                    "refused": True, "refusal_reason": "phrase_absent",
+                    "cov": round(cov, 4), "min_cov": min_cov}
         # 负例守门②：含 ≥4 字符拉丁标识符且全部缺席 → 拒答（原守门仅覆盖纯标识符查询，
-        # "近名标识符+中文词"曾绕过并产生幻觉命中）
+        # "近名标识符+中文词"曾绕过并产生幻觉命中）。名字检查覆盖全部节点，不再截断前 20 万。
         import re as _reI
         _idents = _reI.findall(r"[A-Za-z][A-Za-z0-9_]{3,}", _o)
-        _all_absent = all(
-            not any(i.lower() in n["name"].lower()
-                    for n in list(self.g.nodes.values())[:200000] + list(self.extra.values()))
-            and not any(i.lower() in t for t in self.df)
-            for i in _idents)
+        _all_absent = all(not self._ident_in_graph(i) for i in _idents)
         if _idents and _all_absent:
             return {"seeds": [], "expanded": [],
                     "text": "（诚实拒答：标识符 %s 在图中不存在。）" % ", ".join(_idents[:3]),
                     "refused": True, "refusal_reason": "identifier_absent",
                     "cov": round(cov, 4), "min_cov": min_cov}
-        cand = set()
-        for t in matched:
-            cand |= self.index.get(t, set())
-        scored = []
-        import calendar as _cal
-        import time as _t
-        clock = as_of if as_of is not None else _t.time()  # 资格判定的时钟：默认当前，as_of 挪表
-        for nid in cand:
-            n = self._node(nid)
-            if domain and n["meta"].get("domain") != domain:
-                continue
-            m = n["meta"]
-            # 资格先于排序（product#7）：被替代/已过期的资料默认不具资格；历史范围经 as_of 查询（F4）
-            if m.get("superseded_by"):
-                continue
-            vu = m.get("valid_until")
-            if vu:
-                try:
-                    if _cal.timegm(_t.strptime(vu[:10], "%Y-%m-%d")) < clock:
-                        continue  # 过期资料不具资格
-                except ValueError:
-                    pass  # 日期非法：不猜，保持资格并记未知
-            if as_of is not None and m.get("first_seen", 0) > as_of:
-                continue  # 晚于 as_of 的资料不参与
-            s = self._score(qt, nid, name_tokens=qt_orig,
-                            weak_tokens=weak_tokens) * cov * cov
-            if s > 0:
-                scored.append((s, nid))
-        scored.sort(reverse=True)
+        cand, scored = self._score_matched(matched, qt, qt_orig, weak_tokens, cov, domain, as_of)
         strong = any(len(t) >= 2 and t in self.df for t in denom)
-        # 语义桥（可选默认关；触发=覆盖率<60% 且查询含 CJK——跨语言信号。触发门修订依据：
-        # dev 40 题与 pub 97 题图内集的 miss 全部是"弱覆盖返回错结果"而非拒答，人群实测）。
-        # LLM 动态扩展查询词并 df 接地后并入候选并集重打分；失败/未配置/解析失败 → 跳过，
-        # 后续路径与拒答语义逐字不变。绝不把拒答变假命中（<30% 救援仍需过覆盖率门）。
-        sem_info = None
-        sem_units = set()
-        from . import semantic_bridge as _sb
-        if _sb.enabled(semantic):
-            # 原始查询覆盖率（CJK 感知，与 denom 同规则；不含 seeds 域词）
-            orig_denom = {u for u in orig_units if not is_cjk(u)} | \
-                         ({u for u in orig_units if is_cjk(u)} if graph_has_cjk else set())
-            orig_matched = {t for t in orig_denom if t in self.df}
-            orig_cov = (len(orig_matched) / len(orig_denom)) if orig_denom else 0.0
-            if orig_cov < SEM_COV_GATE and any(is_cjk(u) for u in orig_units):
-                sem_tokens, sem_note = _sb.expand_tokens(
-                    _o, self.df, cache_path=self._bridge_cache)
-                grounded = [t for t in sem_tokens if t in self.df]
-                if grounded:
-                    sem_units = set(grounded)
-                    sem_info = {"tokens": grounded, "note": sem_note}
-                    for t in sem_units:
-                        cand |= self.index.get(t, set())
-
-                    def _sem_eligible(nid):
-                        n = self._node(nid)
-                        if domain and n["meta"].get("domain") != domain:
-                            return False
-                        if as_of is not None:
-                            m = n["meta"]
-                            if m.get("superseded_by"):
-                                return False
-                            vu = m.get("valid_until")
-                            if vu:
-                                import time as _t
-                                try:
-                                    if _t.mktime(_t.strptime(vu[:10], "%Y-%m-%d")) < as_of:
-                                        return False
-                                except ValueError:
-                                    pass
-                            if m.get("first_seen", 0) > as_of:
-                                return False
-                        return True
-
-                    denom_sem = denom | sem_units
-                    matched_sem = {t for t in denom_sem if t in self.df}
-                    if cov < min_cov:
-                        # 拒答救援：覆盖率按"原分母 ∪ 接地扩展词"重算（与静态桥同型）
-                        cov = (len(matched_sem) / len(denom_sem)) if denom_sem else 0
-                        strong = strong or bool(matched_sem)
-                    scored = []
-                    for nid in cand:
-                        if not _sem_eligible(nid):
-                            continue
-                        s_sem = self._score(list(qset | sem_units), nid,
-                                            name_tokens=qt_orig,
-                                            weak_tokens=weak_tokens) * cov * cov
-                        if s_sem > 0:
-                            scored.append((s_sem, nid))
-                    scored.sort(reverse=True)
+        sem_info, sem_units, cand, scored, cov, strong = self._apply_semantic_bridge(
+            semantic, _o, orig_units, graph_has_cjk, is_cjk, cand, scored, cov, strong,
+            qset, qt_orig, weak_tokens, denom, min_cov, domain, as_of)
         if cov < min_cov or not scored or not strong:
-            # 中英桥回退：原始查询覆盖率不足时，附加 CJK 二元组的英文对应词重试
-            # （主路径不加桥——公共语料实测桥接加入主计分路径稀释 BM25 IDF 使 11 题回退）
-            from .tokenize import EN_BRIDGE
-            ext_tokens = set()
-            ext_matched = set()
-            for u in units:
-                ens = EN_BRIDGE.get(u)
-                if ens:
-                    if isinstance(ens, str):
-                        ext_tokens.add(ens)
-                    else:
-                        ext_tokens.update(ens)
-            if ext_tokens:
-                ext_matched = {t for t in ext_tokens if t in self.df}
-                if ext_matched:
-                    for t in ext_matched:
-                        cand |= self.index.get(t, set())
-                    cov = len(ext_matched) / len(ext_tokens | denom) if (ext_tokens | denom) else 0
-                    scored = []
-                    for nid in cand:
-                        s2_ = self._score(list(qset | ext_matched | sem_units), nid,
-                                          name_tokens=qt_orig) * cov * cov
-                        if s2_ > 0:
-                            scored.append((s2_, nid))
-                    scored.sort(reverse=True)
-                    strong = True
-            if cov < min_cov or not scored or not strong:
-                # 拒答原因按真实触发条件分化：三条件各自语义不同，统一说"覆盖率不足"
-                # 会在覆盖率达标但域过滤筛空时自相矛盾并误导排障方向
-                if cov < min_cov:
-                    text = ("（诚实拒答：查询词覆盖率 %.0f%%，不足 %d%% 阈值。已查 %d 节点；"
-                            "建议换关键词/先 build。）" % (cov * 100, min_cov * 100, self.N))
-                    reason = "coverage_below_min"
-                elif not scored:
-                    if domain:
-                        text = ("（诚实拒答：覆盖率 %.0f%% 达标，但域过滤「%s」后无候选。已查 %d 节点；"
-                                "检查领域值（领域地图可查可用域）或去掉域过滤。）"
-                                % (cov * 100, domain, self.N))
-                        reason = "domain_filter_empty"
-                    else:
-                        text = ("（诚实拒答：覆盖率 %.0f%% 达标，但无强命中候选。已查 %d 节点；"
-                                "建议换关键词/先 build。）" % (cov * 100, self.N))
-                        reason = "no_strong_candidate"
-                else:
-                    text = ("（诚实拒答：查询无实质词强信号（仅通用词不构成依据），不猜。已查 %d 节点。）"
-                            % (self.N,))
-                    reason = "no_strong_candidate"
-                return {"seeds": [], "expanded": [], "text": text, "refused": True,
-                        "refusal_reason": reason, "cov": round(cov, 4), "min_cov": min_cov}
-        # 嵌入语义融合（可选默认关；拒答守门已过——负例结构性安全）：RRF 融合 BM25 序与
-        # 语义序，融合后的序与分值替换 scored 进入时新加权/重排/三路融合（下游零变化）。
-        # 索引缺失/后端缺失/任何失败 → BM25 原序继续。
-        embed_info = None
-        from . import embedding as _eb
-        if _eb.enabled(embed) and self.emb_store:
-            # 融合资格门（pub A/B 两轮实证）：①定义性信号——查询标识符与节点名精确相等
-            # （IDENTIFIER_NAME_BOOST 同一语义）；②代码定位意图——查询含 DDL 语义集同型的
-            # 意图词（处理类/位置/列名/字段/表/定义/写入…）。两者任一 → 词法通道（含其
-            # 已证加成）权威，跳过语义融合（RRF 会把词法精确证据稀释：code_location
-            # 19/27→8/27 回归）；纯中文文档/诊断意图（教程/限制条件/最新…）才融合。
-            _code_intent = qset & {"表", "定义", "写入", "位置", "ddl", "建表", "create",
-                                   "处理类", "列名", "字段", "哪个类", "哪个服务", "读写"}
-            has_definitive = any(self._name_exact_hit(qt, nid) for _, nid in scored[:10])
-            if has_definitive or _code_intent:
-                embed_info = {"backend": self.emb_store.get("backend"),
-                              "skipped": "definitive_identifier" if has_definitive else "code_intent"}
-            else:
-                # 文档意图（既非定义性标识符也无代码意图词）→ 语义召回限定 Doc/Knowledge
-                # 子池（product-doc-semantic-lane：混池下文档查询的语义近邻被 SQL/代码占据）
-                sem_pairs = _eb.semantic_recall(
-                    _o, self.emb_store, backend_factory=self.emb_backend_factory,
-                    kinds=("Doc", "Knowledge"))
-                if sem_pairs:
-                    fused = _eb.fuse_rrf(scored, sem_pairs)
-                    if fused:
-                        scored = fused
-                        embed_info = {"backend": self.emb_store.get("backend"),
-                                      "sem_top": len(sem_pairs)}
-        # 时新意图：查询含时间词时按 first_seen 近因加权（first_seen=正文纪元 > 内容首次收录 > mtime，仅作用排序）
-        import re as _re0
-        fresh_query = bool(_re0.search(r"最新|最近|更新|变更|changelog|change", text, _re0.I))
-        if fresh_query:
-            fss = [self._node(nid)["meta"].get("first_seen") or 0.0 for _, nid in scored[:200]]
-            mx = max(fss) if fss else 0.0
-            mn = min(fss) if fss else 0.0
-            if mx > mn:
-                scored = [(s * (0.5 + 0.5 * ((self._node(nid)["meta"].get("first_seen") or 0.0) - mn)
-                                / (mx - mn)), nid) for s, nid in scored]
-        # 时间衰减：仅作用于排序（资格已筛完），逐条 explain（F4）
-        now_ref = as_of if as_of is not None else __import__("time").time()
-
-        def time_note(nid):
-            fs = self._node(nid)["meta"].get("first_seen")
-            if not fs:
-                return "日期未知：不衰减（按最早资格处理）"
-            age_days = max(0.0, (now_ref - fs) / 86400.0)
-            decay = 0.5 ** (age_days / 365.0)
-            return "age=%.0fd decay=%.3f" % (age_days, decay)
-
-        # 时效查询的时间乘子=有界近因重加权（第 5 轮终版）：独立指数衰减分支已移除——
-        # 它对"如实声明日期"的节点系统性惩罚（未知时间 or now_ref → ×1.0 不衰减，
-        # 声明 2017 者 ×0.05 地板，20 倍 handicap，与 time_note"日期未知按最早资格处理"矛盾）。
-        # 重加权 0.5+0.5×norm：未知=最早（×0.5）、最新 ×1.0，单调、有界、仅作用排序（F4）。
+            cand, scored, cov, strong = self._apply_en_bridge(
+                units, denom, cand, scored, cov, strong, qset, sem_units, qt_orig)
+            gap = self._refusal_for_gap(cov, scored, strong, min_cov, domain)
+            if gap:
+                return gap
+        scored, embed_info = self._fuse_embeddings(scored, qset, qt, _o, embed)
+        scored = self._reweight_fresh(scored, text)
         scored.sort(reverse=True)
-        # R04-01 v2（用户 2026-10-22 指示：文档与代码分别命中后再融合，而非一路独占）：
-        # 三路（code/doc/knowledge）各自完成 fam 去重与路内断崖精剪，融合时每条非空路
-        # 保底入席（code/doc ≤2、kn ≤1），其余席位按全局分补足。旧全局断崖使巨型泛词
-        # 文档独占结果（product-llm-enrich-hardening A/B 实证：代码路与 Knowledge 笔记
-        # 同时被剪光）——精度守门保留，比较对象从全局 top 改为路内 top。
-        def _lane_of(nid):
-            kind = self._node(nid)["kind"]
-            if kind == "Knowledge":
-                return "kn"
-            return "doc" if kind == "Doc" else "code"
-
-        def _lane_prepare(pairs):
-            """路内：同文件 ≤2 席（防 seeds/README 型噪声霸榜）+ 断崖精剪（<45% 路内 top 截尾）。"""
-            fam, kept = {}, []
-            for s, nid in sorted(pairs, reverse=True):
-                f = self._node(nid)["file"]
-                fam[f] = fam.get(f, 0) + 1
-                if fam[f] <= 2:
-                    kept.append((s, nid))
-            if len(kept) >= 2:
-                top = kept[0][0]
-                kept = [kept[0]] + [x for x in kept[1:] if x[0] >= 0.45 * top]
-            return kept
-
-        lanes = {"code": [], "doc": [], "kn": []}
-        for s, nid in scored:
-            lanes[_lane_of(nid)].append((s, nid))
-        lanes = {k: _lane_prepare(v) for k, v in lanes.items() if v}
-        guaranteed, taken = [], set()
-        for lane, cap in (("code", 2), ("doc", 2), ("kn", 1)):
-            for item in lanes.get(lane, [])[:cap]:
-                guaranteed.append(item)
-                taken.add(item[1])
-        rest = sorted((x for lane in lanes.values() for x in lane if x[1] not in taken),
-                      reverse=True)
-        merged = sorted(guaranteed + rest, reverse=True)[:top_k]
-        # 保底落位：保证席位被高分挤出 top_k 时，替换尾部非保证项（每条非空路必有代表）
-        gua_ids = {nid for _, nid in guaranteed}
-        in_final = {nid for _, nid in merged}
-        for gsc, gnid in guaranteed:
-            if gnid in in_final:
-                continue
-            for j in range(len(merged) - 1, -1, -1):
-                if merged[j][1] not in gua_ids:
-                    merged[j] = (gsc, gnid)
-                    in_final.add(gnid)
-                    break
-        merged.sort(reverse=True)
-        # 跨族覆盖：若得分前 20 的其它族（文件根）在 top_k 无代表，用该族最佳替换尾部最低分
-        # （全局最佳与保底席位始终保留；替换按族头得分与被替项得分顺序进行）
-        pool = sorted((x for lane in lanes.values() for x in lane), reverse=True)[:max(20, top_k)]
-        sel_fams = {self._node(nid)["file"].split("/", 1)[0] for _, nid in merged}
-        for sc, nid in pool:
-            fseg = self._node(nid)["file"].split("/", 1)[0]
-            if fseg in sel_fams:
-                continue
-            if (len(merged) >= top_k and sc > merged[-1][0]
-                    and merged[-1][1] not in gua_ids):  # 保底席位不被跨族交换挤掉
-                merged[-1] = (sc, nid)
-            elif len(merged) < top_k:
-                merged.append((sc, nid))
-            else:
-                break
-            sel_fams.add(fseg)
-            merged.sort(reverse=True)
-        # LLM 语义重排（可选默认关；终段覆盖式）：融合管线按原语义跑完后，对全部分路
-        # 候选（分数序 top-N）做 LLM 重排取 top_k，再执行路保底——默认关路径逐字节不变，
-        # 失败/未配置 → merged 原样。LLM 只排列给定不透明 id，无新 id/文本/路径（注入面=0）。
-        rerank_info = None
-        from . import llm_rerank as _lr
-        if _lr.enabled(rerank):
-            flat = sorted((x for lane in lanes.values() for x in lane), reverse=True)
-            if len(flat) > top_k:
-                pool_n = min(int(rerank_pool or _lr.DEFAULT_POOL), _lr.MAX_POOL, len(flat))
-                rr_pool = flat[:pool_n]
-                ordered, rr_note = _lr.rerank(_o, rr_pool, self._node,
-                                              cache_path=self._rerank_cache)
-                if ordered:
-                    pool_map = {nid: (sc, nid) for sc, nid in rr_pool}
-                    seq = [pool_map[n] for n in ordered][:top_k]
-                    # 路保底：池中在场（lanes 键=非空路）但 top_k 缺席的路，
-                    # 用其重排首项换掉当前代表最多路的尾部项
-                    seq_lanes = {_lane_of(nid) for _, nid in seq}
-                    for lane in lanes:
-                        if lane in seq_lanes:
-                            continue
-                        first = next((pool_map[n] for n in ordered
-                                      if _lane_of(n) == lane), None)
-                        if first is None:
-                            continue
-                        from collections import Counter as _Cnt
-                        cnt = _Cnt(_lane_of(nid) for _, nid in seq)
-                        victim = max(cnt, key=cnt.get) if cnt else None
-                        for j in range(len(seq) - 1, -1, -1):
-                            if victim is None or _lane_of(seq[j][1]) == victim:
-                                seq[j] = first
-                                break
-                    merged = seq
-                    rerank_info = {"pool": len(rr_pool), "note": rr_note}
-        seeds = merged[:top_k]
-        seed_ids = [nid for _, nid in seeds]
-        seen = set(seed_ids)
-        lines = ["## 种子命中（词法 IDF）"]
-        for idx, (s, nid) in enumerate(seeds):
-            node = self._node(nid)
-            node["time_note"] = time_note(nid)
-            lines.append(self._render(node, s, rank=idx + 1))
-        exp_lines = []
-        if expand:
-            lines.append("\n## 一跳扩展（图结构）")
-            for nid in seed_ids:
-                for e in self.g.neighbors(nid) + self.g.neighbors(nid, rev=True)[:4]:
-                    other = self.g.nodes.get(e["dst"] if e["src"] == nid else e["src"])
-                    if not other or other["id"] in seen:
-                        continue
-                    seen.add(other["id"])
-                    exp_lines.append("- %s --%s(%s)--> %s" % (self.g.nodes[nid]["name"], e["kind"], e["conf"], other["name"]))
-        out = "\n".join(lines + exp_lines)
-        if sem_info:
-            out = "（语义桥扩展：%s）\n%s" % (" ".join(sem_info["tokens"]), out)
-        if len(out) > budget:
-            out = out[:budget] + "\n…(预算截断)"
-        reasons = {}
-        for s in (self.coverage.get("skipped") or []):
-            for key in ("解析失败", "旧格式", "大小上限", "越界", "lambda", "未解析"):
-                if key in s.get("reason", ""):
-                    reasons[key] = reasons.get(key, 0) + 1
-        return {"seeds": [self._node(n) for n in seed_ids], "expanded_count": len(exp_lines),
-                "text": out, "refused": False,
-                "semantic_bridge": sem_info, "llm_rerank": rerank_info, "embedding": embed_info,
-                "coverage": {"files_scanned": self.coverage.get("files_scanned"),
-                             "skipped": len(self.coverage.get("skipped") or []), "reasons": reasons}}
+        merged, rerank_info = self._select_hits(scored, top_k, _o, rerank, rerank_pool)
+        return self._assemble_result(merged, top_k, expand, budget, as_of,
+                                    sem_info, rerank_info, embed_info)
 
     def _render(self, n, score, rank=None):
         head = "- [%s] %s  (score=%.3f, conf=%s, prov=%s)" % (n["kind"], n["name"], score, n["conf"], n["prov"])

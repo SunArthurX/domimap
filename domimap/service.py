@@ -7,7 +7,7 @@
 import json
 import os
 
-from .graph import Graph, load_seeds
+from .graph import Graph, load_workspace_seeds
 from .search import Searcher
 
 QUERY_DEFAULTS = {"top_k": 6, "expand": True, "budget": 3800, "min_cov": 0.3, "domain": None}
@@ -15,7 +15,6 @@ DOC_SEARCH_DEFAULTS = {"top_k": 8, "expand": False, "budget": 6000}  # 文档检
 IMPACT_DEFAULT_DEPTH = 2
 IMPACT_MAX_NODES = 200
 IMPACT_MAX_DEPTH = 8
-SEEDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json")
 
 
 class ServiceError(ValueError):
@@ -58,7 +57,8 @@ class AppService:
     # ---------- 装配与热重载 ----------
     def _signature(self):
         sig = []
-        for name in (self.graph_path, os.path.join(self.ws, "knowledge.db"), os.path.join(self.ws, "store.db")):
+        for name in (self.graph_path, os.path.join(self.ws, "graph.db"),
+                     os.path.join(self.ws, "knowledge.db"), os.path.join(self.ws, "store.db")):
             try:
                 st = os.stat(name)
                 sig.append((st.st_mtime_ns, st.st_size))
@@ -69,7 +69,11 @@ class AppService:
     def reload(self):
         from .knowledge import attach_if_present
         from .store import EvidenceResolver
-        self.g = Graph.load(self.graph_path)
+        old = getattr(self, "g", None)
+        store = getattr(old, "_edge_store", None) if old is not None else None
+        self.g = Graph.load(self.graph_path, lazy_edges=True)
+        if store is not None and store is not getattr(self.g, "_edge_store", None):
+            store.close()
         coverage = {}
         cov = os.path.join(self.ws, "coverage.json")
         if os.path.exists(cov):
@@ -80,7 +84,7 @@ class AppService:
                 coverage = {}
         self.s = Searcher(self.g, cache_path=self.graph_path + ".idx.json", coverage=coverage)
         attach_if_present(self.s, self.graph_path)  # 图旁 knowledge.db（人工/LLM 笔记）
-        self.seeds = load_seeds(SEEDS_PATH)
+        self.seeds = load_workspace_seeds(self.ws)
         self.resolver = EvidenceResolver.beside(self.graph_path)
         self._sig = self._signature()
         return self

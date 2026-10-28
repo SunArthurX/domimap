@@ -21,6 +21,7 @@ def build_searcher():
                                  "public class OrderService {\n"
                                  "    public void changePrice(long id) {}\n}\n",
         "doc/rule.md": "# 规则\n对账流程必须先冻结单据，规则由财务侧维护。\n" + "细节补充\n" * 20,
+        "doc/bits.md": "冷链物流。温控设备。巡检记录。配置项见规则。\n",
         "mapper/OrderMapper.xml": "<select>SELECT * FROM t_order_main</select>\n",
     }
     for rel, content in files.items():
@@ -57,6 +58,22 @@ class TestNegativeRefusal(unittest.TestCase):
         self.assertFalse(r.get("refused"))
         files = [n.get("file") for n in r.get("seeds", [])]
         self.assertTrue(any("OrderService" in (f or "") for f in files))
+
+    def test_scattered_bigrams_do_not_satisfy_a_long_phrase(self):
+        """长词的二字散落在不同文档里，整段没出现 → 拒答（dev 负例 dv2-0123..0126 的形态）。"""
+        r = self.s.query("冷链温控巡检 规则 配置", top_k=5)
+        self.assertTrue(r.get("refused"), r.get("text"))
+        self.assertEqual(r.get("refusal_reason"), "phrase_absent")
+
+    def test_long_phrase_present_is_not_phrase_absent(self):
+        from domimap.graph import Graph
+        from domimap.search import Searcher
+        g = Graph()
+        g.add_node("doc:cold", "Doc", "cold.md", "cold.md",
+                   {"text": "冷链温控巡检必须每天记录。"})
+        r = Searcher(g).query("冷链温控巡检 每天记录", top_k=5)
+        self.assertNotEqual(r.get("refusal_reason"), "phrase_absent", r.get("text"))
+        self.assertFalse(r.get("refused"), r.get("text"))
 
     def test_real_content_words_unaffected(self):
         r = self.s.query("对账 冻结 规则", top_k=5)

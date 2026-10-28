@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "phrase-refusal-and-gc",
+  "kind": "slice",
+  "state": "implementing",
+  "spec": "specs/tasks/phrase-refusal-and-gc.md",
+  "requirements": ["R03", "R04"],
+  "acceptance_cases": ["AC-R03-01", "AC-R04-02"],
+  "files": [
+    "domimap/search.py",
+    "domimap/store.py",
+    "domimap/__main__.py",
+    "tests/test_negative_refusal.py",
+    "tests/test_prune.py",
+    "specs/tasks/phrase-refusal-and-gc.json",
+    "specs/tasks/phrase-refusal-and-gc.md"
+  ],
+  "test_files": [
+    "tests/test_negative_refusal.py",
+    "tests/test_prune.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_negative_refusal tests.test_prune tests.test_golden tests.test_evidence_store -q"
+  ],
+  "rollback": "去掉 phrase_absent 守门和 gc。已删除的代文件不会自动回来。"
+}

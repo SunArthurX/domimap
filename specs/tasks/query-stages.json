@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "query-stages",
+  "kind": "slice",
+  "state": "implementing",
+  "spec": "specs/tasks/query-stages.md",
+  "requirements": ["R04"],
+  "acceptance_cases": ["AC-R04-01"],
+  "files": [
+    "domimap/search.py",
+    "README.md",
+    "README.zh-CN.md",
+    "tests/test_golden.py",
+    "tests/test_lane_fusion.py",
+    "specs/tasks/query-stages.json",
+    "specs/tasks/query-stages.md"
+  ],
+  "test_files": [
+    "tests/test_golden.py",
+    "tests/test_lane_fusion.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_golden tests.test_lane_fusion tests.test_negative_refusal tests.test_bm25_scoring tests.test_p1 -q"
+  ],
+  "rollback": "把 _keep_candidate 与 _select_hits 的函数体挪回 query。"
+}

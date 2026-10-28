@@ -61,4 +61,8 @@ domimap 的核心价值是让人和 Agent 在不同会话中，重新核对同�
 | P1 | 发布管线硬化：固定 Actions、构建工件净化、tag 与已验证源码一致、发布任务依赖正式门槛 | 干净包异目录安装、源码与历史净化审查、release gate 关闭时不能正式发布 |
 | P1 | 新的独立端到端确认批次及裁决 | 冻结协议、四个真实基线、三指标与修正置信界全部达标 |
 
+## 合成规模门禁（2026-10-28）
+
+`scripts/scale_gate.py --repos 200` 生成 200 个「一个类 + 一个 pom」的仓并建图。本次结果（`out/verification/scale-synthetic-200.json`）：建图 1.31s，graph.json 370KB，graph.db 287KB，一次查询 0.041s，1006 节点 / 599 边。上限是建图 180s、图 80MB、查询 3s。这只说明仓的个数本身在这个合成语料上没有爆。45 仓真实 Java 语料仍是扫描修正前的图：`out/dev-abl/graph.json` 4,641,681,046 字节。2026-10-28 流式计数（`out/verification/graph-health-dev-abl.json`）为 270,210 节点、17,838,051 边，其中 CALLS 17,498,913、Method 234,504，约 74.6 次调用/方法；Route 1,212，RPC、Topic、Page、Module、Job 均为 0。不能用合成门禁代替这张图，当前扫描器也还没有在这 45 个仓上重建。
+
 这些切片保留 R01–R14 和四客户端/人工界面/可信上下文/时间策略全部范围。现阶段适合作为如实标注成熟度的开发源码继续整理；公开上传、tag、GitHub Release 和 PyPI 发布仍按适用用户授权执行。

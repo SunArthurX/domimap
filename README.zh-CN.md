@@ -25,6 +25,8 @@ domimap 是一个本地优先的知识检索引擎，把多个 Java 仓库、项
 | **工作区生命周期** | 来源身份可重绑（`rebind`，逻辑身份不变）；整库导出/恢复（逐文件校验和） |
 | **客户端接入** | 一条命令接入 Claude Code / Codex / ZCode / DSH（`domimap connect`，幂等、有备份） |
 | **MCP 集成** | 原生 MCP stdio 服务器（7 个只读 `kg_*` 工具；2 个写工具须 `--enable-write`） |
+| **服务导航** | `map`（RPC、Maven 模块、主题）、`card`（路由、表、任务、文档）、沿因果边 `trace` |
+| **图索引** | `graph.json` 与不可变代硬链接；`graph.db` 查邻居；`graph.json.idx.db` 按查询读 posting |
 | **核心零依赖** | 纯 Python 标准库；可选依赖只做增强 |
 
 ## 快速开始
@@ -54,6 +56,7 @@ pip install pypdf python-docx
 python3 -m domimap build ~/work/my-workspace --discover -o out/idx  # 多仓合并图 + 证据库
 python3 -m domimap build ~/repo-a -o out/idx --merge                # 单仓
 python3 -m domimap update -o out/idx                                # 增量
+python3 -m domimap gc -o out/idx --keep-gens 2                 # 删除旧代和无引用证据 blob
 
 # 检索（中英文混合）
 python3 -m domimap query "订单改价 changePrice" -g out/idx/graph.json
@@ -68,6 +71,9 @@ python3 -m domimap read <evidence_id> --store out/idx/store.db
 python3 -m domimap domain -g out/idx/graph.json
 python3 -m domimap impact "OrderService" -g out/idx/graph.json
 python3 -m domimap scenario req "订单改价 需要防并发" -g out/idx/graph.json
+python3 -m domimap map -g out/idx/graph.json                   # 服务、Maven 依赖、主题
+python3 -m domimap card order-service -g out/idx/graph.json    # 路由、表、任务、RPC、文档
+python3 -m domimap trace OrderService -g out/idx/graph.json    # 沿因果边正向追踪
 
 # 机器可读图谱 schema（喂给你的 AI 客户端）
 python3 -m domimap schema
@@ -184,7 +190,7 @@ flowchart TB
     subgraph BUILD["构建——确定性，零模型调用"]
         SCAN["扫描器（lite_scan）<br/>GBK/GB18030 自动识别"]
         CHUNK["长文档分段<br/>→ 重叠片段"]
-        GRAPH["知识图谱<br/>12 类节点 · 13 种边<br/>置信度: EXTRACTED / INFERRED / AMBIGUOUS"]
+        GRAPH["知识图谱<br/>14 类节点 · 15 种边<br/>graph.json 硬链接 · graph.db 查邻居"]
         STORE["证据库（SQLite）<br/>ev_id · 内容寻址<br/>不可变 generation"]
         SCAN --> CHUNK --> GRAPH
         SCAN --> STORE
@@ -199,7 +205,7 @@ flowchart TB
     KBX["知识库（SQLite）<br/>人工笔记 · 主张 · 审定流程"]
     ENR["`domimap enrich`（可选后置）<br/>LLM 草稿笔记 · conf=LLM<br/>人工审定后才算事实"]
     CLI["CLI"]
-    MCP["MCP stdio 服务器<br/>6 个 kg_* 工具"]
+    MCP["MCP stdio 服务器<br/>9 个 kg_* 工具"]
     UI["Web UI（仅回环）"]
     REPOS --> SCAN
     DOCS --> SCAN
@@ -345,8 +351,10 @@ domimap/
 
 - **评测状态**：38/49 verified（2026-10-28：AC-R12-02 以当前源码消融重验、AC-F1-C1-01/02 以当前源码真实 Claude 会话重验；AC-R10-02 维持 implementing 待 24h 负载）；剩余 11 例为外部条件——三个客户端阻塞（Codex 账号模型封锁、ZCode 待用户开新会话、DSH 可执行未定位/余额）、24h 混合负载+真实迁移演练、冻结四竞品确认比较。基准数字仍为同会话开发者评测，`make release-check` 在确认比较完成前按设计保持失败
 - **跨语差距（已大幅收窄）**：纯 BM25 无法把中文查询匹配到英文内容；可选嵌入泳道 + 文档分段把公开语料检索从 50→70/140——答案层复测仍在进行
-- **同名方法**：不同类的同名方法共享一个节点（服务级命名取舍）
-- **源更新**：增量更新需手动 `domimap update`（尚无文件监听）
+- **同名方法**：按类和参数类型签名区分。调用边只取自包围它的方法体。跨文件同名简单类的裸调用只在本文件内解析
+- **工作区覆盖**：输出目录里的 `rules.json` 可写额外的提供方/消费方注解名；`domimap.seeds.json` 可覆盖域名并合并同义词。两个文件都不是必需的
+- **规模**：`scripts/scale_gate.py` 是 200 个「一个类」合成仓的门禁，不能当成真实多模块 Java 系统的测量。`make release-check` 在冻结的四竞品确认比较完成前仍按设计失败
+- **源更新**：增量更新需手动 `domimap update`（尚无文件监听）。干净的已跟踪 Git 文件签名为 `git:<blob id>`；脏文件和未跟踪文件仍是内容 sha256。旧的纯 sha256 manifest 会在下一次 update 重建一次
 - **平台**：macOS + Linux CI 完整测试；Windows 未测试
 
 ## 许可证

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "scale-gate",
+  "kind": "slice",
+  "state": "implementing",
+  "spec": "specs/tasks/scale-gate.md",
+  "requirements": ["R03"],
+  "acceptance_cases": ["AC-R03-01"],
+  "files": [
+    "scripts/scale_gate.py",
+    "tests/test_scale_gate.py",
+    "docs/production-readiness.md",
+    "specs/tasks/scale-gate.json",
+    "specs/tasks/scale-gate.md"
+  ],
+  "test_files": [
+    "tests/test_scale_gate.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_scale_gate -q",
+    "python3 -B scripts/scale_gate.py --repos 200 --jobs 8 -o out/verification/scale-synthetic-200.json"
+  ],
+  "rollback": "删除脚本和测试。不改图格式。"
+}

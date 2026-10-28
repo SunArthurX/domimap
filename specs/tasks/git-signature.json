@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "id": "git-signature",
+  "kind": "slice",
+  "state": "implementing",
+  "spec": "specs/tasks/git-signature.md",
+  "requirements": ["R03"],
+  "acceptance_cases": ["AC-R03-02"],
+  "files": [
+    "domimap/batch.py",
+    "tests/test_atomic_publish.py",
+    "specs/tasks/git-signature.json",
+    "specs/tasks/git-signature.md"
+  ],
+  "test_files": [
+    "tests/test_atomic_publish.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_atomic_publish tests.test_generation_consistency -q"
+  ],
+  "rollback": "repo_signature 恢复为一律 sha256。带 git: 前缀的 manifest 下次 update 会重建。"
+}

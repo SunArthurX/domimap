@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 图谱扫描与索引（2026-10-28）
+
+- 调用边改为方法体花括号范围，同名简单类的裸调用只在本文件内解析；Spring 类前缀只取类声明前的映射；RPC 按 `implements` 对齐。额外注解名放工作区 `rules.json`，不写进扫描器源码。补上 Maven `DEPENDS_ON`、DDL 注释、`@TableName`、注解 SQL、Feign 与 `spring.application.name`、enum/第二个类、`@Scheduled` 的 `Job`/`TRIGGERS`。
+- 发布时 `graph.json` 与代文件硬链接，并写 `graph.db`（大小和 mtime 一致才按端点查边）。检索倒排写成 `graph.json.idx.db`，posting 按查询读取。干净的已跟踪 Git 文件用 `git:<blob id>` 签名。多仓且 `jobs>1` 时子进程扫描、主进程登记证据。`domimap map` / `card` / `trace` / `gc`。长中文在四字切片缺失、只剩通用词时才 `phrase_absent`。
+- 合成 200 仓门禁见 `scripts/scale_gate.py` 与 `docs/production-readiness.md`。它不是真实多模块系统的测量。验收仍要求在冻结协议上超过四个已点名基线；`make release-check` 不因此放行。全量单元测试 741 项 OK（跳过 8）。
+
 ### 工作台流程 UX 优化（2026-10-28，体验官走查）
 
 - 按用户旅程五阶段走查出 4 个流程断点并全部修复（计划立档 specs/tasks/product-ui-flow-ux.md）：①首次进入——检索问答加"快速开始"示例条（3 个真实示例 chip 即填即跑，使用后收起并持久化）；②等待——运行中结果区骨架 shimmer（reduced-motion 关闭，数据到达/失败即清除）；③结果→下一步——跨工作流链路闭环：Table/Method/Class/Service 候选行加"影响面"一键链（跳转+预填+自动运行），影响面起点行加"检索"回查；④终端回场——window focus 时以图文件 mtime/size 指纹（/api/stats 新增 graph_mtime/graph_size，内存图不可靠）检测工作区重建，显示"图已更新——点击刷新"横幅。顺带恢复并行提交中丢失的页脚快捷键样式（#cheat/.kbd）。Playwright 逐流程验证全过、14 工作流零失败、契约 27/27 绿。

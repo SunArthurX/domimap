@@ -19,7 +19,7 @@
   },
   "Method": {
    "id_prefix": "mth:",
-   "summary_zh": "方法（服务内签名级；同名共享为已知取舍）",
+   "summary_zh": "方法（服务内类+参数类型签名；重载不合并）",
    "typical_prov": [
     "java"
    ]
@@ -70,6 +70,20 @@
   "Page": {
    "id_prefix": null,
    "summary_zh": "前端页面（TS/JS/Vue 扫描）",
+   "typical_prov": [
+    "synth"
+   ]
+  },
+  "Module": {
+   "id_prefix": "mod:",
+   "summary_zh": "Maven 模块（groupId:artifactId）；DEPENDS_ON 只连接本工作区里出现的坐标",
+   "typical_prov": [
+    "pom"
+   ]
+  },
+  "Job": {
+   "id_prefix": "job:",
+   "summary_zh": "定时/任务入口（@Scheduled 等）；TRIGGERS 指向被触发的方法",
    "typical_prov": [
     "synth"
    ]
@@ -138,6 +152,14 @@
    "propagates_impact": false,
    "summary_zh": "文档词法提及（conf=AMBIGUOUS，仅导航）"
   },
+  "DEPENDS_ON": {
+   "propagates_impact": false,
+   "summary_zh": "Maven 模块依赖（不是运行时调用）"
+  },
+  "TRIGGERS": {
+   "propagates_impact": true,
+   "summary_zh": "任务入口触发方法"
+  },
   "BELONGS_TO": {
    "propagates_impact": false,
    "summary_zh": "归属关系（仅导航）"
@@ -163,7 +185,8 @@
   "doc",
   "kb",
   "seed",
-  "vote"
+  "vote",
+  "pom"
  ],
  "provenance_semantics_zh": {
   "core": "核心结构合成",
@@ -173,7 +196,8 @@
   "doc": "文档摄入/词法",
   "kb": "知识库笔记",
   "seed": "领域种子词表打标",
-  "vote": "领域投票聚合"
+  "vote": "领域投票聚合",
+  "pom": "Maven 坐标与模块依赖"
  },
  "mcp_tools": [
   "kg_explore",

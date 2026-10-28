@@ -22,7 +22,7 @@ _SPRING_MAP = [
 ]
 _RE_MAPPING = re.compile(r'@(Request|Get|Post|Put|Delete|Patch)Mapping\s*\(\s*(?:value\s*=\s*)?"([^"]*)"')
 _RE_MAPPING_ANY = re.compile(r'@(Request|Get|Post|Put|Delete|Patch)Mapping\s*\(\s*(?:value\s*=\s*)?"([^"]*)"|@RequestMapping\s*\(\s*(?:value\s*=\s*)?"([^"]*)"')
-_RE_CLASS = re.compile(r'(?:public\s+)?(?:abstract\s+)?class\s+(\w+)|(?:public\s+)?interface\s+(\w+)')
+_RE_CLASS = re.compile(r'(?:public\s+)?(?:abstract\s+|final\s+)?(?:class|enum|record)\s+(\w+)|(?:public\s+)?(?:interface|@interface)\s+(\w+)')
 # 类型段必须以非空白开头：裸调用行（如 `    changePrice(1L, x);`）不得被当作方法声明
 _RE_METHOD_LINE = re.compile(r'^\s*(?:(?:public|protected|private|static|final|synchronized|default|abstract)\s+)*'
                              r'[\w<>\[\],.][\w<>\[\],.\s]*?\s+(\w+)\s*\(')
@@ -105,14 +105,16 @@ def _decode_text(raw):
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
-def scan_repo(root, repo_label=None, capture=None):
+def scan_repo(root, repo_label=None, capture=None, rules=None):
     """返回 records dict。多仓合并时传 repo_label，服务名变为 "label:子模块"。
 
     capture(path, rel, raw)：每个遍历到的文件只从磁盘读一次，同一份字节同时交给证据固化
     （哈希/片段）与解析（D10：源在两次读取之间被改写不再可能）。捕获失败进 coverage.skipped。
     """
+    rules = rules or {}
     R = {"services": {}, "classes": [], "methods": [], "routes": [], "rpc": [],
          "topics": [], "sqlstmts": [], "tables": [], "pages": [], "docs": [], "entities": [],
+         "modules": [], "jobs": [],
          "raw_calls": [], "calls": [],
          "coverage": {"files_scanned": 0, "skipped": []}}
     routes_by_class = {}
@@ -134,8 +136,10 @@ def scan_repo(root, repo_label=None, capture=None):
                 capture(path, rel, raw)
             except (OSError, ValueError) as e:
                 R["coverage"]["skipped"].append({"file": rel, "reason": "证据捕获失败：%s" % e})
+        is_app_cfg = os.path.basename(rel).startswith(("application", "bootstrap")) and ext in {
+            ".yml", ".yaml", ".properties"}
         if ext not in CODE_EXT and ext not in DOC_EXT and ext not in {".docx", ".pdf", ".doc",
-                                                                      ".html", ".htm"}:
+                                                                      ".html", ".htm"} and not is_app_cfg:
             continue
         text = "" if ext in binary_doc else _decode_text(raw)
         R["coverage"]["files_scanned"] += 1
@@ -146,7 +150,11 @@ def scan_repo(root, repo_label=None, capture=None):
             svc = repo_label + ":" + svc
         R["services"].setdefault(svc, {"file": svc, "classes": 0})
         if ext == ".java":
-            _scan_java(R, path, rel, svc, text, routes_by_class)
+            _scan_java(R, path, rel, svc, text, routes_by_class, rules)
+        elif os.path.basename(rel) == "pom.xml":
+            _scan_pom(R, rel, text, svc)
+        elif is_app_cfg:
+            _scan_app_config(R, svc, text)
         elif ext == ".xml" and ("<mapper" in text or "<sqlMap" in text):
             _scan_mybatis(R, path, rel, svc, text)
         elif ext in {".ts", ".tsx", ".js", ".jsx", ".vue"}:
@@ -330,19 +338,205 @@ def _argc_of(line, meth):
             count += 1
     return count
 
+def _match_delim(text, open_at, open_ch, close_ch):
+    """从 text[open_at]==open_ch 起，跳过字符串与注释，返回配对 close_ch 的下标；找不到则 len(text)。"""
+    i = open_at + 1
+    depth = 1
+    n = len(text)
+    while i < n and depth:
+        c = text[i]
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            nl = text.find("\n", i)
+            i = n if nl < 0 else nl + 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            end = text.find("*/", i + 2)
+            i = n if end < 0 else end + 2
+            continue
+        if c in "\"'":
+            q = c
+            i += 1
+            while i < n:
+                if text[i] == "\\":
+                    i += 2
+                    continue
+                if text[i] == q:
+                    i += 1
+                    break
+                i += 1
+            continue
+        if c == open_ch:
+            depth += 1
+        elif c == close_ch:
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return n
+
+
+def _body_span(text, decl_off, meth):
+    """方法声明的方法体 [start, end)。无方法体（接口/抽象声明）返回空区间。"""
+    i = text.find(meth + "(", decl_off)
+    if i < 0 or i > decl_off + 500:
+        return decl_off, decl_off
+    i = _match_delim(text, i + len(meth), "(", ")") + 1
+    limit = min(len(text), i + 1500)
+    while i < limit:
+        c = text[i]
+        if c.isspace():
+            i += 1
+            continue
+        if c == "/" and i + 1 < len(text) and text[i + 1] in "/*":
+            if text[i + 1] == "/":
+                nl = text.find("\n", i)
+                i = len(text) if nl < 0 else nl + 1
+            else:
+                end = text.find("*/", i + 2)
+                i = len(text) if end < 0 else end + 2
+            continue
+        if c == "{":
+            end = _match_delim(text, i, "{", "}")
+            return i + 1, end
+        if c == ";":
+            return i, i
+        i += 1
+    return decl_off, decl_off
+
+
+def _blank_nested_contexts(body):
+    """抹掉 lambda 与匿名类方法体，避免外层方法把内部调用算成自己的（精度契约）。"""
+    chars = list(body)
+    found = False
+    i = 0
+    n = len(body)
+    while i < n:
+        c = body[i]
+        if c == "/" and i + 1 < n and body[i + 1] in "/*":
+            if body[i + 1] == "/":
+                nl = body.find("\n", i)
+                i = n if nl < 0 else nl + 1
+            else:
+                end = body.find("*/", i + 2)
+                i = n if end < 0 else end + 2
+            continue
+        if c in "\"'":
+            q = c
+            i += 1
+            while i < n:
+                if body[i] == "\\":
+                    i += 2
+                    continue
+                if body[i] == q:
+                    i += 1
+                    break
+                i += 1
+            continue
+        start = None
+        if body.startswith("->", i):
+            j = body.find("{", i + 2)
+            if 0 <= j <= i + 80:
+                start = j
+        elif body.startswith("new", i) and (i == 0 or not (body[i - 1].isalnum() or body[i - 1] == "_")):
+            m = re.match(r"new\s+[\w.]+(?:<[^>]*>)?\s*\(", body[i:])
+            if m:
+                paren = i + m.end() - 1
+                close = _match_delim(body, paren, "(", ")")
+                j = body.find("{", close, close + 40)
+                if j >= 0:
+                    start = j
+        if start is not None:
+            end = _match_delim(body, start, "{", "}")
+            for k in range(start, min(end, n)):
+                if chars[k] != "\n":
+                    chars[k] = " "
+            found = True
+            i = max(end, start + 1)
+            continue
+        i += 1
+    return "".join(chars), found
+
+
+def _mapping_paths(src):
+    """注解参数里的路径：value=/path= 优先，否则第一个字符串。额外属性（produces 等）不吞掉路径。"""
+    out = []
+    for m in re.finditer(r"@(Request|Get|Post|Put|Delete|Patch)Mapping\s*\(([^)]*)\)", src, re.S):
+        args = m.group(2)
+        pm = re.search(r'(?:value|path)\s*=\s*"([^"]*)"', args)
+        if not pm:
+            pm = re.search(r'"([^"]*)"', args)
+        if pm:
+            out.append((m.group(1), pm.group(1)))
+    return out
+
+
+def _implements_of(text, name_end):
+    window = text[name_end:name_end + 600]
+    brace = window.find("{")
+    head = window[:brace] if brace >= 0 else window[:200]
+    m = re.search(r"\bimplements\s+([^;{]+)", head)
+    if not m:
+        return []
+    out = []
+    for part in m.group(1).split(","):
+        name = part.strip().split(".")[-1].split("<")[0].strip()
+        if name:
+            out.append(name)
+    return out
+
+
+def _has_ann(window, names):
+    for name in names or []:
+        if re.search(r"@%s\b" % re.escape(name), window):
+            return True
+    return False
+
+
+def _consumer_re(names):
+    alt = "|".join(re.escape(n) for n in names)
+    return re.compile(
+        r"@(?:[\w.]+\.)?(?:%s)\s*(?:\([^)]*\))?\s*\n?\s*(?:private|protected|public)?\s*([\w.]+?)\s+(\w+)\s*;" % alt)
+
+
+def _local_name(tag):
+    return tag.split("}")[-1] if tag else ""
+
+
+def _child_text(el, name):
+    for ch in list(el):
+        if _local_name(ch.tag) == name and ch.text and ch.text.strip():
+            return ch.text.strip()
+    return ""
+
+
 def link_calls(R):
-    """二遍法：接收者解析顺序 = 文件内字段声明类型 → 类名小驼峰；目标为重载多候选时
-    conf=AMBIGUOUS（不默取第一个），无候选不产边（未知可见）。"""
-    recv2cls = {_lower_first(c["name"]): c["name"] for c in R["classes"]}
+    """二遍法：接收者解析顺序 = 本文件字段声明类型 → 同服务内唯一的类名小驼峰。
+
+    字段类型按文件隔离（同名变量不串文件）。目标为重载多候选时 conf=AMBIGUOUS（不默取第一个），
+    无候选不产边（未知可见）。
+    """
+    by_recv = {}
+    for c in R["classes"]:
+        by_recv.setdefault((c["service"], _lower_first(c["name"])), set()).add(c["name"])
     fields = {}
     for f in R.get("fields", []):
-        fields.setdefault(f["var"], f["type"].split(".")[-1])
+        fields[(f["file"], f["var"])] = f["type"].split(".")[-1]
     mth_index = {}
     for m in R["methods"]:
         mth_index.setdefault((m["service"], m["cls"], m["name"]), []).append(m.get("argc", -1))
+    seen = set()
     for rc in R.pop("raw_calls", []):
-        recv_cls = fields.get(rc["recv"]) or recv2cls.get(rc["recv"]) or \
-            (rc["from_cls"] if rc["recv"] == "" else None)
+        key = (rc["file"], rc["from_cls"], rc["from"], rc["from_argc"], rc["recv"], rc["to"])
+        if key in seen:
+            continue
+        seen.add(key)
+        if rc["recv"] == "":
+            recv_cls = rc["from_cls"]
+        else:
+            recv_cls = fields.get((rc["file"], rc["recv"]))
+            if not recv_cls:
+                opts = by_recv.get((rc["service"], rc["recv"])) or set()
+                recv_cls = next(iter(opts)) if len(opts) == 1 else None
         if not recv_cls:
             continue
         cand = mth_index.get((rc["service"], recv_cls, rc["to"]))
@@ -365,21 +559,26 @@ def _class_comment(text, upto):
     return " ".join(keep)[:300]
 
 
-def _scan_java(R, path, rel, svc, text, routes_by_class):
+def _scan_java(R, path, rel, svc, text, routes_by_class, rules=None):
+    rules = rules or {}
     pkg = (_RE_PKG.search(text) or [None, ""])[1]
+    prev = 0
     for m in _RE_CLASS.finditer(text):
         name = m.group(1) or m.group(2)
-        is_ctrl = "@RestController" in text or "@Controller" in text
+        window = text[prev:m.start()]
+        prev = m.end()
+        is_ctrl = "@RestController" in window or "@Controller" in window
+        provider = bool(_RE_DUBBO_SVC.search(window)) or _has_ann(window, rules.get("provider_annotations"))
+        reqs = [p for kind, p in _mapping_paths(window) if kind == "Request"]
         R["classes"].append({"name": name, "fqn": (pkg + "." + name) if pkg else name,
                              "service": svc, "file": rel, "rest_controller": is_ctrl,
-                             "dubbo_service": bool(_RE_DUBBO_SVC.search(text)),
+                             "dubbo_service": provider,
+                             "ifaces": _implements_of(text, m.end()),
                              "comment": _class_comment(text, m.start()),
                              "prov": "java:class"})
         R["services"][svc]["classes"] += 1
-        # 类级路由前缀
-        cm = re.search(r'@RequestMapping\s*\(\s*(?:value\s*=\s*)?"([^"]*)"\s*\)', text[:m.start() + 2000])
-        routes_by_class[name] = cm.group(1) if cm else ""
-        break  # MVP：每文件取首个主类
+        # 类级前缀只取该类声明之前的 @RequestMapping，不扫进方法体（produces 等属性不吞路径）
+        routes_by_class[name] = reqs[-1] if reqs else ""
     for fm in _RE_FIELD.finditer(text):
         R.setdefault("fields", []).append({"type": fm.group(1), "var": fm.group(2),
                                            "service": svc, "file": rel})
@@ -408,37 +607,45 @@ def _scan_java(R, path, rel, svc, text, routes_by_class):
         return tail.count("{") > tail.count("}")
 
     entries = []
-    for ln, line in enumerate(text.split("\n"), 1):
+    lines = text.split("\n")
+    offset = 0
+    line_at = []
+    for line in lines:
+        line_at.append(offset)
+        offset += len(line) + 1
+    for ln, line in enumerate(lines, 1):
         mm = _RE_METHOD_LINE.match(line)
         if not mm or mm.group(1) in {"if", "for", "while", "switch", "catch", "return", "new", "throw"}:
             continue
         meth = mm.group(1)
-        off = text.find(line)
+        off = line_at[ln - 1]
         cls_here = "(anonymous)" if anonymous_at(off) else cls_at(off)
         sig = _sig_of(line, meth)
+        b0, b1 = _body_span(text, off, meth)
         entries.append({"name": meth, "off": off, "ln": ln, "cls": cls_here,
-                        "argc": _argc_of(line, meth), "sig": sig})
+                        "argc": _argc_of(line, meth), "sig": sig, "body": text[b0:b1]})
         R["methods"].append({"name": meth, "cls": cls_here, "argc": _argc_of(line, meth),
                              "sig": sig, "service": svc, "file": rel, "line": ln, "prov": "java:method"})
     for ent in entries:
         meth, off, ln, cur_cls, argc = ent["name"], ent["off"], ent["ln"], ent["cls"], ent["argc"]
-        line = text.split("\n")[ln - 1]
+        line = lines[ln - 1]
         if is_ctrl:
-            seg = text[max(0, text.find(line) - 400):text.find(line)]
-            anns = list(_RE_MAPPING_ANY.finditer(seg))
+            seg = text[max(0, off - 400):off]
+            anns = _mapping_paths(seg)
             if anns:
-                am = anns[-1]  # 取距方法最近的注解（方法级优先于类级）
-                prefix = ""
-                for cls, pf in routes_by_class.items():
-                    if cls in text:
-                        prefix = pf
-                        break
-                http = dict(_SPRING_MAP).get((am.group(1) or "") + "Mapping", "ANY")
-                pathv = am.group(2) or am.group(3) or ""
+                kind, pathv = anns[-1]  # 取距方法最近的注解（方法级优先于类级）
+                prefix = routes_by_class.get(cur_cls) or ""
+                http = dict(_SPRING_MAP).get(kind + "Mapping", "ANY")
                 R["routes"].append({"method": http, "path": (prefix or "") + pathv,
                                     "java_method": meth, "cls": cur_cls, "argc": argc, "service": svc,
                                     "file": rel, "prov": "synth:spring-route", "conf": "INFERRED"})
-        body = text[text.find(line):text.find(line) + 3000]
+        if re.search(r"@(Scheduled|XxlJob)\b", text[max(0, off - 250):off]):
+            R["jobs"].append({"name": meth, "cls": cur_cls, "argc": argc, "sig": ent["sig"],
+                              "service": svc, "file": rel, "prov": "synth:scheduled", "conf": "EXTRACTED"})
+        body, nested = _blank_nested_contexts(ent["body"])
+        if nested:
+            R["coverage"]["skipped"].append(
+                {"file": rel, "reason": "lambda/匿名上下文调用未解析（保守跳过，不归属外层方法）"})
         for sm in _RE_MQ_SEND.finditer(body):
             R["topics"].append({"topic": sm.group(1), "dir": "PUBLISHES", "by": meth, "cls": cur_cls,
                                 "argc": argc, "service": svc, "file": rel,
@@ -458,7 +665,9 @@ def _scan_java(R, path, rel, svc, text, routes_by_class):
                 R["raw_calls"].append({"from": meth, "from_cls": cur_cls, "from_argc": argc,
                                        "recv": recv, "to": callee, "service": svc, "file": rel})
         # 同类裸调用（两遍法已见全部方法，含前向声明；lambda/匿名行保守跳过并记录）
-        for other in [m for m in R["methods"] if m.get("cls") == cur_cls and m["name"] != meth]:
+        for other in entries:
+            if other["cls"] != cur_cls or other["name"] == meth or other["off"] == off:
+                continue
             pat = re.compile(r'(?<![\w.])' + re.escape(other["name"]) + r'\s*\(')
             hit_lambda = False
             hit_plain = False
@@ -507,10 +716,27 @@ def _scan_java(R, path, rel, svc, text, routes_by_class):
             R["entities"].append({"cls": cls, "table": tm.group(1) if tm else cls,
                                   "cols": cols, "service": svc, "file": rel,
                                   "prov": "synth:jpa", "conf": "EXTRACTED"})
-    # Dubbo 消费（@Reference 字段）
-    for rm in _RE_DUBBO_REF.finditer(text):
+    # RPC 消费：DubboReference + 工作区规则里的消费注解（规则只描述注解名，不含厂商实现）
+    consumer_anns = ["DubboReference"] + list((rules or {}).get("consumer_annotations") or [])
+    for rm in _consumer_re(consumer_anns).finditer(text):
         R["rpc"].append({"iface": rm.group(1).split(".")[-1], "role": "consumer",
-                         "service": svc, "file": rel, "prov": "synth:dubbo-ref", "conf": "INFERRED"})
+                         "service": svc, "file": rel, "prov": "synth:rpc-ref", "conf": "INFERRED"})
+    tn = re.search(r'@TableName\s*\(\s*(?:value\s*=\s*)?"([^"]+)"', text)
+    if tn:
+        cm0 = _RE_CLASS.search(text)
+        cls = (cm0.group(1) or cm0.group(2)) if cm0 else None
+        if cls and not any(en.get("cls") == cls and en.get("file") == rel for en in R["entities"]):
+            R["entities"].append({"cls": cls, "table": tn.group(1), "cols": [], "service": svc,
+                                  "file": rel, "prov": "synth:mybatis-plus", "conf": "EXTRACTED"})
+    for sm in re.finditer(r'@(Select|Insert|Update|Delete)\s*\(\s*"([^"]+)"', text):
+        cm0 = _RE_CLASS.search(text)
+        iface = (cm0.group(1) or cm0.group(2)) if cm0 else "Anno"
+        verb = sm.group(1).upper()
+        sql = sm.group(2)
+        tables = sorted(set(re.findall(r'(?:FROM|JOIN|INTO|UPDATE)\s+`?(\w+)`?', sql, re.I)))
+        R["sqlstmts"].append({"iface": iface, "id": verb.lower() + "Anno", "verb": "SELECT" if verb == "SELECT" else verb,
+                              "sql": sql[:500], "tables": tables, "cols": [], "service": svc, "file": rel,
+                              "prov": "synth:ann-sql", "conf": "EXTRACTED"})
     for fm in _RE_FEIGN.finditer(text):
         nm = _RE_FEIGN_NAME.search(fm.group(2))
         if nm:
@@ -549,13 +775,82 @@ def _scan_front(R, path, rel, svc, text):
         R["pages"].append({"url": url, "method": method, "file": rel, "service": svc,
                            "prov": "synth:crossend", "conf": "INFERRED"})
 
+_COL_SKIP = {"PRIMARY", "UNIQUE", "KEY", "INDEX", "CONSTRAINT", "FOREIGN", "CREATE"}
+_SQL_COMMENT = re.compile(r"COMMENT\s*[= ]\s*'([^']*)'|COMMENT\s*[= ]\s*\"([^\"]*)\"", re.I)
+
+
 def _scan_sql(R, path, rel, text, svc=None):
-    for m in re.finditer(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?\s*\((.*?)\)\s*(?:ENGINE|;|$)', text, re.I | re.S):
-        tbl = m.group(1)
-        cols = [c for c in re.findall(r'^\s*`?(\w+)`?\s+\w+', m.group(2), re.M)
-                if c.upper() not in {'PRIMARY', 'UNIQUE', 'KEY', 'INDEX', 'CONSTRAINT', 'FOREIGN', 'CREATE'}]
-        R["tables"].append({"table": tbl, "cols": cols, "file": rel, "service": svc or "(root)",
+    """按括号配对取表体（列类型里的括号不再截断），并保留表/列 COMMENT。"""
+    for m in re.finditer(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?', text, re.I):
+        i = m.end()
+        while i < len(text) and text[i].isspace():
+            i += 1
+        if i >= len(text) or text[i] != "(":
+            continue
+        end = _match_delim(text, i, "(", ")")
+        body = text[i + 1:end]
+        tail = text[end + 1:end + 240]
+        cm = _SQL_COMMENT.search(tail)
+        comment = (cm.group(1) if cm and cm.group(1) is not None else cm.group(2)) if cm else ""
+        cols, col_comments = [], {}
+        for line in body.split("\n"):
+            mm = re.match(r"\s*`?(\w+)`?\s+\w+", line)
+            if not mm or mm.group(1).upper() in _COL_SKIP:
+                continue
+            cols.append(mm.group(1))
+            cc = _SQL_COMMENT.search(line)
+            if cc:
+                col_comments[mm.group(1)] = cc.group(1) if cc.group(1) is not None else cc.group(2)
+        R["tables"].append({"table": m.group(1), "cols": cols, "comment": comment or "",
+                           "col_comments": col_comments, "file": rel, "service": svc or "(root)",
                            "prov": "sql:ddl", "conf": "EXTRACTED"})
+
+
+def _scan_pom(R, rel, text, svc):
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError:
+        R["coverage"]["skipped"].append({"file": rel, "reason": "pom.xml 解析失败"})
+        return
+    artifact = _child_text(root, "artifactId")
+    group = _child_text(root, "groupId")
+    if not group:
+        for el in root.iter():
+            if _local_name(el.tag) == "parent":
+                group = _child_text(el, "groupId")
+                break
+    deps = []
+    for el in root.iter():
+        if _local_name(el.tag) != "dependency":
+            continue
+        art = _child_text(el, "artifactId")
+        if art and art not in deps:
+            deps.append(art)
+    if artifact:
+        R.setdefault("modules", []).append(
+            {"artifact": artifact, "group": group or "", "deps": deps, "file": rel,
+             "service": svc, "prov": "pom:module"})
+
+
+def _scan_app_config(R, svc, text):
+    """spring.application.name（properties 或缩进 yaml）。Feign name 靠它找到提供方服务。"""
+    m = re.search(r"(?m)^spring\.application\.name\s*[=:]\s*(\S+)", text)
+    name = m.group(1).strip().strip("\"'") if m else ""
+    if not name:
+        stack = []
+        for ln in text.split("\n"):
+            if not ln.strip() or ln.lstrip().startswith("#"):
+                continue
+            indent = len(ln) - len(ln.lstrip(" "))
+            key, _, val = ln.strip().partition(":")
+            while stack and stack[-1][0] >= indent:
+                stack.pop()
+            stack.append((indent, key.strip()))
+            if ".".join(k for _, k in stack) == "spring.application.name" and val.strip():
+                name = val.strip().strip("\"'")
+                break
+    if name:
+        R["services"].setdefault(svc, {"file": svc, "classes": 0})["app_name"] = name
 
 def _import_optional(mod):
     __import__(mod)

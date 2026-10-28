@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "id": "multiprocess-scan",
+  "kind": "slice",
+  "state": "implementing",
+  "spec": "specs/tasks/multiprocess-scan.md",
+  "requirements": ["R02", "R03"],
+  "acceptance_cases": ["AC-R02-01", "AC-R03-01"],
+  "files": [
+    "domimap/batch.py",
+    "tests/test_graph_navigation.py",
+    "specs/tasks/multiprocess-scan.json",
+    "specs/tasks/multiprocess-scan.md"
+  ],
+  "test_files": [
+    "tests/test_graph_navigation.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_graph_navigation tests.test_atomic_publish tests.test_capture_unification -q"
+  ],
+  "rollback": "use_procs 恒为假，回到线程池扫描。"
+}

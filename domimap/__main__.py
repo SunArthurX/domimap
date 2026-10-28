@@ -21,6 +21,10 @@
   restore-workspace ARCHIVE TARGET  整库恢复到新目录（校验失败不留半成品）
   query "文本" -g FILE        混合检索（词法种子+一跳图扩展；诚实拒答时退出码 3）
   domain -g FILE             领域地图（含跨域共享表）
+  map -g FILE                服务全景（RPC / Maven 依赖 / 主题）
+  card <服务> -g FILE        服务概要（路由、表、任务、主题、RPC、文档）
+  trace <符号> -g FILE       从符号沿因果边正向追踪
+  gc -o DIR                  删除旧代和无引用证据 blob（默认保留 2 代）
   impact <符号> -g FILE      影响面（反向依赖）
   read <ev_id> --store DB    按证据 ID 读固化片段（源修改/删除后仍为旧版本）
   feedback <event_id> --relevance hit|partial|miss|not_applicable
@@ -79,6 +83,21 @@ def _doctor_databases(graph_path):
         except Exception as e:
             rows.append("  %-13s 打不开：%s" % (name, e))
     return rows
+
+
+def cmd_gc(args):
+    from domimap.store import EvidenceStore
+    db = os.path.join(args.out, "store.db")
+    if not os.path.exists(db):
+        print("无 store.db：%s" % db)
+        sys.exit(4)
+    store = EvidenceStore(db)
+    try:
+        gens = store.prune_generations(args.keep_gens)
+        blobs = store.prune_unreferenced_blobs()
+    finally:
+        store.close()
+    print("删除旧代 %s；删除无引用 blob %d 个" % (gens or "-", len(blobs)))
 
 
 def cmd_doctor(args):
@@ -243,6 +262,46 @@ def cmd_impact(args):
                                           ("  [%s]" % dom) if dom else ""))
     if r["partial"]:
         print("（partial：影响面在 %d 节点预算内截断，--max-nodes 可调）" % r["max_nodes"])
+
+
+def cmd_map(args):
+    from domimap.graph import Graph
+    g = Graph.load(args.graph)
+    m = g.service_map()
+    print("服务 %d: %s" % (len(m["services"]), ", ".join(m["services"][:40])))
+    for e in m["relations"][:80]:
+        print("  %s --%s(%s)--> %s" % (e["src"], e["kind"], e["conf"], e["dst"]))
+
+
+def cmd_card(args):
+    from domimap.graph import Graph
+    g = Graph.load(args.graph, lazy_edges=True)
+    try:
+        card = g.service_card(args.name)
+    finally:
+        store = getattr(g, "_edge_store", None)
+        if store is not None:
+            store.close()
+    if not card:
+        print("无此服务"); sys.exit(4)
+    print("【%s】" % card["service"])
+    print("  路由: %s" % (", ".join(card["routes"]) or "-"))
+    print("  表: %s" % (", ".join(card["tables"]) or "-"))
+    print("  任务: %s" % (", ".join(card["jobs"]) or "-"))
+    print("  主题: %s" % (", ".join(card["topics"]) or "-"))
+    print("  RPC 出: %s" % (", ".join(card["rpc_out"]) or "-"))
+    print("  RPC 入: %s" % (", ".join(card["rpc_in"]) or "-"))
+    print("  文档: %s" % (", ".join(card["docs"][:12]) or "-"))
+
+
+def cmd_trace(args):
+    from domimap.graph import Graph
+    g = Graph.load(args.graph)
+    steps = g.trace(args.symbol, depth=args.depth)
+    if not steps:
+        print("无正向因果链"); sys.exit(4)
+    for s in steps:
+        print("  %s --%s(%s)--> %s" % (s["src"], s["kind"], s["conf"], s["dst"]))
 
 
 def cmd_doc(args):
@@ -929,6 +988,10 @@ def main():
         p.add_argument("-g", "--graph", default=ap.get_default("graph"))
         return p
     with_g(sub.add_parser("doctor")).set_defaults(fn=cmd_doctor)
+    gc = sub.add_parser("gc", help="删除旧代文件和无引用证据 blob（当前代和已登记片段保留）")
+    gc.add_argument("-o", "--out", default="out")
+    gc.add_argument("--keep-gens", type=int, default=2)
+    gc.set_defaults(fn=cmd_gc)
     b = sub.add_parser("build"); b.add_argument("repos", nargs="+"); b.add_argument("-o", "--out", default="out")
     b.add_argument("--merge", action="store_true")
     b.add_argument("--discover", action="store_true", help="把参数视为工作区根目录，自动发现子仓并合并建图")
@@ -952,6 +1015,11 @@ def main():
     q.add_argument("--domain"); q.set_defaults(fn=cmd_query)
     with_g(sub.add_parser("domain")).set_defaults(fn=cmd_domain)
     i = with_g(sub.add_parser("impact")); i.add_argument("symbol"); i.add_argument("--depth", type=int, default=2)
+    with_g(sub.add_parser("map", help="服务全景：RPC / Maven 依赖 / 主题")).set_defaults(fn=cmd_map)
+    card = with_g(sub.add_parser("card", help="服务概要：路由、表、任务、主题、RPC、文档"))
+    card.add_argument("name"); card.set_defaults(fn=cmd_card)
+    trc = with_g(sub.add_parser("trace", help="从符号沿因果边正向追踪")); trc.add_argument("symbol")
+    trc.add_argument("--depth", type=int, default=4); trc.set_defaults(fn=cmd_trace)
     i.add_argument("--max-nodes", type=int, default=200, help="遍历预算（达到即停，结果标 partial）")
     i.set_defaults(fn=cmd_impact)
     dc = with_g(sub.add_parser("doc", help="文档检索（与 MCP kg_doc_search 同参）")); dc.add_argument("text")

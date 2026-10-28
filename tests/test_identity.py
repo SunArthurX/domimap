@@ -25,7 +25,7 @@ def merged(roots):
             R["services"] = dict(one["services"])
             continue
         for k in ("classes", "methods", "routes", "rpc", "topics", "sqlstmts",
-                  "tables", "pages", "docs", "entities", "calls"):
+                  "tables", "pages", "docs", "entities", "modules", "jobs", "calls"):
             R[k].extend(one[k])
         R["services"].update(one["services"])
         R["coverage"]["skipped"].extend(one["coverage"]["skipped"])

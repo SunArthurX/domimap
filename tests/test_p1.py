@@ -94,13 +94,15 @@ class TestIndexCache(unittest.TestCase):
         G().save(gp)
         g1 = Graph.load(gp)
         s1 = Searcher(g1, cache_path=gp + ".idx.json")
-        self.assertTrue(os.path.exists(gp + ".idx.json"), "应写出索引缓存")
+        self.assertTrue(os.path.exists(gp + ".idx.db"), "应写出 SQLite 倒排，而不是把 posting 放进 JSON")
+        self.assertIsNotNone(getattr(s1, "_idxdb", None))
         s2 = Searcher(Graph.load(gp), cache_path=gp + ".idx.json")   # 应命中缓存
         q = "订单改价 防并发"
         self.assertEqual([n["id"] for n in s1.query(q)["seeds"]], [n["id"] for n in s2.query(q)["seeds"]])
         with open(gp, "a", encoding="utf-8") as f:
             f.write(" ")                                             # mtime/size 变 → 缓存失效
         s3 = Searcher(Graph.load(gp), cache_path=gp + ".idx.json")
+        self.assertIsNotNone(getattr(s2, "_idxdb", None))
         self.assertEqual([n["id"] for n in s1.query(q)["seeds"]], [n["id"] for n in s3.query(q)["seeds"]])
 
 

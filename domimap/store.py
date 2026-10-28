@@ -372,6 +372,46 @@ class EvidenceStore:
             self.db.execute("INSERT OR REPLACE INTO meta VALUES ('seeds_sha256', ?)", (digest,))
 
     @_synchronized
+    def prune_generations(self, keep=2):
+        """只留最新的 keep 代（以及当前 active）。更旧的代文件删除。证据 blob 不动。"""
+        keep = max(1, int(keep))
+        active_row = self.db.execute("SELECT value FROM meta WHERE key='active'").fetchone()
+        active = int(active_row[0]) if active_row else None
+        rows = self.db.execute(
+            "SELECT gen_id, path FROM generations ORDER BY gen_id DESC").fetchall()
+        keep_ids = {row[0] for row in rows[:keep]}
+        if active is not None:
+            keep_ids.add(active)
+        removed = []
+        for gen_id, path in rows:
+            if gen_id in keep_ids:
+                continue
+            local = self._gen_path(path)
+            if local and os.path.isfile(local) and not os.path.islink(local):
+                os.remove(local)
+            self.db.execute("DELETE FROM generations WHERE gen_id=?", (gen_id,))
+            removed.append(gen_id)
+        self.db.commit()
+        return removed
+
+    @_synchronized
+    def prune_unreferenced_blobs(self):
+        """删掉证据表和来源表都不再引用的 blob 文件。被引用的历史片段保留。"""
+        referenced = {row[0] for row in self.db.execute("SELECT blob_sha FROM evidence")}
+        referenced.update(row[0] for row in self.db.execute("SELECT sha256 FROM sources") if row[0])
+        removed = []
+        if not os.path.isdir(self.blobs):
+            return removed
+        for name in os.listdir(self.blobs):
+            if not re.fullmatch(r"[0-9a-f]{64}", name) or name in referenced:
+                continue
+            path = os.path.join(self.blobs, name)
+            if os.path.isfile(path) and not os.path.islink(path):
+                os.remove(path)
+                removed.append(name)
+        return removed
+
+    @_synchronized
     def close(self):
         self.db.close()
 

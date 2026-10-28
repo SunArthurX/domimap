@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "graph-sqlite",
+  "kind": "slice",
+  "state": "implementing",
+  "spec": "specs/tasks/graph-sqlite.md",
+  "requirements": ["R03", "R04"],
+  "acceptance_cases": ["AC-R03-01", "AC-R04-02"],
+  "files": [
+    "domimap/graphdb.py",
+    "domimap/graph.py",
+    "domimap/batch.py",
+    "domimap/service.py",
+    "domimap/__main__.py",
+    "tests/test_graph_sqlite.py",
+    "specs/tasks/graph-sqlite.json",
+    "specs/tasks/graph-sqlite.md"
+  ],
+  "test_files": [
+    "tests/test_graph_sqlite.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_graph_sqlite tests.test_golden tests.test_app_service tests.test_atomic_publish -v"
+  ],
+  "rollback": "停止写 graph.db；无 graph.db 时 load 仍读 JSON。"
+}

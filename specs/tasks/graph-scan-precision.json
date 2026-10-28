@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "graph-scan-precision",
+  "kind": "slice",
+  "state": "implementing",
+  "spec": "specs/tasks/graph-scan-precision.md",
+  "requirements": ["R01", "R04"],
+  "acceptance_cases": ["AC-R01-01", "AC-R04-02"],
+  "files": [
+    "domimap/lite_scan.py",
+    "domimap/graph.py",
+    "domimap/batch.py",
+    "domimap/search.py",
+    "domimap/service.py",
+    "domimap/__main__.py",
+    "domimap/schema.json",
+    "scripts/graph_health.py",
+    "tests/test_scan_correctness.py",
+    "tests/test_graph_navigation.py",
+    "tests/test_precision.py",
+    "tests/test_golden.py",
+    "tests/test_schema.py",
+    "tests/test_identity.py",
+    "docs/knowledge-graph.md",
+    "README.md",
+    "README.zh-CN.md",
+    "specs/tasks/graph-scan-precision.json",
+    "specs/tasks/graph-scan-precision.md"
+  ],
+  "test_files": [
+    "tests/test_scan_correctness.py",
+    "tests/test_graph_navigation.py",
+    "tests/test_precision.py",
+    "tests/test_golden.py",
+    "tests/test_schema.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_scan_correctness tests.test_graph_navigation tests.test_precision tests.test_golden tests.test_schema tests.test_entity_identity -v"
+  ],
+  "rollback": "还原本切片并重建图。新增 Module/Job 与 DEPENDS_ON/TRIGGERS 不影响旧图读取。"
+}

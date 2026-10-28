@@ -6,8 +6,10 @@
 
 ```
 扫描（lite_scan.scan_repo，多格式）        记录（records）           图（graph.json）
-Java(GBK/UTF-8) MyBatis XML  ──►  classes/methods/tables/   ──►  12 类节点 + 11 种边
+Java(GBK/UTF-8) MyBatis XML  ──►  classes/methods/tables/   ──►  14 类节点 + 15 种边
 SQL DDL MQ 路由 Markdown HTML      topics/routes/docs/columns     （含置信度与来源）
+pom.xml 定时任务                   modules/jobs                   graph.json 与代文件硬链接；
+                                                                  graph.db 按端点查边
 PDF*/DOCX* TS/JS/Vue                                            │
                                                                  ▼
 人工知识（knowledge.py）──attach──► 检索（search.py：BM25+图扩展+文档泳道+拒答守门）
@@ -32,7 +34,9 @@ PDF*/DOCX* TS/JS/Vue                                            │
 | `Topic` | `topic:` | MQ 主题，按**消息集群**（声明的数据源家族）隔离 `topic:<cluster>:<name>`（RV02b：同集群同名连接——共享依据=相同数据源家族+同名；跨集群同名独立无共享边） | `java` | cluster/services/shared_basis |
 | `Doc` | `doc:` | 文档（md/html/pdf*/docx*；front-matter 可带时间语义） | `doc:ingest` | `valid_until`、`superseded_by` |
 | `Page` | — | 前端页面（TS/JS/Vue 扫描） | `core` | — |
-| `Domain` | — | 领域（seeds.json 种子打标） | `core` | 域聚合入口 |
+| `Module` | `mod:` | Maven 模块 `mod:<group>:<artifact>`；只连接本工作区里出现的坐标 | `pom` | — |
+| `Job` | `job:` | 定时/任务入口（`@Scheduled` 等），`job:<svc>:<Cls>.<method>` | `synth` | 经 `TRIGGERS` 指向方法 |
+| `Domain` | — | 领域（包内 seeds.json；工作区 `domimap.seeds.json` 可覆盖域名并合并同义词） | `core` | 域聚合入口 |
 | `Knowledge` | — | 人工知识笔记（运行时由 `attach_knowledge` 注入检索层） | `kb` | revision、claims |
 
 \* 需要可选依赖（`pip install pypdf python-docx`）。
@@ -52,17 +56,22 @@ PDF*/DOCX* TS/JS/Vue                                            │
 | `PUBLISHES` / `SUBSCRIBES` | mth/svc→topic | MQ 生产/消费 | **是** |
 | `RPC` | svc→svc | 服务间调用 | **是** |
 | `ROUTES_TO` | page→route | 前端路由指向后端 | 是（跨端追踪） |
+| `DEPENDS_ON` | mod→mod | Maven 模块依赖，不是运行时调用 | 否 |
+| `TRIGGERS` | job→mth | 任务入口触发方法 | **是** |
 | `MENTIONS` | doc→实体 | 文档词法提及（`AMBIGUOUS`，`doc:lexical`） | 否 |
 | `BELONGS_TO` | page/domain→… | 归属关系 | 否 |
 
-规则（[architecture.md](architecture.md) §6）：`MENTIONS`/`CONTAINS`/`BELONGS_TO` **不参与**影响传播——文档提了不等于依赖它；`kg_impact` 沿 CALLS/CALLS_SQL/MAPS_TO/PUBLISHES/SUBSCRIBES/RPC 方向做反向追溯。
+规则（[architecture.md](architecture.md) §6）：`MENTIONS`/`CONTAINS`/`BELONGS_TO`/`DEPENDS_ON` **不参与**影响传播——文档提了、模块依赖了，都不等于运行时会受影响。`kg_impact` 沿 `CAUSAL_EDGES` 反向追溯（含 `TRIGGERS`）。
+
+调用边只记方法体花括号内的调用，嵌套的 lambda / 匿名类内部先挖空。同名简单类的裸调用只在本文件内解析。类上的 Spring 前缀只取类声明之前的 `@RequestMapping`。RPC 提供方按 `implements` 对齐接口；消费方注解名可写在工作区 `rules.json` 的 `provider_annotations` / `consumer_annotations`，扫描器源码不内置某一家框架的注解名。`@TableName`、注解 SQL、`spring.application.name` 会进表和 RPC。方法体不再按声明后固定字符数截取。
 
 ## 3. 证据层（Evidence Store）
 
 - **三分离身份**（[source.py](../domimap/source.py)）：逻辑身份 `sid = repo|rel`、物理路径（可重绑）、内容版本（捕获字节 sha256）。根之外的路径（含 symlink 越界）一律拒绝。
 - **证据 ID**：`ev:<sha256[:20]>`，指向固化片段（默认 4KB，含截断标记）。
-- **不可变 generation**：每次 build 发布一个 generation，SQLite 记账 + `active` 指针切换；源文件修改/删除后，`kg_read(ev_id)` 仍返回**建图时**的旧版本——引用不因源演化而失效。
-- 多仓增量：`batch.py` 在全部仓 manifest 未变、active generation 完整、seeds 摘要一致时 no-op。
+- **不可变 generation**：每次 build 发布一个 generation，SQLite 记账 + `active` 指针切换；源文件修改/删除后，`kg_read(ev_id)` 仍返回**建图时**的旧版本——引用不因源演化而失效。`graph.json` 优先与该代文件硬链接（同一 inode）；文件系统不支持硬链接时才复制。`graph.db` 是边的索引副本，只有文件大小和 mtime 与 `graph.json` 一致时才用来查邻居。检索倒排在有图指纹时写成 `graph.json.idx.db`：词表在内存，posting 按查询读取。
+- 多仓增量：`batch.py` 在全部仓 manifest 未变、active generation 完整、seeds 摘要一致时 no-op。干净的已跟踪 Git 文件签名是 `git:<blob id>`，不读工作区字节；脏文件和未跟踪文件仍是内容 sha256。旧的纯 sha256 manifest 在下一次 update 会重建一次。`domimap gc -o DIR --keep-gens 2` 删除更老的代文件和未被证据引用的 blob。
+- 发布用的临时文件名每次唯一，同一工作区上的两个构建不会抢同一个 `.tmp`。
 
 ## 4. 时间模型（内容纪元，非文件 mtime）
 
@@ -125,5 +134,5 @@ PDF*/DOCX* TS/JS/Vue                                            │
 ## 8. 已知边界
 
 - BM25 是词法匹配：中文查询 ↔ 英文正文无法语义对齐（跨语检索是当前主要短板，见 README 基准表）。
-- 同名方法在不同类下共享一个 Method 节点（服务级命名取舍）。
+- 方法节点按「服务 + 类 + 参数类型签名」区分；同名重载不再合并。跨文件同名简单类仍按简单类名归类，调用解析限定在本文件同类。
 - 机器可读 schema 已实现：`domimap schema` 输出节点/边/置信度/prov 域/工具/拒答门的 JSON（`domimap/schema.json`），`tests/test_schema.py` 用真实构建的图反向校验与本文档零漂移。

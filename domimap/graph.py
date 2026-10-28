@@ -14,12 +14,13 @@ from .tokenize import tokenize
 CONF_ORDER = {"EXTRACTED": 3, "INFERRED": 2, "AMBIGUOUS": 1}
 # 因果边：影响面遍历只走这些；MENTIONS（词面）/BELONGS_TO（领域归属）/CONTAINS（结构）不冒充依赖
 CAUSAL_EDGES = frozenset({"CALLS", "CALLS_SQL", "READS", "WRITES", "RPC", "PUBLISHES",
-                          "SUBSCRIBES", "ROUTES_TO", "HANDLES", "MAPS_TO"})
+                          "SUBSCRIBES", "ROUTES_TO", "HANDLES", "MAPS_TO", "TRIGGERS"})
 
 class Graph:
     def __init__(self):
         self.nodes = {}          # id -> node dict
         self.edges = []          # {src,dst,kind,conf,prov}
+        self._edge_keys = set()
         self._adj = defaultdict(list)
         self._radj = defaultdict(list)
         self._built = False
@@ -37,9 +38,16 @@ class Graph:
     def add_edge(self, src, dst, kind, conf="INFERRED", prov="core"):
         if src not in self.nodes or dst not in self.nodes:
             return
+        key = (src, dst, kind)
+        if key in self._edge_keys:
+            return
+        self._edge_keys.add(key)
         self.edges.append({"src": src, "dst": dst, "kind": kind, "conf": conf, "prov": prov})
 
     def index(self):
+        if getattr(self, "_edge_store", None) is not None:
+            self._built = True  # 边留在 graph.db，按端点查询
+            return
         self._adj.clear(); self._radj.clear()
         for e in self.edges:
             self._adj[e["src"]].append(e)
@@ -47,6 +55,9 @@ class Graph:
         self._built = True
 
     def neighbors(self, nid, rev=False):
+        store = getattr(self, "_edge_store", None)
+        if store is not None:
+            return store.neighbors(nid, rev)
         if not self._built:
             self.index()
         return (self._radj if rev else self._adj).get(nid, [])
@@ -137,11 +148,13 @@ class Graph:
         # DDL 表：按声明方服务隔离（RV02）；列跟随所属表的作用域
         for t in R["tables"]:
             svc = t.get("service") or "(root)"
+            comments = t.get("col_comments") or {}
             tid = self._tbl_declare(svc, t["table"], t["file"],
-                                    {"cols": t["cols"], **self._sid(t)}, conf=t["conf"], prov=t["prov"])
+                                    {"cols": t["cols"], "comment": t.get("comment") or "",
+                                     "col_comments": comments, **self._sid(t)}, conf=t["conf"], prov=t["prov"])
             for c in t["cols"]:
                 cid = self.add_node("col:%s:%s.%s" % (svc, t["table"], c), "Column", c, t["file"],
-                                    {}, conf="EXTRACTED", prov="sql:ddl")
+                                    {"comment": comments.get(c, "")}, conf="EXTRACTED", prov="sql:ddl")
                 self.add_edge(tid, cid, "CONTAINS", "EXTRACTED", "sql:ddl")
         # 类/方法
         for c in R["classes"]:
@@ -221,8 +234,21 @@ class Graph:
             provs.setdefault(r["iface"], {"consumers": set(), "providers": []})
             provs[r["iface"]]["consumers"].add(r["service"])
         for c in R["classes"]:
-            if c["dubbo_service"] and c["name"] in provs:
-                provs[c["name"]]["providers"].append(c["service"])
+            if not c.get("dubbo_service"):
+                continue
+            # 实现类名通常不是接口名：按 implements 的接口连接提供方（类名相等仍保留）
+            names = list(c.get("ifaces") or [])
+            if c["name"] not in names:
+                names.append(c["name"])
+            for name in names:
+                if name in provs:
+                    provs[name]["providers"].append(c["service"])
+        for svc, info in R.get("services", {}).items():
+            app = info.get("app_name")
+            if not app:
+                continue
+            provs.setdefault(app, {"consumers": set(), "providers": []})
+            provs[app]["providers"].append(svc)
         for iface, info in provs.items():
             multi = len(set(info["providers"])) > 1
             for cons in info["consumers"]:
@@ -244,6 +270,28 @@ class Graph:
                     break
             if hit:
                 self.add_edge(pid, hit["id"], "ROUTES_TO", p["conf"], "synth:crossend")
+        for m in R.get("modules") or []:
+            mid = "mod:%s:%s" % (m.get("group") or "-", m["artifact"])
+            self.add_node(mid, "Module", m["artifact"], m["file"],
+                          {"group": m.get("group") or "", "deps": m.get("deps") or [], **self._sid(m)},
+                          conf="EXTRACTED", prov="pom:module")
+        arts = {}
+        for n in self.nodes.values():
+            if n["kind"] == "Module":
+                arts.setdefault(n["name"], []).append(n["id"])
+        for m in R.get("modules") or []:
+            src = "mod:%s:%s" % (m.get("group") or "-", m["artifact"])
+            for dep in m.get("deps") or []:
+                cands = [i for i in arts.get(dep, []) if i != src]
+                conf = "INFERRED" if len(cands) == 1 else "AMBIGUOUS"
+                for dst in cands:
+                    self.add_edge(src, dst, "DEPENDS_ON", conf, "pom:dependency")
+        for j in R.get("jobs") or []:
+            jid = "job:%s:%s.%s" % (j["service"], j.get("cls") or "-", j["name"])
+            self.add_node(jid, "Job", j["name"], j["file"], self._sid(j),
+                          conf=j.get("conf", "EXTRACTED"), prov=j.get("prov", "synth:scheduled"))
+            for mid in self._mth_candidates(j["service"], j.get("cls"), j["name"], j.get("argc", -1)):
+                self.add_edge(jid, mid, "TRIGGERS", j.get("conf", "EXTRACTED"), j.get("prov", "synth:scheduled"))
         # 文档 + MENTIONS（词面命中代码符号，INFERRED）
         names_idx = {}
         for n in self.nodes.values():
@@ -319,6 +367,77 @@ class Graph:
                         n["meta"]["domain_by"] = "vote"
                         self.add_edge("dom:" + d, n["id"], "BELONGS_TO", "INFERRED", "vote")
 
+    def service_map(self):
+        """服务全景：服务节点，以及 RPC / Maven 依赖 / 主题发布订阅。"""
+        services = sorted((n["name"] for n in self.nodes.values() if n["kind"] == "Service"))
+        rels = [{"src": e["src"], "dst": e["dst"], "kind": e["kind"], "conf": e["conf"]}
+                for e in self.edges if e["kind"] in {"RPC", "DEPENDS_ON", "PUBLISHES", "SUBSCRIBES"}]
+        return {"services": services, "relations": rels}
+
+    def service_card(self, name):
+        """一个服务的入口、出口、表、任务和文档。不调用模型。"""
+        svc = None
+        for n in self.nodes.values():
+            if n["kind"] == "Service" and (n["name"] == name or n["id"] == "svc:" + name):
+                svc = n
+                break
+        if svc is None:
+            return None
+        prefix = svc["name"]
+        card = {"service": prefix, "file": svc["file"], "routes": [], "tables": [],
+                "jobs": [], "docs": [], "rpc_out": [], "rpc_in": [], "topics": []}
+        for n in self.nodes.values():
+            if n["kind"] == "Route" and n["id"].startswith("route:%s:" % prefix):
+                card["routes"].append(n["name"])
+            elif n["kind"] == "Table" and n["id"].startswith("tbl:%s:" % prefix):
+                card["tables"].append(n["name"])
+            elif n["kind"] == "SqlStmt" and n["id"].startswith("sql:%s:" % prefix):
+                for e in self.neighbors(n["id"]):
+                    if e["kind"] in {"READS", "WRITES"}:
+                        table = self.nodes.get(e["dst"])
+                        if table and table["kind"] == "Table":
+                            card["tables"].append(table["name"])
+            elif n["kind"] == "Job" and n["id"].startswith("job:%s:" % prefix):
+                card["jobs"].append(n["name"])
+            elif n["kind"] == "Doc" and n["id"].startswith("doc:%s:" % prefix):
+                card["docs"].append(n["file"])
+            elif n["kind"] == "Topic":
+                pass
+        for e in self.edges:
+            if e["kind"] == "RPC" and e["src"] == svc["id"]:
+                card["rpc_out"].append(e["dst"])
+            elif e["kind"] == "RPC" and e["dst"] == svc["id"]:
+                card["rpc_in"].append(e["src"])
+            elif e["kind"] == "PUBLISHES" and str(e["src"]).startswith("mth:%s:" % prefix):
+                card["topics"].append(self.nodes.get(e["dst"], {}).get("name") or e["dst"])
+            elif e["kind"] == "SUBSCRIBES" and (
+                    e["dst"] == svc["id"] or str(e["dst"]).startswith("mth:%s:" % prefix)):
+                card["topics"].append(self.nodes.get(e["src"], {}).get("name") or e["src"])
+        for key in card:
+            if isinstance(card[key], list):
+                card[key] = sorted(set(card[key]))
+        return card
+
+    def trace(self, name, depth=4, max_nodes=50):
+        """从符号出发沿因果边正向走（路由/方法 → 调用 → SQL → 表）。"""
+        start = [n["id"] for n in self.nodes.values() if name.lower() in n["id"].lower() or name.lower() == n["name"].lower()]
+        if not start:
+            return []
+        seen, frontier, out = set(start), set(start), []
+        for _ in range(depth):
+            nxt = set()
+            for nid in frontier:
+                for e in self.neighbors(nid):
+                    if e["kind"] not in CAUSAL_EDGES or e["dst"] in seen:
+                        continue
+                    seen.add(e["dst"])
+                    nxt.add(e["dst"])
+                    out.append({"src": e["src"], "kind": e["kind"], "dst": e["dst"], "conf": e["conf"]})
+                    if len(out) >= max_nodes:
+                        return out
+            frontier = nxt
+        return out
+
     def domain_map(self):
         agg = defaultdict(lambda: {"services": [], "tables": [], "topics": [], "docs": 0, "shared": []})
         for n in self.nodes.values():
@@ -385,12 +504,28 @@ class Graph:
         os.replace(tmp, path)
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path, lazy_edges=False):
+        db_path = os.path.join(os.path.dirname(os.path.abspath(path)), "graph.db")
+        if lazy_edges and os.path.exists(db_path) and os.path.exists(path):
+            from .graphdb import EdgeSeq, EdgeStore
+            store = EdgeStore(db_path)
+            if store.matches_file(path):
+                g = cls()
+                g._edge_store = store
+                g.nodes = store.load_nodes()
+                g.edges = EdgeSeq(store)
+                g._edge_keys = set()
+                st = os.stat(path)
+                g.sig = {"mtime": st.st_mtime, "size": st.st_size}
+                g.index()
+                return g
+            store.close()
         g = cls()
         with open(path, encoding="utf-8") as f:
             d = json.load(f)
         g.nodes = {n["id"]: n for n in d["nodes"]}
         g.edges = d["edges"]
+        g._edge_keys = {(e["src"], e["dst"], e["kind"]) for e in g.edges}
         st = os.stat(path)
         g.sig = {"mtime": st.st_mtime, "size": st.st_size}
         g.index()
@@ -399,6 +534,37 @@ class Graph:
 def load_seeds(path):
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+def merge_seeds(base, extra):
+    """工作区种子覆盖同名域；_synonyms 按键合并，不整表丢掉包内词桥。"""
+    out = dict(base)
+    for key, val in (extra or {}).items():
+        if key.startswith("_") and isinstance(val, dict) and isinstance(out.get(key), dict):
+            merged = dict(out[key])
+            for sub, incoming in val.items():
+                if sub not in merged:
+                    merged[sub] = incoming
+                    continue
+                prev = merged[sub]
+                prev_l = prev if isinstance(prev, list) else [prev]
+                inc_l = incoming if isinstance(incoming, list) else [incoming]
+                merged[sub] = list(dict.fromkeys(list(prev_l) + list(inc_l)))
+            out[key] = merged
+        else:
+            out[key] = val
+    return out
+
+
+def load_workspace_seeds(out_dir=None):
+    """包内 seeds.json，再叠加 <workspace>/domimap.seeds.json（用户领域，不改安装包）。"""
+    base = load_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds.json"))
+    if not out_dir:
+        return base
+    extra = os.path.join(out_dir, "domimap.seeds.json")
+    if not os.path.exists(extra):
+        return base
+    return merge_seeds(base, load_seeds(extra))
 
 def build(repo_root, out_dir, seeds_path=None):
     """单仓构建：与批量路径共用同一证据契约（扫描即固化 → 不可变代 → graph.json → manifest）。

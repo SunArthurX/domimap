@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -66,6 +67,47 @@ class TestAtomicPublish(unittest.TestCase):
         self.assertIsNone(g0)
         self.assertEqual([st_ for _, st_ in r0], ["no-op"])
 
+    def test_clean_git_blob_id_changes_when_worktree_changes(self):
+        repo = os.path.join(self.tmp, "gitrepo")
+        os.makedirs(os.path.join(repo, "src"))
+        java = os.path.join(repo, "src", "A.java")
+        with open(os.path.join(repo, "pom.xml"), "w", encoding="utf-8") as f:
+            f.write("<project><artifactId>gitrepo</artifactId></project>\n")
+        with open(java, "w", encoding="utf-8") as f:
+            f.write("public class A { public void a() {} }\n")
+        subprocess.check_call(["git", "-C", repo, "init", "-q"])
+        subprocess.check_call(["git", "-C", repo, "add", "."])
+        subprocess.check_call(["git", "-C", repo, "-c", "user.email=t@example.com",
+                               "-c", "user.name=t", "commit", "-q", "-m", "init"])
+        sig = batch.repo_signature(repo)
+        oid = subprocess.check_output(
+            ["git", "-C", repo, "ls-files", "-s", "src/A.java"], text=True).split()[1]
+        self.assertEqual(sig["src/A.java"], "git:" + oid)
+        with open(java, "a", encoding="utf-8") as f:
+            f.write("// edited\n")
+        changed = batch.repo_signature(repo)
+        self.assertNotEqual(changed["src/A.java"], sig["src/A.java"])
+        self.assertFalse(changed["src/A.java"].startswith("git:"))
+        # 回到已提交内容：manifest 用的也是 git blob id，无改动时 update 是 no-op
+        with open(java, "w", encoding="utf-8") as f:
+            f.write("public class A { public void a() {} }\n")
+        out = os.path.join(self.tmp, "git-out")
+        graph_build(repo, out)
+        again, _, results = batch.update(out)
+        self.assertIsNone(again)
+        self.assertEqual([st for _, st in results], ["no-op"])
+
+    def test_graph_json_shares_inode_with_generation(self):
+        graph_build(self.repo, self.out)
+        store = EvidenceStore(os.path.join(self.out, "store.db"))
+        try:
+            gen = store.active_generation()["path"]
+        finally:
+            store.close()
+        gp = os.path.join(self.out, "graph.json")
+        self.assertEqual(os.stat(gen).st_ino, os.stat(gp).st_ino)
+        self.assertGreaterEqual(os.stat(gen).st_nlink, 2)
+
     def test_graph_json_only_loss_triggers_republish(self):
         g1, _ = graph_build(self.repo, self.out)
         gp = os.path.join(self.out, "graph.json")
@@ -94,22 +136,20 @@ class TestAtomicPublish(unittest.TestCase):
         before = _sha(gp)
         with open(os.path.join(self.repo, "docs", "上线checklist.md"), "a", encoding="utf-8") as f:
             f.write("\n- 新增项\n")
-        original = batch._atomic_write
+        original = batch._publish_compat_copy
 
-        def boom(path, data):
-            if path.endswith("graph.json"):
-                tmp = path + ".tmp"
-                with open(tmp, "wb") as f:
-                    f.write(data[: len(data) // 2])  # 模拟写到一半崩溃：tmp 残留、目标未切换
-                raise OSError("injected crash during compat publish")
-            return original(path, data)
+        def boom(gen_path, json_path):
+            tmp = json_path + ".link"
+            with open(tmp, "wb") as f:
+                f.write(b"partial")  # 模拟写到一半崩溃：临时名残留、目标未切换
+            raise OSError("injected crash during compat publish")
 
-        batch._atomic_write = boom
+        batch._publish_compat_copy = boom
         try:
             with self.assertRaises(OSError):
                 batch.update(self.out)
         finally:
-            batch._atomic_write = original
+            batch._publish_compat_copy = original
         self.assertEqual(_sha(gp), before, "中断时 graph.json 必须仍是上一完整代，不得被截断")
         loaded = Graph.load(gp)
         self.assertEqual(set(loaded.nodes), set(g1.nodes))

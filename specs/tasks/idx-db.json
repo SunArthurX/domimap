@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "idx-db",
+  "kind": "slice",
+  "state": "implementing",
+  "spec": "specs/tasks/idx-db.md",
+  "requirements": ["R04"],
+  "acceptance_cases": ["AC-R04-01"],
+  "files": [
+    "domimap/idxdb.py",
+    "domimap/search.py",
+    "tests/test_p1.py",
+    "specs/tasks/idx-db.json",
+    "specs/tasks/idx-db.md"
+  ],
+  "test_files": [
+    "tests/test_p1.py"
+  ],
+  "verification": [
+    "python3 -B -m unittest tests.test_p1 tests.test_golden tests.test_negative_refusal tests.test_bm25_scoring -q"
+  ],
+  "rollback": "恢复写 idx.json；Searcher 不再打开 idx.db。"
+}

@@ -74,18 +74,16 @@ class TestGenerationConsistency(unittest.TestCase):
     def test_interrupted_before_compat_copy_serves_old_generation_consistently(self):
         """反例 B：切代后、graph.json 落盘前中断——按图所属代解析，旧版一致服务；下次 update 重建。"""
         self._bump_to_v2()
-        original = batch._atomic_write
+        original = batch._publish_compat_copy
 
-        def boom(path, data):
-            if path.endswith("graph.json"):
-                raise OSError("injected: before compat copy")
-            return original(path, data)
+        def boom(gen_path, json_path):
+            raise OSError("injected: before compat copy")
 
-        batch._atomic_write = boom
+        batch._publish_compat_copy = boom
         try:
             self.assertRaises(OSError, batch.update, self.ws)
         finally:
-            batch._atomic_write = original
+            batch._publish_compat_copy = original
         graph_text, evidence_text, _ = _policy_state(self.ws)
         self.assertEqual((graph_text, evidence_text), (V1, V1),
                          "兼容副本未落盘时必须一致地服务旧代，不得混用新代证据")

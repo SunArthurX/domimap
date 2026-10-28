@@ -25,6 +25,8 @@ domimap is a local-first knowledge retrieval engine that builds a queryable doma
 | **Workspace lifecycle** | Source identity survives moves (`rebind`); whole-workspace export/restore with per-file checksums |
 | **Client connect** | One-command native setup for Claude Code / Codex / ZCode / DSH (`domimap connect`), idempotent with backups |
 | **MCP integration** | Native MCP stdio server (7 read-only `kg_*` tools; 2 write tools behind `--enable-write`) |
+| **Service navigation** | `map` (RPC, Maven modules, topics), `card` (routes, tables, jobs, docs), `trace` along causal edges |
+| **Graph indexes** | `graph.json` hardlinked to the immutable generation; `graph.db` neighbors; `graph.json.idx.db` postings read on demand |
 | **Zero core dependencies** | Pure Python stdlib; optional deps only enhance |
 
 ## Quick Start
@@ -55,6 +57,7 @@ pip install pypdf python-docx
 python3 -m domimap build ~/work/my-workspace --discover -o out/idx  # merged graph + evidence store
 python3 -m domimap build ~/repo-a -o out/idx --merge                # single repo
 python3 -m domimap update -o out/idx                                # incremental
+python3 -m domimap gc -o out/idx --keep-gens 2                 # drop old generations and unreferenced blobs
 
 # Search (Chinese & English)
 python3 -m domimap query "订单改价 changePrice" -g out/idx/graph.json
@@ -66,14 +69,12 @@ python3 -m domimap query "灰度发布" --as-of 2026-01-01 -g out/idx/graph.json
 python3 -m domimap domain -g out/idx/graph.json
 python3 -m domimap impact "OrderService" -g out/idx/graph.json      # causal edges only, partial-flagged, --max-nodes
 python3 -m domimap scenario req "订单改价 需要防并发" -g out/idx/graph.json
+python3 -m domimap map -g out/idx/graph.json                   # services, Maven deps, topics
+python3 -m domimap card order-service -g out/idx/graph.json    # routes, tables, jobs, RPC, docs
+python3 -m domimap trace OrderService -g out/idx/graph.json    # forward causal trace
 
 # Read evidence by ID (immutable — survives source changes)
 python3 -m domimap read <evidence_id> --store out/idx/store.db
-
-# Domain map / impact / scenario cards
-python3 -m domimap domain -g out/idx/graph.json
-python3 -m domimap impact "OrderService" -g out/idx/graph.json
-python3 -m domimap scenario req "订单改价 需要防并发" -g out/idx/graph.json
 
 # Machine-readable graph schema (feed it to your AI client)
 python3 -m domimap schema
@@ -190,7 +191,7 @@ flowchart TB
     subgraph BUILD["Build — deterministic, no LLM"]
         SCAN["Scanners (lite_scan)<br/>GBK/GB18030 auto-detect"]
         CHUNK["Doc chunking<br/>long docs → overlapping segments"]
-        GRAPH["Knowledge Graph<br/>12 node kinds · 13 edge kinds<br/>conf: EXTRACTED / INFERRED / AMBIGUOUS"]
+        GRAPH["Knowledge Graph<br/>14 node kinds · 15 edge kinds<br/>graph.json hardlink · graph.db neighbors"]
         STORE["Evidence Store (SQLite)<br/>ev_id · content-addressed<br/>immutable generations"]
         SCAN --> CHUNK --> GRAPH
         SCAN --> STORE
@@ -205,7 +206,7 @@ flowchart TB
     KBX["Knowledge Base (SQLite)<br/>human notes · claims · review workflow"]
     ENR["`domimap enrich` (optional post-build)<br/>LLM draft notes · conf=LLM<br/>human review before facts"]
     CLI["CLI"]
-    MCP["MCP stdio server<br/>6 kg_* tools"]
+    MCP["MCP stdio server<br/>9 kg_* tools"]
     UI["Web UI (loopback)"]
     REPOS --> SCAN
     DOCS --> SCAN
@@ -351,8 +352,10 @@ domimap/
 
 - **Evaluation status**: 38/49 verified（2026-10-28：AC-R12-02 以当前源码消融重验、AC-F1-C1-01/02 以当前源码真实 Claude 会话重验；AC-R10-02 维持 implementing 待 24h 负载）; remaining 11 are external — 3 clients blocked (Codex account model lockout, ZCode awaiting a user session, DSH binary/balance), the 24h mixed-load + real-migration drill, and the frozen four-competitor confirmation. All benchmark numbers remain same-session developer evaluations; `make release-check` fails by design until the confirmation run
 - **Cross-lingual gap (mostly closed)**: pure-BM25 could not match Chinese queries to English content; the optional embedding lane + doc chunking lifted public-corpus retrieval from 50→70/140 — answer-layer reruns still pending
-- **Same-name methods**: methods with identical names in different classes share a node (service-level naming)
-- **Source updates**: incremental updates are manual (`domimap update`; no file watcher yet)
+- **Same-name methods**: distinguished by class and parameter-type signature. A call edge is taken from the enclosing method body. Bare calls on a simple class name resolve only inside that file
+- **Workspace overlays**: `rules.json` in the output directory can name extra provider/consumer annotations. `domimap.seeds.json` there overrides domain names and merges synonym lists. Neither file is required
+- **Scale**: a synthetic 200 one-class-repo gate is in `scripts/scale_gate.py`. It does not measure a real multi-module Java system. `make release-check` still fails until the frozen four-competitor confirmation exists
+- **Source updates**: incremental updates are manual (`domimap update`; no file watcher yet). Clean tracked Git files are signed `git:<blob id>`; dirty and untracked files stay content sha256. An older sha256-only manifest rebuilds once on the next update
 - **Platform**: fully tested on macOS + Linux CI; Windows untested
 
 ## License
